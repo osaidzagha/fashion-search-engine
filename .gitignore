@@ -1,0 +1,10 @@
+# Backend ignores
+clothing-backend/node_modules/
+clothing-backend/dist/
+clothing-backend/.env
+
+# Frontend ignores
+clothing-frontend/node_modules/
+clothing-frontend/dist/
+clothing-frontend/build/
+clothing-frontend/.env
