@@ -7,8 +7,15 @@ export const getProducts = async (req: Request, res: Response) => {
     const requestedLimit = Number(req.query.limit) || 20;
     const limit = Math.min(requestedLimit, 50);
     const skip = (page - 1) * limit;
-    let filter: any = {};
 
+    let filter: any = {};
+    let sortOption: any = {};
+
+    if (req.query.sort === "lowest") {
+      sortOption.price = 1; // Ascending price
+    } else if (req.query.sort === "highest") {
+      sortOption.price = -1; // Descending price
+    }
     if (req.query.search) {
       filter.name = { $regex: req.query.search, $options: "i" }; // Case-insensitive search on name
     }
@@ -16,7 +23,13 @@ export const getProducts = async (req: Request, res: Response) => {
       const max = Number(req.query.maxPrice);
       filter.price = { $lte: max };
     }
+    if (req.query.brand) {
+      const brandArray = (req.query.brand as string).split(",");
+      filter.brand = { $in: brandArray };
+    }
+
     const allProducts = await ProductModel.find(filter)
+      .sort(sortOption)
       .skip(skip)
       .limit(limit)
       .exec();
