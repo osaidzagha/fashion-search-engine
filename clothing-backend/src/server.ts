@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { ProductModel } from "./models/Product";
 import productRoutes from "./routes/productRoutes";
+import { runAllScrapers } from "./index";
+import cron from "node-cron";
 dotenv.config();
 
 const app = express();
@@ -15,6 +17,11 @@ app.use(express.json());
 // Use the product routes for any requests to /api/products
 app.use("/api/products", productRoutes);
 
+// Test schedule: Run every 1 minute
+cron.schedule("* 3 * * *", async () => {
+  console.log("⏰ Cron triggered! Waking up the Foreman...");
+  await runAllScrapers();
+});
 mongoose
   .connect(process.env.MONGO_URI as string)
   .then(() => {

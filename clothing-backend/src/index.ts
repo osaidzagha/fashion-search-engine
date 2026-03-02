@@ -8,21 +8,11 @@ import {
   scrapeProductData,
 } from "./scrapers/zara";
 
-dotenv.config();
-const MONGO_URI = process.env.MONGO_URI as string;
-async function main() {
+export const runAllScrapers = async () => {
+  console.log("Foreman: Starting all scraping jobs...");
+  dotenv.config();
+  const MONGO_URI = process.env.MONGO_URI as string;
   console.log("🧪 STARTING FACTORY PIPELINE...");
-
-  // 🔌 1. Connect to MongoDB First
-  console.log("🔌 Connecting to MongoDB...");
-  try {
-    await mongoose.connect(MONGO_URI);
-    console.log("✅ Database Connected!");
-  } catch (error) {
-    console.log("❌ Failed to connect to MongoDB.");
-    console.error(error);
-    return; // Stop the script if the database isn't running
-  }
 
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
@@ -98,7 +88,5 @@ async function main() {
   // 🔌 3. Disconnect Cleanly
   console.log("💤 Closing Connections...");
   await browser.close();
-  await mongoose.disconnect();
-}
-
-main();
+  console.log("Foreman: All scraping finished!");
+};
