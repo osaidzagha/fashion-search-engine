@@ -40,3 +40,24 @@ export const getProducts = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error fetching products" });
   }
 };
+
+export const getProductById = async (req: Request, res: Response) => {
+  try {
+    // 1. Grab the ID from the URL path
+    const productId = req.params.id;
+
+    // 2. Ask MongoDB to find one specific item by its _id
+    const product = await ProductModel.findById(productId);
+
+    // 3. The 404 Check (Defensive Programming)
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // 4. Success! Send the single object back
+    return res.status(200).json(product);
+  } catch (error) {
+    console.error("Error fetching single product:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
