@@ -18,7 +18,7 @@ app.use(express.json());
 app.use("/api/products", productRoutes);
 
 // Test schedule: Run every 1 minute
-cron.schedule("* 3 * * *", async () => {
+cron.schedule("0 3 * * *", async () => {
   console.log("⏰ Cron triggered! Waking up the Foreman...");
   await runAllScrapers();
 });

@@ -24,7 +24,9 @@ export const getProducts = async (req: Request, res: Response) => {
       filter.price = { $lte: max };
     }
     if (req.query.brand) {
-      const brandArray = (req.query.brand as string).split(",");
+      const brandArray = (req.query.brand as string)
+        .split(",")
+        .map((brand) => brand.trim());
       filter.brand = { $in: brandArray };
     }
 

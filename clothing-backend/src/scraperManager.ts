@@ -1,5 +1,4 @@
 import puppeteer from "puppeteer";
-import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { ProductModel } from "./models/Product";
 import {
@@ -11,7 +10,6 @@ import {
 export const runAllScrapers = async () => {
   console.log("Foreman: Starting all scraping jobs...");
   dotenv.config();
-  const MONGO_URI = process.env.MONGO_URI as string;
   console.log("🧪 STARTING FACTORY PIPELINE...");
 
   const browser = await puppeteer.launch({ headless: false });
