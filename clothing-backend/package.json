@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "ts-node src/index.ts"
+    "start": "ts-node src/server.ts",
+    "scrape": "ts-node src/scraperManager.ts"
   },
   "keywords": [],
   "author": "",
