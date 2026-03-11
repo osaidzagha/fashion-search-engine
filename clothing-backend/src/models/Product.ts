@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 // 1. We tell TypeScript what our data looks like
 export interface IProduct extends Document {
+  id: string;
   name: string;
   price: number;
   currency: string;
@@ -13,12 +14,13 @@ export interface IProduct extends Document {
 
 // 2. We build the strict rules for the database
 const ProductSchema: Schema = new Schema({
+  id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   price: { type: Number, required: true },
   currency: { type: String, required: true, default: "TRY" },
   brand: { type: String, required: true },
   imageUrl: { type: String, required: true },
-  link: { type: String, required: true, unique: true }, // Prevents saving the same item twice!
+  link: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
 });
 

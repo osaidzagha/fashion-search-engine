@@ -1,5 +1,6 @@
 import puppeteer from "puppeteer";
 import * as dotenv from "dotenv";
+import mongoose from "mongoose";
 import { ProductModel } from "./models/Product";
 import {
   getZaraCategories,
@@ -10,6 +11,17 @@ import {
 export const runAllScrapers = async () => {
   console.log("Foreman: Starting all scraping jobs...");
   dotenv.config();
+
+  // 1. CONNECT TO THE DATABASE
+  try {
+    console.log("🔌 Connecting to MongoDB...");
+    await mongoose.connect(process.env.MONGO_URI as string);
+    console.log("✅ Connected to MongoDB successfully!");
+  } catch (error) {
+    console.error("❌ MongoDB Connection Failed:", error);
+    return;
+  }
+
   console.log("🧪 STARTING FACTORY PIPELINE...");
 
   const browser = await puppeteer.launch({ headless: false });
@@ -19,7 +31,7 @@ export const runAllScrapers = async () => {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36",
   );
 
-  let totalSaved = 0; // Keep a tally of successful saves
+  let totalSaved = 0;
   const departmentsToScrape = ["MAN", "WOMAN"];
 
   for (const currentDept of departmentsToScrape) {
@@ -54,11 +66,10 @@ export const runAllScrapers = async () => {
         if (product) {
           // 💾 2. THE UPSERT OPERATION
           try {
-            await ProductModel.findOneAndUpdate(
-              { link: product.link }, // Search by unique URL
-              product, // The extracted data to save
-              { upsert: true, returnDocument: "after" }, // Update if exists, Insert if new
-            );
+            await ProductModel.findOneAndUpdate({ id: product.id }, product, {
+              upsert: true,
+              returnDocument: "after",
+            });
             console.log(`   --> 💾 Saved to MongoDB: ${product.name}`);
             totalSaved++;
           } catch (dbError) {
@@ -86,5 +97,9 @@ export const runAllScrapers = async () => {
   // 🔌 3. Disconnect Cleanly
   console.log("💤 Closing Connections...");
   await browser.close();
+  await mongoose.disconnect();
   console.log("Foreman: All scraping finished!");
 };
+
+// Start the engine!
+runAllScrapers();

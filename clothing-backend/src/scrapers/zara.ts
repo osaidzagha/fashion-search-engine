@@ -35,13 +35,23 @@ export async function scrapeProductData(
   url: string,
 ): Promise<Product | null> {
   try {
+    // 1. Regex Extraction & Safety Check
+    const match = url.match(/-p(\d+)\.html/);
+    if (!match) {
+      console.log(`  --> ⚠️ No ID found in URL, skipping: ${url}`);
+      return null;
+    }
+    const productId = match[1];
+
+    // 2. Load the page safely
     await page.goto(url, { waitUntil: "domcontentloaded" });
     try {
       await page.waitForSelector("h1", { timeout: 5000 });
     } catch {
-      return null;
+      return null; // Page didn't load right, skip it
     }
 
+    // 3. Extract the DOM elements
     const rawName = await page.$eval(
       "h1",
       (el) => el.textContent?.trim() || "Unknown",
@@ -58,7 +68,9 @@ export async function scrapeProductData(
     let cleanString = rawPrice.replace("TL", "").trim().replace(/,/g, "");
     const finalPrice = parseFloat(cleanString);
 
+    // 4. Return the beautifully formatted object
     return {
+      id: productId,
       name: rawName,
       price: finalPrice,
       currency: "TRY",
@@ -71,7 +83,6 @@ export async function scrapeProductData(
     return null;
   }
 }
-
 export async function getProductLinksFromCategory(
   page: Page,
   url: string,
