@@ -8,7 +8,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   return (
     <div className="group border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 bg-white">
       {/* IMAGE SECTION */}
-      <div className="relative h-100 w-full bg-gray-100 overflow-hidden">
+      <div className="relative aspect-[3/4] w-full bg-gray-100 overflow-hidden">
         <img
           src={product.imageUrl}
           alt={product.name}

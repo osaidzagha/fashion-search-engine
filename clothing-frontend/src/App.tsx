@@ -1,27 +1,37 @@
-import "./App.css";
-import { useState, useEffect } from "react";
-import { Product } from "./types";
+// src/App.tsx
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "./store/store";
+import { setLoading, setProducts } from "./store/productSlice";
 import { ProductGrid } from "./components/ProductGrid";
+import { fetchProductsFromAPI } from "./services/api";
+import { SearchBar } from "./components/SearchBar";
+import { filterProductsByName } from "./utils/filters";
+import { Spinner } from "./components/Spinner";
 function App() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const dispatch = useDispatch();
+  const products = useSelector((state: RootState) => state.products.items);
+  const isLoading = useSelector((state: RootState) => state.products.isLoading);
+  const searchTerm = useSelector(
+    (state: RootState) => state.products.searchTerm,
+  );
 
   useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const response = await fetch("http://localhost:5000/api/products");
-        const data = await response.json();
-        console.log("Fetched products:", data);
-        setProducts(data);
-      } catch (error) {
-        console.error("Error fetching products:", error);
-      }
+    async function loadData() {
+      dispatch(setLoading(true));
+      const data = await fetchProductsFromAPI();
+      dispatch(setProducts(data));
+      dispatch(setLoading(false));
     }
-    fetchProducts();
-  }, []);
+    loadData();
+  }, [dispatch]);
+
+  const filteredProducts = filterProductsByName(products, searchTerm);
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Fashion Engine Ready</h1>
-      <ProductGrid products={products} />
+      <SearchBar />
+      {isLoading ? <Spinner /> : <ProductGrid products={filteredProducts} />}
     </div>
   );
 }
