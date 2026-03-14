@@ -12,16 +12,6 @@ export const runAllScrapers = async () => {
   console.log("Foreman: Starting all scraping jobs...");
   dotenv.config();
 
-  // 1. CONNECT TO THE DATABASE
-  try {
-    console.log("🔌 Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGO_URI as string);
-    console.log("✅ Connected to MongoDB successfully!");
-  } catch (error) {
-    console.error("❌ MongoDB Connection Failed:", error);
-    return;
-  }
-
   console.log("🧪 STARTING FACTORY PIPELINE...");
 
   const browser = await puppeteer.launch({ headless: false });
@@ -93,13 +83,4 @@ export const runAllScrapers = async () => {
   console.log(
     `\n🎉 PIPELINE COMPLETE! Total items saved/updated in database: ${totalSaved}`,
   );
-
-  // 🔌 3. Disconnect Cleanly
-  console.log("💤 Closing Connections...");
-  await browser.close();
-  await mongoose.disconnect();
-  console.log("Foreman: All scraping finished!");
 };
-
-// Start the engine!
-runAllScrapers();

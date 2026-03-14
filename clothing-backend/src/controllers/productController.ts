@@ -30,12 +30,17 @@ export const getProducts = async (req: Request, res: Response) => {
       filter.brand = { $in: brandArray };
     }
 
-    const allProducts = await ProductModel.find(filter)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit)
-      .exec();
-    return res.status(200).json(allProducts);
+    const [allProducts, total] = await Promise.all([
+      ProductModel.find(filter).sort(sortOption).skip(skip).limit(limit),
+      ProductModel.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      products: allProducts,
+      totalCount: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+    });
   } catch (error) {
     console.error("Error fetching products:", error);
     // If something breaks, we send a 500 (Internal Server Error) back to the frontend
@@ -48,8 +53,8 @@ export const getProductById = async (req: Request, res: Response) => {
     // 1. Grab the ID from the URL path
     const productId = req.params.id;
 
-    // 2. Ask MongoDB to find one specific item by its _id
-    const product = await ProductModel.findById(productId);
+    // 2. Ask MongoDB to find one specific item by its id
+    const product = await ProductModel.findOne({ id: productId });
 
     // 3. The 404 Check (Defensive Programming)
     if (!product) {
