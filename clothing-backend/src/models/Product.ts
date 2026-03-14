@@ -10,6 +10,11 @@ export interface IProduct extends Document {
   imageUrl: string;
   link: string;
   timestamp: Date;
+  description?: string;
+  color?: string;
+  composition?: string;
+  category?: string;
+  sizes?: string[];
 }
 
 // 2. We build the strict rules for the database
@@ -22,6 +27,11 @@ const ProductSchema: Schema = new Schema({
   imageUrl: { type: String, required: true },
   link: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
+  description: { type: String, default: "" },
+  color: { type: String, default: "" },
+  composition: { type: String, default: "" },
+  category: { type: String, default: "" },
+  sizes: { type: [String], default: [] },
 });
 
 // 3. We compile the Schema into a Model

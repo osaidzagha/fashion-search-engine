@@ -9,8 +9,18 @@ import {
 } from "./scrapers/zara";
 
 export const runAllScrapers = async () => {
-  console.log("Foreman: Starting all scraping jobs...");
+  // Connect to MongoDB
   dotenv.config();
+
+  try {
+    console.log("🔌 Connecting to MongoDB...");
+    await mongoose.connect(process.env.MONGO_URI as string);
+    console.log("✅ Connected to MongoDB!");
+  } catch (error) {
+    console.error("❌ MongoDB Connection Failed:", error);
+    return;
+  }
+  console.log("Foreman: Starting all scraping jobs...");
 
   console.log("🧪 STARTING FACTORY PIPELINE...");
 
@@ -51,8 +61,14 @@ export const runAllScrapers = async () => {
 
       for (const productLink of testProductLinks) {
         console.log(`   --> Scraping product: ${productLink}`);
-        const product = await scrapeProductData(page, productLink);
+        const category = categoryUrl
+          .split("/en/")[1] // "man-jackets-l737.html"
+          .split("-l")[0] // "man-jackets"
+          .split("-")
+          .slice(1)
+          .join("-"); // "jackets"
 
+        const product = await scrapeProductData(page, productLink, category);
         if (product) {
           // 💾 2. THE UPSERT OPERATION
           try {
@@ -83,4 +99,8 @@ export const runAllScrapers = async () => {
   console.log(
     `\n🎉 PIPELINE COMPLETE! Total items saved/updated in database: ${totalSaved}`,
   );
+  await browser.close();
+  await mongoose.disconnect();
+  console.log("💤 Done!");
 };
+runAllScrapers();

@@ -33,6 +33,7 @@ async function handleGeoModal(page: Page) {
 export async function scrapeProductData(
   page: Page,
   url: string,
+  category: string = "",
 ): Promise<Product | null> {
   try {
     // 1. Regex Extraction & Safety Check
@@ -52,6 +53,18 @@ export async function scrapeProductData(
     }
 
     // 3. Extract the DOM elements
+    const rawDescription = await page.$eval(
+      ".product-detail-description p",
+      (el) => el.textContent?.trim() || "",
+    );
+    const rawColor = await page.$eval(
+      ".product-color-extended-name",
+      (el) => el.textContent?.trim() || "",
+    );
+    const rawComposition = await page.$eval(
+      ".product-detail-composition",
+      (el) => el.textContent?.trim() || "",
+    );
     const rawName = await page.$eval(
       "h1",
       (el) => el.textContent?.trim() || "Unknown",
@@ -64,10 +77,15 @@ export async function scrapeProductData(
       ".media-image__image",
       (el) => el.getAttribute("src") || "",
     );
+    let cleanColor = rawColor.split("|")[0].trim();
 
     let cleanString = rawPrice.replace("TL", "").trim().replace(/,/g, "");
     const finalPrice = parseFloat(cleanString);
-
+    const cleanComposition = rawComposition.replace("Composition: ", "").trim();
+    const sizes = await page.$$eval(
+      ".size-selector-sizes-size__label",
+      (elements) => elements.map((el) => el.textContent?.trim() || ""),
+    );
     // 4. Return the beautifully formatted object
     return {
       id: productId,
@@ -78,6 +96,11 @@ export async function scrapeProductData(
       imageUrl: rawImage,
       link: url,
       timestamp: new Date(),
+      color: cleanColor,
+      description: rawDescription,
+      composition: cleanComposition,
+      sizes: sizes,
+      category: category,
     };
   } catch (error) {
     return null;

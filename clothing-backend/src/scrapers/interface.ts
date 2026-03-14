@@ -7,6 +7,11 @@ export interface Product {
   imageUrl: string;
   link: string;
   timestamp: Date;
+  description?: string;
+  color?: string;
+  composition?: string;
+  category?: string;
+  sizes?: string[];
 }
 
 import { Page } from "puppeteer";
