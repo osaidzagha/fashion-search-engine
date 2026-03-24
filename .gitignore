@@ -8,3 +8,5 @@ clothing-frontend/node_modules/
 clothing-frontend/dist/
 clothing-frontend/build/
 clothing-frontend/.env
+
+node_modules/
