@@ -1,5 +1,19 @@
 import { Page } from "puppeteer";
-import { Product } from "./interface";
+import { Product } from "../interface";
+
+function parseUniversalPrice(rawPrice: string): number {
+  const cleanStr = rawPrice.replace(/[^\d.,]/g, "");
+  if (!cleanStr) return 0;
+  const lastComma = cleanStr.lastIndexOf(",");
+  const lastDot = cleanStr.lastIndexOf(".");
+  if (lastComma > lastDot) {
+    const noDots = cleanStr.replace(/\./g, "");
+    return parseFloat(noDots.replace(",", ".")) || 0;
+  } else {
+    const noCommas = cleanStr.replace(/,/g, "");
+    return parseFloat(noCommas) || 0;
+  }
+}
 
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
@@ -30,7 +44,7 @@ async function handleGeoModal(page: Page) {
   }
 }
 
-export async function scrapeProductData(
+export async function scrapeZaraProductData(
   page: Page,
   url: string,
   category: string = "",
@@ -51,41 +65,75 @@ export async function scrapeProductData(
     } catch {
       return null; // Page didn't load right, skip it
     }
+    await new Promise((r) => setTimeout(r, 1500));
+    // 3. Extract the DOM elements Safely!
+    const rawDescription = await page
+      .$eval(
+        ".product-detail-description",
+        (el) => el.textContent?.trim() || "",
+      )
+      .catch(() => "");
 
-    // 3. Extract the DOM elements
-    const rawDescription = await page.$eval(
-      ".product-detail-description p",
-      (el) => el.textContent?.trim() || "",
-    );
-    const rawColor = await page.$eval(
-      ".product-color-extended-name",
-      (el) => el.textContent?.trim() || "",
-    );
-    const rawComposition = await page.$eval(
-      ".product-detail-composition",
-      (el) => el.textContent?.trim() || "",
-    );
-    const rawName = await page.$eval(
-      "h1",
-      (el) => el.textContent?.trim() || "Unknown",
-    );
-    const rawPrice = await page.$eval(
-      ".money-amount__main",
-      (el) => el.textContent?.trim() || "0",
-    );
-    const rawImage = await page.$eval(
-      ".media-image__image",
-      (el) => el.getAttribute("src") || "",
-    );
+    const rawColor = await page
+      .$eval(
+        ".product-color-extended-name",
+        (el) => el.textContent?.trim() || "",
+      )
+      .catch(() => "");
+
+    const rawComposition = await page
+      .$eval(
+        ".product-detail-composition",
+        (el) => el.textContent?.trim() || "",
+      )
+      .catch(() => "");
+
+    const rawName = await page
+      .$eval("h1", (el) => el.textContent?.trim() || "Unknown")
+      .catch(() => "Unknown");
+
+    const rawPrice = await page.evaluate(() => {
+      // Look for any of Zara's known price classes
+      const priceElement = document.querySelector(
+        ".money-amount__main, .price__amount-current, .price__amount",
+      );
+      return priceElement ? priceElement.textContent?.trim() || "0" : "0";
+    });
+
+    const rawImage = await page
+      .$eval(".media-image__image", (el) => el.getAttribute("src") || "")
+      .catch(() => "");
     let cleanColor = rawColor.split("|")[0].trim();
 
-    let cleanString = rawPrice.replace("TL", "").trim().replace(/,/g, "");
-    const finalPrice = parseFloat(cleanString);
+    const finalPrice = parseUniversalPrice(rawPrice);
+
     const cleanComposition = rawComposition.replace("Composition: ", "").trim();
-    const sizes = await page.$$eval(
-      ".size-selector-sizes-size__label",
-      (elements) => elements.map((el) => el.textContent?.trim() || ""),
-    );
+    try {
+      // 1. Click the "Add to Cart" button to trigger the size menu
+      await page.evaluate(() => {
+        const addBtn = document.querySelector(
+          'button[data-qa-action="add-to-cart"]',
+        );
+        if (addBtn) (addBtn as HTMLButtonElement).click();
+      });
+
+      // 2. Wait for the slide-out menu animation to finish
+      await new Promise((r) => setTimeout(r, 1000));
+
+      // 3. Wait for the actual size labels to exist in the DOM
+      await page.waitForSelector(".size-selector-sizes-size__label", {
+        timeout: 3000,
+      });
+    } catch (e) {
+      // Silent catch: if it fails, it might be a one-size item (like a hat or bag)
+    }
+
+    const sizes = await page.evaluate(() => {
+      const elements = Array.from(
+        document.querySelectorAll(".size-selector-sizes-size__label"),
+      );
+      return elements.map((el) => el.textContent?.trim() || "").filter(Boolean);
+    });
     // 4. Return the beautifully formatted object
     return {
       id: productId,
@@ -102,7 +150,9 @@ export async function scrapeProductData(
       sizes: sizes,
       category: category,
     };
-  } catch (error) {
+  } catch (error: any) {
+    console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);
+    console.error(error.message);
     return null;
   }
 }

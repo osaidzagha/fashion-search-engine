@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { ProductModel } from "./models/Product";
 import productRoutes from "./routes/productRoutes";
-import { runAllScrapers } from "./scraperManager";
+import { runAllScrapers } from "./scrapers/scraperManager";
 import cron from "node-cron";
 dotenv.config();
 
