@@ -1,4 +1,5 @@
-import { Product } from "../types";
+import { Product } from "../types"; // Or wherever your type is
+import { Link } from "react-router-dom";
 
 interface ProductCardProps {
   product: Product;
@@ -6,41 +7,25 @@ interface ProductCardProps {
 
 export const ProductCard = ({ product }: ProductCardProps) => {
   return (
-    <div className="group border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 bg-white">
-      {/* IMAGE SECTION */}
-      <div className="relative aspect-[3/4] w-full bg-gray-100 overflow-hidden">
+    // We wrap the whole card in a Link so the entire thing is clickable!
+    <Link to={`/product/${product.id}`} className="group cursor-pointer">
+      <div className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
+        {/* Your existing image code */}
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-500"
+          className="w-full h-80 object-cover group-hover:opacity-90 transition"
         />
-      </div>
 
-      {/* DETAILS SECTION */}
-      <div className="p-4">
-        <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">
-          {product.brand}
-        </p>
-
-        <h3 className="text-sm font-medium text-gray-900 line-clamp-2 min-h-[2.5rem]">
-          {product.name}
-        </h3>
-
-        <div className="mt-3 flex items-center justify-between">
-          <p className="text-lg font-semibold text-gray-900">
+        {/* Your existing text code */}
+        <div className="p-4">
+          <p className="text-xs text-gray-500 mb-1">{product.brand}</p>
+          <h3 className="font-semibold text-sm truncate">{product.name}</h3>
+          <p className="mt-2 font-bold">
             {product.price} {product.currency}
           </p>
-
-          <a
-            href={product.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs bg-black text-white px-3 py-1.5 rounded hover:bg-gray-800 transition-colors"
-          >
-            View
-          </a>
         </div>
       </div>
-    </div>
+    </Link>
   );
 };

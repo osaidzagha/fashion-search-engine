@@ -18,3 +18,14 @@ export const fetchProductsFromAPI = async (
     return { products: [], totalCount: 0, totalPages: 0, currentPage: 1 };
   }
 };
+
+export async function fetchProductById(id: string): Promise<Product | null> {
+  try {
+    const response = await fetch(`${BASE_URL}/api/products/${id}`);
+    if (!response.ok) throw new Error("Network response was not ok");
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch product:", error);
+    return null;
+  }
+}

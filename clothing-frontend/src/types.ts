@@ -6,6 +6,12 @@ export interface Product {
   brand: string;
   imageUrl: string;
   link: string;
+  category: string;
+  color?: string;
+  description?: string;
+  composition?: string;
+  sizes?: string[];
+  timestamp?: string; // Or Date, depending on how your API sends it
 }
 export interface PaginatedResponse {
   products: Product[];
