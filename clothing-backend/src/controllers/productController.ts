@@ -29,6 +29,12 @@ export const getProducts = async (req: Request, res: Response) => {
         .map((brand) => brand.trim());
       filter.brand = { $in: brandArray };
     }
+    if (req.query.category) {
+      const categoryArray = (req.query.category as string)
+        .split(",")
+        .map((cat) => cat.trim().toUpperCase());
+      filter.category = { $in: categoryArray };
+    }
 
     const [allProducts, total] = await Promise.all([
       ProductModel.find(filter).sort(sortOption).skip(skip).limit(limit),

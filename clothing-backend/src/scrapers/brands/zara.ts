@@ -20,10 +20,23 @@ async function selectDepartment(page: Page, department: string) {
 
   const xpath = `::-p-xpath(//span[@class='layout-categories-category-name' and text()='${department}'])`;
 
-  await page.waitForSelector(xpath, { timeout: 3000 });
-  await page.click(xpath);
-  await new Promise((r) => setTimeout(r, 2000));
-  console.log(`   --> ${department} Department Selected.`);
+  try {
+    // 1. Wait for the element to appear in the DOM
+    const targetElement = await page.waitForSelector(xpath, { timeout: 5000 });
+
+    // 2. FORCE CLICK using browser JavaScript (bypasses animations/overlays)
+    if (targetElement) {
+      await page.evaluate((el) => {
+        (el as HTMLElement).click();
+      }, targetElement);
+    }
+
+    // 3. Wait for the new category links to load
+    await new Promise((r) => setTimeout(r, 2000));
+    console.log(`   --> ${department} Department Selected.`);
+  } catch (error) {
+    console.log(`   --> ⚠️ Failed to click ${department} department.`);
+  }
 }
 
 async function handleGeoModal(page: Page) {

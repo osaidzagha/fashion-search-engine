@@ -54,8 +54,8 @@ export const runAllScrapers = async () => {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   );
 
-  const departments = ["MAN", "WOMAN", "KIDS"];
-  const isTestMode = true; // Set to false when ready for a full production run
+  const departments = ["MAN", "WOMAN"];
+  const isTestMode = false; // Set to false when ready for a full production run
   let totalSaved = 0;
 
   console.log("🧪 STARTING FACTORY PIPELINE...");
