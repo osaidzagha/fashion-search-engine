@@ -32,7 +32,7 @@ export async function getMassimoCategories(
 ): Promise<string[]> {
   console.log(`\n🔍 Crawler: Navigating to Massimo Dutti Homepage...`);
 
-  const baseUrl = "https://www.massimodutti.com/tr/";
+  const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
     await page.goto(baseUrl, { waitUntil: "networkidle2", timeout: 20000 });
@@ -52,7 +52,7 @@ export async function getMassimoCategories(
 
     console.log(`  --> Crawler: Switching to ${department} tab...`);
     const deptTextTR = department === "MAN" ? "ERKEK" : "KADIN";
-    const deptTextEN = department === "MAN" ? "MALE" : "WOMAN";
+    const deptTextEN = department === "MAN" ? "MEN" : "WOMEN";
 
     await page.evaluate(
       (tr, en) => {
@@ -77,12 +77,17 @@ export async function getMassimoCategories(
         .filter(Boolean);
     });
 
-    const deptPath = department === "MAN" ? "/erkek/" : "/kadin/";
+    const deptPath = department === "MAN" ? "/men/" : "/women/";
 
     categoryLinks = categoryLinks.filter((link) => {
-      const isCorrectDept = link.includes(deptPath);
+      const isCorrectDept =
+        link.includes(deptPath) ||
+        link.includes(department === "MAN" ? "/erkek/" : "/kadin/"); // Keep TR as fallback
       const isNotShoesOrAccessories =
-        !link.includes("ayakkabi") && !link.includes("aksesuar");
+        !link.includes("ayakkabi") &&
+        !link.includes("aksesuar") &&
+        !link.includes("shoes") &&
+        !link.includes("accessories");
       return isCorrectDept && isNotShoesOrAccessories;
     });
 
@@ -273,7 +278,10 @@ export async function scrapeMassimoProductData(
             text.includes("KUMAŞ") ||
             text.includes("MALZEME") ||
             text.includes("BAKIM") ||
-            text.includes("İÇERİK")
+            text.includes("İÇERİK") ||
+            text.includes("COMPOSITION") ||
+            text.includes("MATERIALS") ||
+            text.includes("CARE")
           );
         });
         if (fabricBtn) fabricBtn.click();

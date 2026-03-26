@@ -54,7 +54,7 @@ export const runAllScrapers = async () => {
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
   );
 
-  const departments = ["MAN", "WOMAN"];
+  const departments = ["MAN", "WOMAN", "KIDS"];
   const isTestMode = true; // Set to false when ready for a full production run
   let totalSaved = 0;
 
@@ -84,4 +84,4 @@ export const runAllScrapers = async () => {
   console.log("💤 Done!");
 };
 
-runAllScrapers();
+// runAllScrapers();

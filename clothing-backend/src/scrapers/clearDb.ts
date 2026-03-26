@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import * as dotenv from "dotenv";
-import { ProductModel } from "./models/Product";
+import { ProductModel } from "../models/Product";
 
 async function clearDatabase() {
   dotenv.config();
