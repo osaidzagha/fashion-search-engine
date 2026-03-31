@@ -19,3 +19,10 @@ export interface PaginatedResponse {
   totalPages: number;
   currentPage: number;
 }
+export interface FetchProductParams {
+  searchTerm: string;
+  page: number;
+  brands?: string[];
+  departments?: string[];
+  maxPrice?: number;
+}

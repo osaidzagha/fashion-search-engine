@@ -1,17 +1,37 @@
-import { PaginatedResponse, Product } from "../types";
+import { FetchProductParams, PaginatedResponse, Product } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 export const fetchProductsFromAPI = async (
-  search?: string,
-  page?: number,
+  filters: FetchProductParams,
 ): Promise<PaginatedResponse> => {
   try {
-    const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (page) params.set("page", page.toString());
-    const response = await fetch(`${BASE_URL}/api/products?${params}`);
+    const urlParams = new URLSearchParams();
+
+    if (filters.searchTerm) urlParams.set("search", filters.searchTerm);
+    if (filters.page) urlParams.set("page", filters.page.toString());
+
+    if (filters.brands && filters.brands.length > 0) {
+      urlParams.set("brand", filters.brands.join(","));
+    }
+
+    if (filters.departments && filters.departments.length > 0) {
+      urlParams.set("category", filters.departments.join(","));
+    }
+
+    if (filters.maxPrice)
+      urlParams.set("maxPrice", filters.maxPrice.toString());
+
+    console.log(
+      "Fetching URL:",
+      `${BASE_URL}/api/products?${urlParams.toString()}`,
+    );
+
+    const response = await fetch(
+      `${BASE_URL}/api/products?${urlParams.toString()}`,
+    );
     if (!response.ok) throw new Error("Network response was not ok");
+
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch products:", error);

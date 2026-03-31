@@ -32,8 +32,13 @@ export const getProducts = async (req: Request, res: Response) => {
     if (req.query.category) {
       const categoryArray = (req.query.category as string)
         .split(",")
-        .map((cat) => cat.trim().toUpperCase());
-      filter.category = { $in: categoryArray };
+        .map((cat) => cat.trim());
+      // 2. Add the '^' symbol to the front of each word so "MAN" doesn't match "woMAN"
+      // Result: ["^MAN", "^WOMAN"]
+      const regexParts = categoryArray.map((cat) => `^${cat}`);
+      // 3. Join them with '|' (which means OR in Regex) and make it case-insensitive
+      // Result: /^MAN|^WOMAN/i
+      filter.category = { $regex: regexParts.join("|"), $options: "i" };
     }
 
     const [allProducts, total] = await Promise.all([
