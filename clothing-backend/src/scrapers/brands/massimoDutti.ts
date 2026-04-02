@@ -35,43 +35,39 @@ export async function getMassimoCategories(
   const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
-    await page.goto(baseUrl, { waitUntil: "networkidle2", timeout: 20000 });
+    // FIX 1: domcontentloaded instead of networkidle2
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
     await dismissModals(page);
 
-    // Bypassing visual blockers to open the menu
     console.log(`  --> Opening Mega Menu...`);
     await page.evaluate(() => {
       const menuBtn = document.querySelector("#header-menu-ham");
       if (menuBtn) {
-        // Force a click via JS
         (menuBtn as HTMLButtonElement).click();
       }
     });
 
     await new Promise((r) => setTimeout(r, 2000));
 
-    console.log(`  --> Crawler: Switching to ${department} tab...`);
-    const deptTextTR = department === "MAN" ? "ERKEK" : "KADIN";
-    const deptTextEN = department === "MAN" ? "MEN" : "WOMEN";
-
-    await page.evaluate(
-      (tr, en) => {
-        const tabs = Array.from(
-          document.querySelectorAll(".menu-header span, .menu-header div, a"),
-        );
-        const targetTab = tabs.find((el) => {
-          const text = el.textContent?.trim().toUpperCase();
-          return text === tr || text === en;
-        });
-        if (targetTab) (targetTab as HTMLElement).click();
-      },
-      deptTextTR,
-      deptTextEN,
+    console.log(
+      `  --> Crawler: Switching to ${department} tab using HTML IDs...`,
     );
+
+    // FIX 2: Map our database department to Massimo's specific HTML IDs
+    const targetId = department === "MAN" ? "#MEN" : "#WOMEN";
+
+    await page.evaluate((selector) => {
+      // Find the exact button by its ID and forcefully click it
+      const tabBtn = document.querySelector(selector);
+      if (tabBtn) {
+        (tabBtn as HTMLButtonElement).click();
+      }
+    }, targetId);
 
     await new Promise((r) => setTimeout(r, 2000));
 
-    let categoryLinks = await page.$$eval("a.mn-list-item", (elements) => {
+    // FIX 3: Changed "a.mn-list-item" to just "a"
+    let categoryLinks = await page.$$eval("a", (elements) => {
       return elements
         .map((el) => (el as HTMLAnchorElement).href)
         .filter(Boolean);
@@ -82,7 +78,7 @@ export async function getMassimoCategories(
     categoryLinks = categoryLinks.filter((link) => {
       const isCorrectDept =
         link.includes(deptPath) ||
-        link.includes(department === "MAN" ? "/erkek/" : "/kadin/"); // Keep TR as fallback
+        link.includes(department === "MAN" ? "/erkek/" : "/kadin/");
       const isNotShoesOrAccessories =
         !link.includes("ayakkabi") &&
         !link.includes("aksesuar") &&
@@ -96,10 +92,12 @@ export async function getMassimoCategories(
       `  --> 🕵️‍♂️ Found ${cleanLinks.length} dynamic clothing categories.`,
     );
     return cleanLinks;
-  } catch (error) {
+  } catch (error: any) {
+    // FIX 4: Better error logging
     console.error(
       `  --> ❌ Failed to get dynamic categories for ${department}`,
     );
+    console.error(`  --> 🛑 Error details: ${error.message}`);
     return [];
   }
 }
@@ -163,6 +161,7 @@ export async function scrapeMassimoProductData(
   page: Page,
   url: string,
   category: string = "",
+  department: string = "",
 ): Promise<Product | null> {
   console.log(`   --> Scraping Massimo Dutti product: ${url}`);
   try {
@@ -322,6 +321,7 @@ export async function scrapeMassimoProductData(
       composition: cleanComposition,
       sizes: sizes,
       category: category,
+      department: department,
     };
   } catch (error) {
     return null;

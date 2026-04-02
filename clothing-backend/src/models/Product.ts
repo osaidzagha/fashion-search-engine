@@ -10,6 +10,7 @@ export interface IProduct extends Document {
   imageUrl: string;
   link: string;
   timestamp: Date;
+  department: string; // 👈 Added here! No '?' because it is required.
   description?: string;
   color?: string;
   composition?: string;
@@ -27,6 +28,7 @@ const ProductSchema: Schema = new Schema({
   imageUrl: { type: String, required: true },
   link: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
+  department: { type: String, required: true },
   description: { type: String, default: "" },
   color: { type: String, default: "" },
   composition: { type: String, default: "" },

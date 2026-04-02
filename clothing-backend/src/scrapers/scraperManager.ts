@@ -55,7 +55,7 @@ export const runAllScrapers = async () => {
   );
 
   const departments = ["MAN", "WOMAN"];
-  const isTestMode = false; // Set to false when ready for a full production run
+  const isTestMode = true;
   let totalSaved = 0;
 
   console.log("🧪 STARTING FACTORY PIPELINE...");

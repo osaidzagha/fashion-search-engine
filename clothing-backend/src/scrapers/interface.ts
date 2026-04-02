@@ -12,6 +12,7 @@ export interface Product {
   composition?: string;
   category?: string;
   sizes?: string[];
+  department: string;
 }
 
 import { Page } from "puppeteer";

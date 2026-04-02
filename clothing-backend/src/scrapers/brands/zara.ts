@@ -61,6 +61,7 @@ export async function scrapeZaraProductData(
   page: Page,
   url: string,
   category: string = "",
+  department: string = "",
 ): Promise<Product | null> {
   try {
     // 1. Regex Extraction & Safety Check
@@ -162,6 +163,7 @@ export async function scrapeZaraProductData(
       composition: cleanComposition,
       sizes: sizes,
       category: category,
+      department: department,
     };
   } catch (error: any) {
     console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);

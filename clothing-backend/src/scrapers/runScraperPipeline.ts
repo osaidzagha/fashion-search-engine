@@ -8,7 +8,7 @@ type ScrapeProduct = (
   page: Page,
   url: string,
   category: string,
-  categoryUrl?: string,
+  department: string,
 ) => Promise<Product | null>;
 
 export const runScraperPipeline = async (
@@ -31,7 +31,7 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const toScrape = testMode ? categories.slice(0, 2) : categories.slice(0, 5);
+    const toScrape = testMode ? categories.slice(0, 3) : categories;
 
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
@@ -44,14 +44,14 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      const toTest = testMode ? links.slice(0, 2) : links.slice(0, 15);
+      const toTest = testMode ? links.slice(0, 4) : links;
 
       for (const link of toTest) {
         // Safe category extraction (handles URLs with or without .html)
         const category =
           categoryUrl.split("/").pop()?.replace(".html", "") || "Unknown";
 
-        const product = await scrapeProduct(page, link, category, categoryUrl);
+        const product = await scrapeProduct(page, link, category, dept);
 
         if (product) {
           try {
