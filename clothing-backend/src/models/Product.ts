@@ -7,7 +7,7 @@ export interface IProduct extends Document {
   price: number;
   currency: string;
   brand: string;
-  imageUrl: string;
+  images: string[];
   link: string;
   timestamp: Date;
   department: string; // 👈 Added here! No '?' because it is required.
@@ -25,7 +25,7 @@ const ProductSchema: Schema = new Schema({
   price: { type: Number, required: true },
   currency: { type: String, required: true, default: "TRY" },
   brand: { type: String, required: true },
-  imageUrl: { type: String, required: true },
+  images: { type: [String], required: true },
   link: { type: String, required: true },
   timestamp: { type: Date, default: Date.now },
   department: { type: String, required: true },

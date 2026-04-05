@@ -4,7 +4,7 @@ export interface Product {
   price: number;
   currency: string;
   brand: string;
-  imageUrl: string;
+  images: string[];
   link: string;
   category: string;
   color?: string;

@@ -7,17 +7,20 @@ async function dismissModals(page: Page) {
     await page.evaluate(() => {
       // 1. Accept Cookies
       const cookieBtn = document.querySelector("#onetrust-accept-btn-handler");
-      if (cookieBtn) (cookieBtn as HTMLButtonElement).click();
+      // @ts-ignore
+      if (cookieBtn) cookieBtn.click();
 
       // 2. Dismiss Location/Geo Modals
       const stayBtn = document.querySelector(
         '[data-qa-action="stay-in-store"]',
       );
-      if (stayBtn) (stayBtn as HTMLButtonElement).click();
+      // @ts-ignore
+      if (stayBtn) stayBtn.click();
 
       // 3. Dismiss Newsletter
       const closeNewsletter = document.querySelector(".modal-newsletter-close");
-      if (closeNewsletter) (closeNewsletter as HTMLButtonElement).click();
+      // @ts-ignore
+      if (closeNewsletter) closeNewsletter.click();
     });
     // Wait for animations to finish
     await new Promise((r) => setTimeout(r, 1000));
@@ -35,16 +38,14 @@ export async function getMassimoCategories(
   const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
-    // FIX 1: domcontentloaded instead of networkidle2
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
     await dismissModals(page);
 
     console.log(`  --> Opening Mega Menu...`);
     await page.evaluate(() => {
       const menuBtn = document.querySelector("#header-menu-ham");
-      if (menuBtn) {
-        (menuBtn as HTMLButtonElement).click();
-      }
+      // @ts-ignore
+      if (menuBtn) menuBtn.click();
     });
 
     await new Promise((r) => setTimeout(r, 2000));
@@ -53,24 +54,19 @@ export async function getMassimoCategories(
       `  --> Crawler: Switching to ${department} tab using HTML IDs...`,
     );
 
-    // FIX 2: Map our database department to Massimo's specific HTML IDs
     const targetId = department === "MAN" ? "#MEN" : "#WOMEN";
 
     await page.evaluate((selector) => {
-      // Find the exact button by its ID and forcefully click it
       const tabBtn = document.querySelector(selector);
-      if (tabBtn) {
-        (tabBtn as HTMLButtonElement).click();
-      }
+      // @ts-ignore
+      if (tabBtn) tabBtn.click();
     }, targetId);
 
     await new Promise((r) => setTimeout(r, 2000));
 
-    // FIX 3: Changed "a.mn-list-item" to just "a"
     let categoryLinks = await page.$$eval("a", (elements) => {
-      return elements
-        .map((el) => (el as HTMLAnchorElement).href)
-        .filter(Boolean);
+      // @ts-ignore
+      return elements.map((el) => el.href).filter(Boolean);
     });
 
     const deptPath = department === "MAN" ? "/men/" : "/women/";
@@ -93,7 +89,6 @@ export async function getMassimoCategories(
     );
     return cleanLinks;
   } catch (error: any) {
-    // FIX 4: Better error logging
     console.error(
       `  --> ❌ Failed to get dynamic categories for ${department}`,
     );
@@ -109,43 +104,43 @@ export async function getMassimoProductLinks(
   console.log(`📂 Visiting Massimo Dutti category: ${url}`);
 
   try {
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 20000 });
-
-    // Smooth "Human" Scrolling to gracefully trigger lazy-loading
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+    await new Promise((r) => setTimeout(r, 4000));
     await page.evaluate(async () => {
-      await new Promise<void>((resolve) => {
+      await new Promise((resolve) => {
         let totalHeight = 0;
-        const distance = 200; // Scroll 200px at a time
+        const distance = 200;
         const timer = setInterval(() => {
           const scrollHeight = document.body.scrollHeight;
           window.scrollBy(0, distance);
           totalHeight += distance;
 
-          // Stop scrolling when we reach the bottom or a max height
           if (
             totalHeight >= scrollHeight - window.innerHeight ||
             totalHeight > 6000
           ) {
             clearInterval(timer);
-            resolve();
+            resolve(undefined);
           }
-        }, 200); // Every 200 milliseconds
+        }, 200);
       });
     });
 
-    // Let the final images load
     await new Promise((r) => setTimeout(r, 1000));
 
     let productLinks = await page.$$eval("a", (anchors) => {
-      return anchors
-        .map((a) => a.href)
-        .filter((href) => {
-          const hasStrictIdFormat = href.match(/-l[a-zA-Z0-9]{8}(\?|$)/);
-          const isNotBanner =
-            !href.includes("/sbl") && !href.includes("banner=true");
-          return hasStrictIdFormat && isNotBanner;
-        })
-        .map((href) => href.split("?")[0]);
+      return (
+        anchors
+          // @ts-ignore
+          .map((a) => a.href)
+          .filter((href) => {
+            const hasStrictIdFormat = href.match(/-l[a-zA-Z0-9]{8}(\?|$)/);
+            const isNotBanner =
+              !href.includes("/sbl") && !href.includes("banner=true");
+            return hasStrictIdFormat && isNotBanner;
+          })
+          .map((href) => href.split("?")[0])
+      );
     });
 
     productLinks = [...new Set(productLinks)];
@@ -177,7 +172,6 @@ export async function scrapeMassimoProductData(
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await dismissModals(page);
 
-    // 1. HARD WAIT: We MUST have a title.
     try {
       await page.waitForSelector("h1", { timeout: 8000 });
     } catch {
@@ -185,10 +179,8 @@ export async function scrapeMassimoProductData(
       return null;
     }
 
-    // React Hydration Pause
     await new Promise((r) => setTimeout(r, 1500));
 
-    // 2. SOFT WAITS
     try {
       await page.waitForSelector(".formatted-price-detail-handler", {
         timeout: 4000,
@@ -196,7 +188,6 @@ export async function scrapeMassimoProductData(
     } catch {}
 
     try {
-      // FIX: Removed the restrictive .btn-selector parent class
       await page.waitForSelector('button[role="radio"]', { timeout: 3000 });
     } catch {}
 
@@ -212,9 +203,78 @@ export async function scrapeMassimoProductData(
         (el) => el.textContent?.trim() || "0",
       )
       .catch(() => "0");
-    const rawImage = await page
-      .$eval("div.media-image img", (el) => el.getAttribute("src") || "")
-      .catch(() => "");
+
+    await page.evaluate(async () => {
+      await new Promise((resolve) => {
+        let totalHeight = 0;
+        const distance = 400;
+        const timer = setInterval(() => {
+          window.scrollBy(0, distance);
+          totalHeight += distance;
+          if (
+            totalHeight >= document.body.scrollHeight - window.innerHeight ||
+            totalHeight > 3000
+          ) {
+            clearInterval(timer);
+            resolve(undefined);
+          }
+        }, 150);
+      });
+    });
+
+    await page
+      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .catch(() => {});
+
+    const rawImages = (await page.evaluate(`
+  (() => {
+    const pickHighestRes = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset.split(',').map(entry => {
+        const parts = entry.trim().split(/\\s+/);
+        return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+      });
+      candidates.sort((a, b) => b.width - a.width);
+      return candidates[0]?.url ?? null;
+    };
+
+    const gallery =
+      document.querySelector('[class*="product-detail-images"]') ||
+      document.querySelector('[class*="pdp-gallery"]') ||
+      document.querySelector('[class*="media-gallery"]') ||
+      document.querySelector('main');
+
+    if (!gallery) return [];
+
+    const clone = gallery.cloneNode(true);
+    ['[class*="complete-the-look"]', '[class*="cross-sell"]',
+     '[class*="recommendations"]', '[class*="carousel"]', 'footer']
+      .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
+
+    const images = [];
+
+    // ONE image per <picture> element — avoids breakpoint duplicates
+    clone.querySelectorAll('picture').forEach(picture => {
+      const source = picture.querySelector('source');
+      if (!source) return;
+      const url = pickHighestRes(source.getAttribute('srcset') || '');
+      if (url && !url.startsWith('data:') && !url.includes('placeholder')) {
+        images.push(url);
+      }
+    });
+
+    if (images.length === 0) {
+      clone.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
+        if (src && !src.startsWith('data:') && !src.includes('placeholder')) {
+          images.push(src);
+        }
+      });
+    }
+
+    return [...new Set(images)];
+  })()
+`)) as string[];
     const rawDescription = await page
       .$eval(".md-pdp5-box--info p", (el) => el.textContent?.trim() || "")
       .catch(() => "");
@@ -226,13 +286,12 @@ export async function scrapeMassimoProductData(
       .catch(() => "");
 
     try {
-      // 1. Click the specific Add to Cart button based on the custom <pdp-add-to-cart-button> wrapper
       await page.evaluate(() => {
         const addBtn = document.querySelector("pdp-add-to-cart-button button");
         if (addBtn) {
-          (addBtn as HTMLButtonElement).click();
+          // @ts-ignore
+          addBtn.click();
         } else {
-          // Fallback based on text if the tag changes
           const buttons = Array.from(document.querySelectorAll("button"));
           const textBtn = buttons.find((b) => {
             const text = b.textContent?.toUpperCase() || "";
@@ -242,16 +301,10 @@ export async function scrapeMassimoProductData(
         }
       });
 
-      // 2. Wait for the UI animation
       await new Promise((r) => setTimeout(r, 1000));
-
-      // 3. Wait for the newly discovered listbox options
       await page.waitForSelector('button[role="option"]', { timeout: 3000 });
-    } catch (e) {
-      // Silent catch
-    }
+    } catch (e) {}
 
-    // 4. Extract sizes from the exact span class you found: .md-size-selector-btn-title
     const sizes = await page.evaluate(() => {
       const sizeSpans = Array.from(
         document.querySelectorAll(".md-size-selector-btn-title"),
@@ -265,14 +318,13 @@ export async function scrapeMassimoProductData(
         })
         .filter(Boolean);
     });
+
     let cleanComposition = "Unknown";
     try {
-      // FIX: Dynamically find the Turkish composition button
       await page.evaluate(() => {
         const buttons = Array.from(document.querySelectorAll("button"));
         const fabricBtn = buttons.find((b) => {
           const text = b.textContent?.toUpperCase() || "";
-          // Matches common Turkish words for Material, Fabric, or Care
           return (
             text.includes("KUMAŞ") ||
             text.includes("MALZEME") ||
@@ -286,7 +338,6 @@ export async function scrapeMassimoProductData(
         if (fabricBtn) fabricBtn.click();
       });
 
-      // Wait for the side panel to slide open
       await new Promise((r) => setTimeout(r, 1500));
 
       cleanComposition = await page.$$eval(
@@ -301,11 +352,14 @@ export async function scrapeMassimoProductData(
       );
     } catch (err) {}
 
-    // Price parsing (Turkish format support)
     let cleanPrice = rawPrice.replace(/TL/gi, "").trim();
     cleanPrice = cleanPrice.replace(/\./g, "");
     cleanPrice = cleanPrice.replace(/,/g, ".");
     const finalPrice = parseFloat(cleanPrice) || 0;
+
+    console.log(
+      `  --> Images found: ${rawImages.length}, Price: ${finalPrice}, Name: ${rawName}`,
+    );
 
     return {
       id: productId,
@@ -313,7 +367,8 @@ export async function scrapeMassimoProductData(
       price: finalPrice,
       currency: "TRY",
       brand: "Massimo Dutti",
-      imageUrl: rawImage,
+      // @ts-ignore
+      images: rawImages,
       link: url,
       timestamp: new Date(),
       color: cleanColor,
@@ -323,7 +378,9 @@ export async function scrapeMassimoProductData(
       category: category,
       department: department,
     };
-  } catch (error) {
+  } catch (error: any) {
+    console.error(`  --> ❌ Massimo Dutti Scraper crashed on ${url}:`);
+    console.error(error.message);
     return null;
   }
 }

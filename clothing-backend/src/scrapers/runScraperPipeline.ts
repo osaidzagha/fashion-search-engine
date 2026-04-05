@@ -31,7 +31,7 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const toScrape = testMode ? categories.slice(0, 3) : categories;
+    const toScrape = testMode ? categories.slice(0, 1) : categories;
 
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
@@ -44,7 +44,7 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      const toTest = testMode ? links.slice(0, 4) : links;
+      const toTest = testMode ? links.slice(0, 2) : links;
 
       for (const link of toTest) {
         // Safe category extraction (handles URLs with or without .html)

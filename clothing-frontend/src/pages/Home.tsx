@@ -7,6 +7,7 @@ import { fetchProductsFromAPI } from "../services/api";
 import { SearchBar } from "../components/SearchBar";
 import { Spinner } from "../components/Spinner";
 import { Sidebar } from "../components/Sidebar";
+import { HeroBanner } from "../components/HeroBanner";
 
 export default function Home() {
   const dispatch = useDispatch();
@@ -66,7 +67,7 @@ export default function Home() {
         </h1>
         <SearchBar />
       </div>
-
+      <HeroBanner />
       {/* 4. The Layout: Flexbox to put Sidebar on the left, Grid on the right */}
       <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row">
         <Sidebar />

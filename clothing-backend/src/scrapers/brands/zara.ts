@@ -17,21 +17,16 @@ function parseUniversalPrice(rawPrice: string): number {
 
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
-
   const xpath = `::-p-xpath(//span[@class='layout-categories-category-name' and text()='${department}'])`;
 
   try {
-    // 1. Wait for the element to appear in the DOM
     const targetElement = await page.waitForSelector(xpath, { timeout: 5000 });
-
-    // 2. FORCE CLICK using browser JavaScript (bypasses animations/overlays)
     if (targetElement) {
       await page.evaluate((el) => {
-        (el as HTMLElement).click();
+        // @ts-ignore
+        el.click();
       }, targetElement);
     }
-
-    // 3. Wait for the new category links to load
     await new Promise((r) => setTimeout(r, 2000));
     console.log(`   --> ${department} Department Selected.`);
   } catch (error) {
@@ -43,13 +38,9 @@ async function handleGeoModal(page: Page) {
   console.log("   -->Checking for Geo-Location Modal...");
   try {
     const stayButtonSelector = '[data-qa-action="stay-in-store"]';
-
     await page.waitForSelector(stayButtonSelector, { timeout: 3000 });
-
     console.log("   --> Modal Detected! Clicking 'Stay in Turkey'...");
     await page.click(stayButtonSelector);
-
-    // Wait for it to disappear
     await new Promise((r) => setTimeout(r, 1000));
     console.log("   -->Modal Dismissed.");
   } catch (e) {
@@ -64,7 +55,6 @@ export async function scrapeZaraProductData(
   department: string = "",
 ): Promise<Product | null> {
   try {
-    // 1. Regex Extraction & Safety Check
     const match = url.match(/-p(\d+)\.html/);
     if (!match) {
       console.log(`  --> ⚠️ No ID found in URL, skipping: ${url}`);
@@ -72,15 +62,14 @@ export async function scrapeZaraProductData(
     }
     const productId = match[1];
 
-    // 2. Load the page safely
     await page.goto(url, { waitUntil: "domcontentloaded" });
     try {
       await page.waitForSelector("h1", { timeout: 5000 });
     } catch {
-      return null; // Page didn't load right, skip it
+      return null;
     }
     await new Promise((r) => setTimeout(r, 1500));
-    // 3. Extract the DOM elements Safely!
+
     const rawDescription = await page
       .$eval(
         ".product-detail-description",
@@ -107,40 +96,102 @@ export async function scrapeZaraProductData(
       .catch(() => "Unknown");
 
     const rawPrice = await page.evaluate(() => {
-      // Look for any of Zara's known price classes
       const priceElement = document.querySelector(
         ".money-amount__main, .price__amount-current, .price__amount",
       );
       return priceElement ? priceElement.textContent?.trim() || "0" : "0";
     });
 
-    const rawImage = await page
-      .$eval(".media-image__image", (el) => el.getAttribute("src") || "")
-      .catch(() => "");
+    // --- SCROLL ---
+    await page.evaluate(async () => {
+      await new Promise((resolve) => {
+        let totalHeight = 0;
+        const distance = 400;
+        const timer = setInterval(() => {
+          window.scrollBy(0, distance);
+          totalHeight += distance;
+          if (
+            totalHeight >= document.body.scrollHeight - window.innerHeight ||
+            totalHeight > 3000
+          ) {
+            clearInterval(timer);
+            resolve(undefined);
+          }
+        }, 150);
+      });
+    });
+
+    await page
+      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .catch(() => {});
+
+    const rawImages = (await page.evaluate(`
+  (() => {
+    const pickHighestRes = (srcset) => {
+      if (!srcset) return null;
+      const candidates = srcset.split(',').map(entry => {
+        const parts = entry.trim().split(/\\s+/);
+        return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+      });
+      candidates.sort((a, b) => b.width - a.width);
+      return candidates[0]?.url ?? null;
+    };
+
+    const gallery =
+      document.querySelector('[class*="product-detail-images"]') ||
+      document.querySelector('[class*="pdp-gallery"]') ||
+      document.querySelector('[class*="media-gallery"]') ||
+      document.querySelector('main');
+
+    if (!gallery) return [];
+
+    const clone = gallery.cloneNode(true);
+    ['[class*="complete-the-look"]', '[class*="cross-sell"]',
+     '[class*="recommendations"]', '[class*="carousel"]', 'footer']
+      .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
+
+    const images = [];
+
+    // ONE image per <picture> element — avoids breakpoint duplicates
+    clone.querySelectorAll('picture').forEach(picture => {
+      const source = picture.querySelector('source');
+      if (!source) return;
+      const url = pickHighestRes(source.getAttribute('srcset') || '');
+      if (url && !url.startsWith('data:') && !url.includes('placeholder')) {
+        images.push(url);
+      }
+    });
+
+    if (images.length === 0) {
+      clone.querySelectorAll('img').forEach(img => {
+        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
+        if (src && !src.startsWith('data:') && !src.includes('placeholder')) {
+          images.push(src);
+        }
+      });
+    }
+
+    return [...new Set(images)];
+  })()
+`)) as string[];
+
     let cleanColor = rawColor.split("|")[0].trim();
-
     const finalPrice = parseUniversalPrice(rawPrice);
-
     const cleanComposition = rawComposition.replace("Composition: ", "").trim();
+
     try {
-      // 1. Click the "Add to Cart" button to trigger the size menu
       await page.evaluate(() => {
         const addBtn = document.querySelector(
           'button[data-qa-action="add-to-cart"]',
         );
-        if (addBtn) (addBtn as HTMLButtonElement).click();
+        // @ts-ignore
+        if (addBtn) addBtn.click();
       });
-
-      // 2. Wait for the slide-out menu animation to finish
       await new Promise((r) => setTimeout(r, 1000));
-
-      // 3. Wait for the actual size labels to exist in the DOM
       await page.waitForSelector(".size-selector-sizes-size__label", {
         timeout: 3000,
       });
-    } catch (e) {
-      // Silent catch: if it fails, it might be a one-size item (like a hat or bag)
-    }
+    } catch (e) {}
 
     const sizes = await page.evaluate(() => {
       const elements = Array.from(
@@ -148,14 +199,19 @@ export async function scrapeZaraProductData(
       );
       return elements.map((el) => el.textContent?.trim() || "").filter(Boolean);
     });
-    // 4. Return the beautifully formatted object
+
+    console.log(
+      `  --> Images found: ${rawImages.length}, Price: ${finalPrice}, Name: ${rawName}`,
+    );
+
     return {
       id: productId,
       name: rawName,
       price: finalPrice,
       currency: "TRY",
       brand: "Zara",
-      imageUrl: rawImage,
+      // @ts-ignore
+      images: rawImages,
       link: url,
       timestamp: new Date(),
       color: cleanColor,
@@ -167,10 +223,11 @@ export async function scrapeZaraProductData(
     };
   } catch (error: any) {
     console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);
-    console.error(error.message);
+    console.error(error);
     return null;
   }
 }
+
 export async function getProductLinksFromCategory(
   page: Page,
   url: string,
@@ -180,60 +237,62 @@ export async function getProductLinksFromCategory(
 
   try {
     await page.waitForSelector(".product-link", { timeout: 5000 });
-
     const links = await page.$$eval(".product-link", (elements) => {
-      return elements
-        .map((el) => (el as HTMLAnchorElement).href)
-        .filter((href) => href !== "");
+      return (
+        elements
+          // @ts-ignore
+          .map((el) => el.href)
+          .filter((href) => href !== "")
+      );
     });
-
     return [...new Set(links)];
   } catch (error) {
-    console.log(
-      `   --> ⚠️ No standard product grid found on this page (might be editorial). Skipping.`,
-    );
     return [];
   }
 }
 
-// 4. THE CRAWLER (The Coordinator that uses all your tools)
 export async function getZaraCategories(
   page: Page,
   department: string,
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
 
-  await page.goto("https://www.zara.com/tr/en/", {
-    waitUntil: "domcontentloaded",
-  });
+  try {
+    await page.goto("https://www.zara.com/tr/en/", {
+      waitUntil: "domcontentloaded",
+      timeout: 60_000,
+    });
 
-  await handleGeoModal(page);
+    await handleGeoModal(page);
 
-  const menuButtonSelector = '[data-qa-id="layout-desktop-open-menu-trigger"]';
-  await page.waitForSelector(menuButtonSelector);
-  await page.click(menuButtonSelector);
+    const menuButtonSelector =
+      '[data-qa-id="layout-desktop-open-menu-trigger"]';
+    await page.waitForSelector(menuButtonSelector);
+    await page.click(menuButtonSelector);
 
-  await selectDepartment(page, department);
+    await selectDepartment(page, department);
 
-  // 5. Extract the Category Links
-  const linkSelector = ".layout-categories-category-wrapper";
-  await page.waitForSelector(linkSelector);
+    const linkSelector = ".layout-categories-category-wrapper";
+    await page.waitForSelector(linkSelector);
 
-  const links = await page.$$eval(
-    linkSelector,
-    (elements, dept) => {
-      return (
-        elements
-          .map((el) => (el as HTMLAnchorElement).href)
-          // Filter dynamically based on the department name (e.g., '/man-', '/woman-', '/kids-')
-          .filter((href) => href && href.includes(`/${dept.toLowerCase()}-`))
-      );
-    },
-    department,
-  );
+    const links = await page.$$eval(
+      linkSelector,
+      (elements, dept) => {
+        return (
+          elements
+            // @ts-ignore
+            .map((el) => el.href)
+            .filter((href) => href && href.includes(`/${dept.toLowerCase()}-`))
+        );
+      },
+      department,
+    );
 
-  const uniqueLinks = [...new Set(links)];
-  console.log(`   --> 🕵️‍♂️ Found ${uniqueLinks.length} categories.`);
-
-  return uniqueLinks;
+    const uniqueLinks = [...new Set(links)];
+    console.log(`   --> 🕵️‍♂️ Found ${uniqueLinks.length} categories.`);
+    return uniqueLinks;
+  } catch (error: any) {
+    console.error(`  --> ❌ Category crawler failed: ${error.message}`);
+    return [];
+  }
 }
