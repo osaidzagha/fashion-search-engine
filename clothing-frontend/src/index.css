@@ -1,3 +1,58 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* --- CUSTOM GLOBAL STYLES --- */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  /* Warm cream background instead of stark white */
+  background: #faf9f6;
+  margin: 0;
+  /* Makes the fonts look crisper and more high-end on Mac/Windows */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Responsive grid for ProductGrid */
+@media (max-width: 1200px) {
+  .product-grid-responsive {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+@media (max-width: 860px) {
+  .product-grid-responsive {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .product-grid-responsive {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d0c8;
+}
+
+/* Remove default ugly browser styles from inputs and buttons */
+input,
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
