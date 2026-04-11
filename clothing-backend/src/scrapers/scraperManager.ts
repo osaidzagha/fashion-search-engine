@@ -55,7 +55,7 @@ export const runAllScrapers = async () => {
   );
 
   const departments = ["MAN", "WOMAN"];
-  const isTestMode = true;
+  const isTestMode = false;
   let totalSaved = 0;
 
   console.log("🧪 STARTING FACTORY PIPELINE...");

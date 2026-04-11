@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-// 1. We tell TypeScript what our data looks like
+// 1. We tell TypeScript what our data looks like (TypeScript Land)
 export interface IProduct extends Document {
   id: string;
   name: string;
@@ -10,15 +10,19 @@ export interface IProduct extends Document {
   images: string[];
   link: string;
   timestamp: Date;
-  department: string; // 👈 Added here! No '?' because it is required.
+  department: string;
   description?: string;
   color?: string;
   composition?: string;
   category?: string;
   sizes?: string[];
+
+  // FIX 1: Pure TypeScript types!
+  video?: string;
+  priceHistory?: { price: number; date: Date }[];
 }
 
-// 2. We build the strict rules for the database
+// 2. We build the strict rules for the database (MongoDB Land)
 const ProductSchema: Schema = new Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
@@ -34,6 +38,15 @@ const ProductSchema: Schema = new Schema({
   composition: { type: String, default: "" },
   category: { type: String, default: "" },
   sizes: { type: [String], default: [] },
+
+  // FIX 2: Added the Mongoose configurations here!
+  video: { type: String, required: false },
+  priceHistory: [
+    {
+      price: { type: Number },
+      date: { type: Date, default: Date.now },
+    },
+  ],
 });
 
 // 3. We compile the Schema into a Model

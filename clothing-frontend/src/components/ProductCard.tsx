@@ -9,7 +9,9 @@ interface ProductCardProps {
 export const ProductCard = ({ product }: ProductCardProps) => {
   const [hovered, setHovered] = useState(false);
   const hasHoverImage = product.images && product.images.length > 1;
-
+  const isNew = product.timestamp
+    ? Date.now() - new Date(product.timestamp).getTime() < 48 * 60 * 60 * 1000
+    : false;
   return (
     <Link
       to={`/product/${product.id}`}
@@ -62,7 +64,26 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             }}
           />
         )}
-
+        {/* the NEW badge right here inside the container! */}
+        {isNew && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              right: 12,
+              background: "#1a1a1a",
+              color: "#fff",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "8px",
+              letterSpacing: "0.16em",
+              padding: "3px 7px",
+              textTransform: "uppercase",
+              pointerEvents: "none",
+            }}
+          >
+            New
+          </div>
+        )}
         {/* --- NEW LAYER 2 UI BELOW --- */}
 
         {/* Brand badge (Top Left Overlay) */}

@@ -31,7 +31,7 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const toScrape = testMode ? categories.slice(0, 1) : categories;
+    const toScrape = testMode ? categories.slice(0, 1) : categories.slice(0, 3);
 
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
@@ -44,7 +44,7 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      const toTest = testMode ? links.slice(0, 2) : links;
+      const toTest = testMode ? links.slice(0, 2) : links.slice(0, 15);
 
       for (const link of toTest) {
         // Safe category extraction (handles URLs with or without .html)
@@ -55,10 +55,39 @@ export const runScraperPipeline = async (
 
         if (product) {
           try {
-            await ProductModel.findOneAndUpdate({ id: product.id }, product, {
-              upsert: true,
-              returnDocument: "after",
-            });
+            await ProductModel.findOneAndUpdate(
+              { id: product.id },
+              {
+                // 1. Update these fields every time the scraper runs
+                $set: {
+                  name: product.name,
+                  price: product.price,
+                  images: product.images,
+                  sizes: product.sizes,
+                  video: product.video, // Don't forget your video!
+                },
+                // 2. ONLY set these fields if the product is brand new
+                $setOnInsert: {
+                  timestamp: new Date(),
+                  brand: product.brand,
+                  department: product.department,
+                  category: product.category,
+                  link: product.link,
+                  currency: product.currency,
+                },
+                // 3. Keep tracking price history
+                $push: {
+                  priceHistory: {
+                    $each: [{ price: product.price, date: new Date() }],
+                    $slice: -30,
+                  },
+                },
+              },
+              {
+                upsert: true,
+                returnDocument: "after",
+              },
+            );
             console.log(`   --> 💾 Saved: ${product.name}`);
             totalSaved++;
           } catch (dbError) {
@@ -74,7 +103,7 @@ export const runScraperPipeline = async (
         await new Promise((r) => setTimeout(r, delay));
       }
 
-      console.log("   --> 🛑 Category complete. Resting...");
+      console.log("  --> 🛑 Category complete. Resting...");
       // Longer pause between categories
       const catDelay = testMode
         ? 4000
