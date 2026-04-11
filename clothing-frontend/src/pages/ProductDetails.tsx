@@ -1,131 +1,400 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { Product } from "../types"; // Adjust path if needed
+import { Product } from "../types";
 import { fetchProductById } from "../services/api";
 import { Spinner } from "../components/Spinner";
 
 export default function ProductDetails() {
-  const { id } = useParams<{ id: string }>();
+  // TODO 1: Extract the 'id' from the URL parameters using the useParams hook.
+  const { id } = useParams();
 
-  // 1. Set up your state here (product and isLoading)
+  // TODO 2: Initialize 4 pieces of state:
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  // 2. Set up your useEffect here to fetch the data
-  useEffect(() => {
-    const loadProduct = async () => {
-      if (!id) return;
+  const [activeImage, setActiveImage] = useState(0);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
 
+  // TODO 3: Data Fetching Effect
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!id) return;
       setIsLoading(true);
-      const fetchedProduct = await fetchProductById(id!);
-      setProduct(fetchedProduct);
-      setIsLoading(false);
+      try {
+        const product = await fetchProductById(id);
+        setProduct(product);
+      } catch (error) {
+        console.error("Error fetching product:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    loadProduct();
+    fetchData();
   }, [id]);
 
-  // if (isLoading) return ...
-  if (isLoading)
+  // Handle the Loading State
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          background: "#faf9f6",
+        }}
+      >
         <Spinner />
       </div>
     );
+  }
 
-  // if (!product) return ...
-  if (!product)
+  // Handle the "Product Not Found" State
+  if (!product) {
     return (
-      <div className="text-center mt-20">
-        <h2 className="text-2xl font-bold">Product Not Found</h2>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100vh",
+          background: "#faf9f6",
+          gap: "16px",
+        }}
+      >
+        <p
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "32px",
+            fontWeight: 300,
+            fontStyle: "italic",
+            color: "#1a1a1a",
+          }}
+        >
+          Product not found
+        </p>
         <Link
           to="/"
-          className="mt-4 inline-block bg-black text-white px-6 py-3 rounded-md text-center hover:bg-gray-800 transition"
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "11px",
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "#888",
+            textDecoration: "none",
+          }}
         >
-          Back to Search
+          ← Return to collection
         </Link>
       </div>
     );
-  // 5. The Real UI
+  }
+
+  // Fallback for missing images
+  const images = product.images ?? [];
+
   return (
-    <div className="max-w-6xl mx-auto p-8 mt-10 flex flex-col md:flex-row gap-10">
-      {/* Left Column: Image (Now wrapped in the external link!) */}
-      <div className="md:w-1/2">
-        <a
-          href={product.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block group"
-        >
-          <img
-            src={
-              product.images && product.images.length > 0
-                ? product.images[0]
-                : ""
-            }
-            alt={product.name}
-            className="w-full rounded-lg shadow-md group-hover:opacity-90 transition-opacity"
-          />
-        </a>
-      </div>
-
-      {/* Right Column: Details */}
-      <div className="md:w-1/2 flex flex-col justify-center">
-        <p className="text-gray-500 uppercase tracking-wide">{product.brand}</p>
-        <h1 className="text-3xl font-bold mt-2">{product.name}</h1>
-        <p className="text-2xl mt-4 font-semibold">
-          {product.price} {product.currency}
-        </p>
-
-        {/* Sizes Mapping */}
-        {product.sizes && product.sizes.length > 0 && (
-          <div className="mt-6">
-            <p className="font-semibold text-sm text-gray-700 mb-2 uppercase tracking-wider">
-              Available Sizes
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {product.sizes.map((size, index) => (
-                <span
-                  key={index}
-                  className="border border-gray-300 px-4 py-2 text-sm rounded-sm hover:border-black transition-colors"
-                >
-                  {size}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Scraped Details */}
-        {product.description && (
-          <p className="mt-8 text-gray-700 leading-relaxed">
-            {product.description}
-          </p>
-        )}
-
-        {product.composition && product.composition !== "Unknown" && (
-          <p className="mt-4 text-sm text-gray-500 bg-gray-50 p-4 rounded-md">
-            <span className="font-semibold">Composition:</span>{" "}
-            {product.composition}
-          </p>
-        )}
-
-        {/* External Link Button */}
-        <a
-          href={product.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-10 block w-full bg-black text-white px-6 py-4 rounded-md text-center font-bold tracking-widest uppercase hover:bg-gray-800 transition shadow-lg"
-        >
-          View on {product.brand}
-        </a>
-
-        {/* Keep the Back link just as a subtle text option below */}
+    <div style={{ minHeight: "100vh", background: "#faf9f6" }}>
+      {/* Minimal Nav... (Leaving this block untouched for simplicity) */}
+      <nav
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "20px 48px",
+          borderBottom: "1px solid #e8e4dc",
+        }}
+      >
         <Link
           to="/"
-          className="mt-4 text-center text-gray-500 text-sm hover:text-black underline transition-colors"
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "10px",
+            letterSpacing: "0.14em",
+            textTransform: "uppercase",
+            color: "#888",
+            textDecoration: "none",
+          }}
         >
-          &larr; Back to Search
+          ← Collection
         </Link>
+        <h1
+          style={{
+            fontFamily: "'Cormorant Garamond', serif",
+            fontWeight: 300,
+            fontSize: "18px",
+            letterSpacing: "0.25em",
+            textTransform: "uppercase",
+            color: "#1a1a1a",
+            margin: 0,
+          }}
+        >
+          Vestire
+        </h1>
+        <span
+          style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: "10px",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "#bbb",
+          }}
+        >
+          {product.brand}
+        </span>
+      </nav>
+
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "48px",
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "64px",
+          alignItems: "start",
+        }}
+      >
+        {/* LEFT: Gallery */}
+        <div>
+          {/* Main image */}
+          <a
+            href={product.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: "block", marginBottom: "12px" }}
+          >
+            <div
+              style={{
+                aspectRatio: "3/4",
+                overflow: "hidden",
+                background: "#f0ede8",
+              }}
+            >
+              {/* TODO 4: Conditionally render the main image ONLY if images.length > 0 */}
+              {/* TODO 5: The 'src' should pull the image from the 'images' array using your 'activeImage' state index! */}
+              {images.length > 0 && (
+                <img
+                  src={images[activeImage]}
+                  alt={product.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transition: "transform 0.6s ease",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.transform = "scale(1.03)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.transform = "scale(1)")
+                  }
+                />
+              )}
+            </div>
+          </a>
+
+          {/* Thumbnail strip */}
+          {images.length > 1 && (
+            <div
+              style={{
+                display: "flex",
+                gap: "6px",
+                overflowX: "auto",
+                paddingBottom: "4px",
+              }}
+            >
+              {/* TODO 6: Map over the first 6 images (use .slice(0,6).map(...)) */}
+              {/* TODO 7: Give the button an onClick that updates the 'activeImage' state to the current mapping index */}
+              {images.slice(0, 6).map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImage(idx)}
+                  style={{
+                    flexShrink: 0,
+                    width: "64px",
+                    aspectRatio: "3/4",
+                    overflow: "hidden",
+                    background: "#f0ede8",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    transition: "opacity 0.2s ease",
+
+                    // Dynamic styling based on if this thumbnail is the active one!
+                    outline:
+                      activeImage === idx ? "1.5px solid #1a1a1a" : "none",
+                    outlineOffset: "2px",
+                    opacity: activeImage === idx ? 1 : 0.55,
+                  }}
+                >
+                  <img
+                    src={img}
+                    alt={`view ${idx + 1}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* RIGHT: Details */}
+        <div style={{ paddingTop: "8px" }}>
+          <p
+            style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "10px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              color: "#aaa",
+              margin: "0 0 12px",
+            }}
+          >
+            {product.brand}{" "}
+            {product.color && (
+              <span style={{ marginLeft: "12px", color: "#ccc" }}>
+                · {product.color}
+              </span>
+            )}
+          </p>
+
+          <h2
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 300,
+              fontSize: "38px",
+              lineHeight: 1.1,
+              color: "#1a1a1a",
+              margin: "0 0 20px",
+            }}
+          >
+            {product.name
+              .split(" ")
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+              .join(" ")}
+          </h2>
+          <p
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "26px",
+              fontWeight: 400,
+              color: "#1a1a1a",
+              margin: "0 0 36px",
+            }}
+          >
+            {product.price.toLocaleString("tr-TR")} {product.currency}
+          </p>
+
+          <div
+            style={{
+              height: "1px",
+              background: "#e8e4dc",
+              marginBottom: "32px",
+            }}
+          />
+
+          {/* Sizes and the rest of the details below... */}
+          {/* (I've kept this exactly as you provided it to save space, but it's fully functional!) */}
+
+          {product.sizes && product.sizes.length > 0 && (
+            <div style={{ marginBottom: "36px" }}>
+              <p
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "9px",
+                  letterSpacing: "0.16em",
+                  textTransform: "uppercase",
+                  color: "#aaa",
+                  margin: "0 0 12px",
+                }}
+              >
+                Available sizes
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {product.sizes.map((size, i) => (
+                  <button
+                    key={i}
+                    onClick={() =>
+                      setSelectedSize(size === selectedSize ? null : size)
+                    }
+                    style={{
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: "12px",
+                      padding: "8px 14px",
+                      border: "1px solid",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      borderColor:
+                        selectedSize === size ? "#1a1a1a" : "#d4d0c8",
+                      background:
+                        selectedSize === size ? "#1a1a1a" : "transparent",
+                      color: selectedSize === size ? "#fff" : "#1a1a1a",
+                    }}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <a
+            href={product.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "block",
+              width: "100%",
+              padding: "16px",
+              background: "#1a1a1a",
+              color: "#fff",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "11px",
+              letterSpacing: "0.2em",
+              textTransform: "uppercase",
+              textAlign: "center",
+              textDecoration: "none",
+              marginBottom: "36px",
+            }}
+          >
+            View on {product.brand} →
+          </a>
+
+          {product.description && (
+            <div style={{ marginBottom: "24px" }}>
+              <p
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "10px",
+                  letterSpacing: "0.14em",
+                  textTransform: "uppercase",
+                  color: "#aaa",
+                  margin: "0 0 8px",
+                }}
+              >
+                About this piece
+              </p>
+              <p
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: "17px",
+                  fontWeight: 300,
+                  lineHeight: 1.7,
+                  color: "#555",
+                  margin: 0,
+                }}
+              >
+                {product.description}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

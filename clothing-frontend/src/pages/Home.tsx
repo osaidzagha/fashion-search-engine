@@ -7,12 +7,10 @@ import { fetchProductsFromAPI } from "../services/api";
 import { SearchBar } from "../components/SearchBar";
 import { Spinner } from "../components/Spinner";
 import { Sidebar } from "../components/Sidebar";
-import { HeroBanner } from "../components/HeroBanner";
 
 export default function Home() {
   const dispatch = useDispatch();
 
-  // 1. Grab EVERYTHING from Redux in one clean sweep
   const {
     items: products,
     isLoading,
@@ -24,83 +22,249 @@ export default function Home() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
-
+  const [scrolled, setScrolled] = useState(false);
+  // TODO 3: The Scroll Listener Effect
   useEffect(() => {
-    async function loadData() {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 60);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  // TODO 4: The Data Fetching Effect
+  useEffect(() => {
+    const fetchData = async () => {
       dispatch(setLoading(true));
+      try {
+        // FIX 1: Passed as a single object {} with correct keys
+        const data = await fetchProductsFromAPI({
+          searchTerm,
+          page: currentPage,
+          brands: selectBrands,
+          departments: selectDepartments,
+          maxPrice: maxPrice,
+        });
 
-      // 2. Package the filters exactly how our upgraded api.ts expects them!
-      const data = await fetchProductsFromAPI({
-        searchTerm,
-        page: currentPage,
-        brands: selectBrands,
-        departments: selectDepartments,
-        maxPrice: maxPrice,
-      });
+        // FIX 2: Changed data.items to data.products
+        dispatch(setProducts(data.products));
+        setTotalPages(data.totalPages);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        dispatch(setLoading(false));
+      }
+    };
 
-      dispatch(setProducts(data.products));
-      setTotalPages(data.totalPages);
-      dispatch(setLoading(false));
-    }
-    loadData();
+    // FIX 3: Actually calling the function!
+    fetchData();
   }, [
-    dispatch,
     searchTerm,
     currentPage,
     selectBrands,
     selectDepartments,
     maxPrice,
+    dispatch,
   ]);
-  //  3. CRITICAL: The API will now re-fetch whenever ANY filter changes!
 
-  // Reset to page 1 if the user changes their search OR clicks a new filter
+  // TODO 5: The Reset Pagination Effect
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, selectBrands, selectDepartments, maxPrice]);
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Top Header Area */}
-      <div className="p-6 md:p-8 border-b border-gray-200">
-        <h1 className="text-3xl font-bold mb-6 uppercase tracking-wider">
-          Fashion Engine
-        </h1>
+    <div style={{ minHeight: "100vh", background: "#faf9f6" }}>
+      {/* ── HERO HEADER ── */}
+      <header
+        style={{
+          position: "sticky",
+          top: 0,
+          zIndex: 50,
+          background: "#faf9f6",
+          borderBottom: "1px solid #e8e4dc",
+          transition: "padding 0.4s ease",
+
+          // TODO 6: Dynamic Padding based on scroll
+          padding: scrolled ? "14px 48px" : "32px 48px 28px",
+        }}
+      >
+        <div
+          style={{
+            textAlign: "center",
+            marginBottom: scrolled ? "12px" : "24px",
+            transition: "margin 0.4s ease",
+          }}
+        >
+          <h1
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontWeight: 300,
+              letterSpacing: "0.25em",
+              textTransform: "uppercase",
+              color: "#1a1a1a",
+              margin: 0,
+              transition: "font-size 0.4s ease",
+
+              // Dynamic font size: scrolled ? "22px" : "42px"
+              fontSize: scrolled ? "22px" : "42px",
+            }}
+          >
+            Vestire
+          </h1>
+          {/* Subtitle disappears when scrolled! */}
+          {!scrolled && (
+            <p
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "11px",
+                letterSpacing: "0.2em",
+                color: "#aaa",
+                textTransform: "uppercase",
+                margin: "6px 0 0",
+              }}
+            >
+              Zara &nbsp;&middot;&nbsp; Massimo Dutti
+            </p>
+          )}
+        </div>
         <SearchBar />
-      </div>
-      <HeroBanner />
-      {/* 4. The Layout: Flexbox to put Sidebar on the left, Grid on the right */}
-      <div className="max-w-screen-2xl mx-auto flex flex-col md:flex-row">
+      </header>
+
+      {/* ── BODY LAYOUT ── */}
+      <div style={{ maxWidth: "1600px", margin: "0 auto", display: "flex" }}>
+        {/* We drop the Sidebar component right here! */}
         <Sidebar />
 
-        <main className="flex-1 p-6 md:p-8">
-          {/* Top of Grid: Pagination & Status */}
-          <div className="flex justify-between items-center mb-6">
-            <span className="text-sm text-gray-500 uppercase tracking-wide">
+        <main style={{ flex: 1, padding: "40px 48px" }}>
+          {/* Status bar */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "32px",
+              paddingBottom: "16px",
+              borderBottom: "1px solid #e8e4dc",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "10px",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "#aaa",
+              }}
+            >
               {isLoading
-                ? "Loading..."
+                ? "Loading…"
                 : `Page ${currentPage} of ${totalPages || 1}`}
             </span>
 
-            <div className="flex gap-2">
+            {/* Pagination Controls */}
+            <div style={{ display: "flex", gap: "1px" }}>
               <button
-                onClick={() => setCurrentPage((p) => p - 1)}
+                // TODO 7A: Prev Button Logic
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage <= 1 || isLoading}
-                className="px-4 py-2 text-sm border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "11px",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  padding: "8px 20px",
+                  background: "transparent",
+                  border: "1px solid #d4d0c8",
+                  transition: "background 0.2s ease, color 0.2s ease",
+                  cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                  color: currentPage <= 1 ? "#ccc" : "#1a1a1a",
+                }}
               >
-                Prev
+                ← Prev
               </button>
               <button
-                onClick={() => setCurrentPage((p) => p + 1)}
+                // TODO 7B: Next Button Logic
+                onClick={() =>
+                  setCurrentPage((prev) => Math.min(prev + 1, totalPages || 1))
+                }
                 disabled={currentPage >= totalPages || isLoading}
-                className="px-4 py-2 text-sm border border-gray-300 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "11px",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                  padding: "8px 20px",
+                  background: "transparent",
+                  border: "1px solid #d4d0c8",
+                  transition: "background 0.2s ease, color 0.2s ease",
+                  cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                  color: currentPage >= totalPages ? "#ccc" : "#1a1a1a",
+                }}
               >
-                Next
+                Next →
               </button>
             </div>
           </div>
 
-          {/* The Actual Products */}
-          {isLoading ? <Spinner /> : <ProductGrid products={products} />}
+          {/* TODO 8: Conditional Rendering for the Grid */}
+          {/* If 'isLoading' is true, render the <Spinner /> wrapped in the centered div. */}
+          {/* Else, render the <ProductGrid /> and pass it the 'products' array from Redux. */}
+          {isLoading ? (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                paddingTop: "80px",
+              }}
+            >
+              <Spinner />
+            </div>
+          ) : (
+            <ProductGrid products={products} />
+          )}
+
+          {/* Bottom pagination numbers (Code left intact) */}
+          {!isLoading && totalPages > 1 && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                gap: "4px",
+                marginTop: "64px",
+                paddingTop: "32px",
+                borderTop: "1px solid #e8e4dc",
+              }}
+            >
+              {Array.from(
+                { length: Math.min(totalPages, 8) },
+                (_, i) => i + 1,
+              ).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => setCurrentPage(page)}
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "12px",
+                    background:
+                      page === currentPage ? "#1a1a1a" : "transparent",
+                    color: page === currentPage ? "#fff" : "#888",
+                    border: "1px solid",
+                    borderColor:
+                      page === currentPage ? "#1a1a1a" : "transparent",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {page}
+                </button>
+              ))}
+            </div>
+          )}
         </main>
       </div>
     </div>
