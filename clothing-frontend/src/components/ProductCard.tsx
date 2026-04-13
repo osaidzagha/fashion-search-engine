@@ -225,3 +225,4 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     </Link>
   );
 };
+export default ProductCard;

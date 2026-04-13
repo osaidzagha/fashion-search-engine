@@ -2,6 +2,10 @@ import { Page } from "puppeteer";
 import { Product } from "./interface"; // Ensure this path is correct
 import { ProductModel } from "../models/Product"; // Ensure this path is correct
 
+const shuffleArray = (array: any[]) => {
+  return [...array].sort(() => Math.random() - 0.5);
+};
+
 type GetCategories = (page: Page, dept: string) => Promise<string[]>;
 type GetLinks = (page: Page, url: string) => Promise<string[]>;
 type ScrapeProduct = (
@@ -31,8 +35,11 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const toScrape = testMode ? categories.slice(0, 1) : categories.slice(0, 3);
-
+    // 1. Shuffle the categories, then grab a few
+    const shuffledCategories = shuffleArray(categories);
+    const toScrape = testMode
+      ? shuffledCategories.slice(0, 1)
+      : shuffledCategories.slice(0, 3);
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       const links = await getLinks(page, categoryUrl);
@@ -44,8 +51,11 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      const toTest = testMode ? links.slice(0, 2) : links.slice(0, 15);
-
+      // 2. Shuffle the product links, then grab a subset
+      const shuffledLinks = shuffleArray(links);
+      const toTest = testMode
+        ? shuffledLinks.slice(0, 2)
+        : shuffledLinks.slice(0, 15);
       for (const link of toTest) {
         // Safe category extraction (handles URLs with or without .html)
         const category =

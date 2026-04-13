@@ -35,6 +35,20 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>("input[type=text]")?.focus();
+      }
+      if (e.key === "Escape") {
+        document.querySelector<HTMLInputElement>("input[type=text]")?.blur();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   // TODO 4: The Data Fetching Effect
   useEffect(() => {
     const fetchData = async () => {

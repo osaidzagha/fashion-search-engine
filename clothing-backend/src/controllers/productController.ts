@@ -3,6 +3,7 @@ import { ProductModel } from "../models/Product";
 
 export const getProducts = async (req: Request, res: Response) => {
   try {
+    console.log("🚨 INCOMING API REQUEST:", req.query);
     const page = Number(req.query.page) || 1;
     const requestedLimit = Number(req.query.limit) || 20;
     const limit = Math.min(requestedLimit, 50);
@@ -29,16 +30,22 @@ export const getProducts = async (req: Request, res: Response) => {
         .map((brand) => brand.trim());
       filter.brand = { $in: brandArray };
     }
-    if (req.query.category) {
-      const categoryArray = (req.query.category as string)
-        .split(",")
-        .map((cat) => cat.trim());
-      // 2. Add the '^' symbol to the front of each word so "MAN" doesn't match "woMAN"
-      // Result: ["^MAN", "^WOMAN"]
-      const regexParts = categoryArray.map((cat) => `^${cat}`);
-      // 3. Join them with '|' (which means OR in Regex) and make it case-insensitive
-      // Result: /^MAN|^WOMAN/i
-      filter.category = { $regex: regexParts.join("|"), $options: "i" };
+    // 👇 The ONLY department filter you need 👇
+    if (req.query.departments) {
+      const depts = req.query.departments;
+
+      const deptArray = Array.isArray(depts)
+        ? (depts as string[])
+        : (depts as string).split(",").map((d) => d.trim());
+
+      const regexParts = deptArray.map((dept) => {
+        if (dept.toUpperCase() === "MAN") return "^(man|men)$";
+        if (dept.toUpperCase() === "WOMAN") return "^(woman|women)$";
+        return `^${dept}$`;
+      });
+
+      // We apply it to the `department` field in MongoDB!
+      filter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
     const [allProducts, total] = await Promise.all([

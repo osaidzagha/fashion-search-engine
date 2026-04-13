@@ -12,6 +12,7 @@ export interface Product {
   composition?: string;
   sizes?: string[];
   timestamp?: string; // Or Date, depending on how your API sends it
+  priceHistory?: { price: number; date: string }[];
 }
 export interface PaginatedResponse {
   products: Product[];

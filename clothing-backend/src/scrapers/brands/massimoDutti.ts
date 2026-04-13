@@ -222,6 +222,24 @@ export async function scrapeMassimoProductData(
       });
     });
 
+    // 👇 NEW: Video Extractor 👇
+    const cleanVideo = await page
+      .evaluate(() => {
+        // Look for a video tag, specifically one with an mp4 source
+        const videoSource =
+          document.querySelector('video source[type="video/mp4"]') ||
+          document.querySelector("video");
+        if (!videoSource) return null;
+
+        const src = videoSource.getAttribute("src");
+        // Ignore placeholder blobs
+        if (src && !src.startsWith("blob:")) {
+          return src;
+        }
+        return null;
+      })
+      .catch(() => null);
+
     await page
       .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
       .catch(() => {});
@@ -305,17 +323,32 @@ export async function scrapeMassimoProductData(
       await page.waitForSelector('button[role="option"]', { timeout: 3000 });
     } catch (e) {}
 
+    // 👇 UPGRADED: In-Stock Size Extractor 👇
     const sizes = await page.evaluate(() => {
       const sizeSpans = Array.from(
         document.querySelectorAll(".md-size-selector-btn-title"),
       );
+
       return sizeSpans
-        .map((span) => {
-          return (
-            span.textContent?.replace(/\n/g, " ").replace(/\s+/g, " ").trim() ||
-            ""
-          );
+        .filter((span) => {
+          // Find the actual clickable button that wraps this text
+          const parentBtn = span.closest("button") || span.parentElement;
+          if (!parentBtn) return true; // Safety fallback
+
+          // Check if the button is legally disabled or has a 'sold out' class
+          const isDisabled =
+            parentBtn.hasAttribute("disabled") ||
+            parentBtn.className.includes("disabled") ||
+            parentBtn.className.includes("out-of-stock");
+
+          // Only keep it if it is NOT disabled
+          return !isDisabled;
         })
+        .map(
+          (span) =>
+            span.textContent?.replace(/\n/g, " ").replace(/\s+/g, " ").trim() ||
+            "",
+        )
         .filter(Boolean);
     });
 
@@ -369,6 +402,7 @@ export async function scrapeMassimoProductData(
       brand: "Massimo Dutti",
       // @ts-ignore
       images: rawImages,
+      video: cleanVideo || undefined,
       link: url,
       timestamp: new Date(),
       color: cleanColor,

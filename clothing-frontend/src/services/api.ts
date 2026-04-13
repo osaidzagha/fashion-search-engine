@@ -16,7 +16,8 @@ export const fetchProductsFromAPI = async (
     }
 
     if (filters.departments && filters.departments.length > 0) {
-      urlParams.set("category", filters.departments.join(","));
+      // Send it as "departments" so it perfectly matches our backend!
+      urlParams.set("departments", filters.departments.join(","));
     }
 
     if (filters.maxPrice)
