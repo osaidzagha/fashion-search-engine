@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import { ProductModel } from "../models/Product"; // Adjust this path if your model is somewhere else!
+import { ProductModel } from "../models/Product";
 
 dotenv.config();
 
-const clearMassimoDutti = async () => {
+const clearDatabase = async () => {
   try {
     // 1. Connect to the database
     const mongoUri = process.env.MONGO_URI;
@@ -15,13 +15,22 @@ const clearMassimoDutti = async () => {
     await mongoose.connect(mongoUri);
     console.log("🔌 Connected to MongoDB.");
 
-    // 2. Nuke ONLY the Massimo Dutti products (Leave Zara alone!)
-    console.log("🗑️  Deleting old Massimo Dutti data...");
-    const result = await ProductModel.deleteMany({ brand: "Massimo Dutti" });
+    // 2. The Nuclear Option: Drop the entire collection AND its indexes
+    console.log("🗑️  Dropping the entire products collection...");
 
-    console.log(
-      `✅ Successfully deleted ${result.deletedCount} Massimo Dutti products.`,
-    );
+    try {
+      await ProductModel.collection.drop();
+      console.log(
+        "✅ Successfully destroyed the collection. Your database is a clean slate.",
+      );
+    } catch (dropError: any) {
+      // If Mongo throws Error Code 26, it just means the collection is already gone
+      if (dropError.code === 26) {
+        console.log("⚠️ Collection doesn't exist, nothing to drop.");
+      } else {
+        throw dropError;
+      }
+    }
 
     // 3. Disconnect and close the script
     await mongoose.disconnect();
@@ -32,4 +41,4 @@ const clearMassimoDutti = async () => {
   }
 };
 
-clearMassimoDutti();
+clearDatabase();

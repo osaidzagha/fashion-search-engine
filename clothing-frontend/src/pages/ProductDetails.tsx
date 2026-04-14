@@ -515,45 +515,6 @@ export default function ProductDetails() {
         </div>
       </div>
       {/* --- END OF 2-COLUMN GRID --- */}
-
-      {/* --- "WEAR IT WITH" SECTION (Now Full Width!) --- */}
-      {relatedProducts.length > 0 && (
-        <div
-          style={{
-            maxWidth: "1200px",
-            margin: "0 auto",
-            padding: "0 48px 80px",
-            marginTop: "40px",
-            borderTop: "1px solid #e5e5e5",
-            paddingTop: "60px",
-          }}
-        >
-          <h3
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "12px",
-              letterSpacing: "0.15em",
-              textTransform: "uppercase",
-              textAlign: "center",
-              marginBottom: "40px",
-            }}
-          >
-            Wear it with
-          </h3>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: "24px",
-            }}
-          >
-            {relatedProducts.map((item) => (
-              <ProductCard key={item.id} product={item} />
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

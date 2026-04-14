@@ -49,5 +49,24 @@ const ProductSchema: Schema = new Schema({
   ],
 });
 
+ProductSchema.index(
+  {
+    name: "text",
+    brand: "text",
+    color: "text",
+    description: "text",
+  },
+  {
+    // Weights define relevance ranking. Higher number = more important!
+    weights: {
+      name: 10,
+      brand: 5,
+      color: 3,
+      description: 1,
+    },
+    name: "TextSearchIndex",
+  },
+);
+
 // 3. We compile the Schema into a Model
 export const ProductModel = mongoose.model<IProduct>("Product", ProductSchema);

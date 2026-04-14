@@ -11,14 +11,22 @@ export const getProducts = async (req: Request, res: Response) => {
 
     let filter: any = {};
     let sortOption: any = {};
-
+    let projection: any = null;
     if (req.query.sort === "lowest") {
       sortOption.price = 1; // Ascending price
     } else if (req.query.sort === "highest") {
       sortOption.price = -1; // Descending price
     }
     if (req.query.search) {
-      filter.name = { $regex: req.query.search, $options: "i" }; // Case-insensitive search on name
+      // 1. Tell Mongo to use the Text Index
+      filter.$text = { $search: req.query.search as string };
+
+      // 2. Override the default sorting to sort by Relevance Score
+      if (!req.query.sort) {
+        // 👈 Ask MongoDB to calculate the score AND sort by it!
+        projection = { score: { $meta: "textScore" } };
+        sortOption = { score: { $meta: "textScore" } };
+      }
     }
     if (req.query.maxPrice) {
       const max = Number(req.query.maxPrice);
@@ -49,10 +57,12 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     const [allProducts, total] = await Promise.all([
-      ProductModel.find(filter).sort(sortOption).skip(skip).limit(limit),
+      ProductModel.find(filter, projection)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit),
       ProductModel.countDocuments(filter),
     ]);
-
     return res.status(200).json({
       products: allProducts,
       totalCount: total,

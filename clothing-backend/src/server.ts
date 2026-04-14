@@ -24,8 +24,10 @@ cron.schedule("0 3 * * *", async () => {
 });
 mongoose
   .connect(process.env.MONGO_URI as string)
-  .then(() => {
+  .then(async () => {
     console.log("🔌 Connected to MongoDB");
+    await mongoose.model("Product").syncIndexes();
+    console.log("✅ Database Indexes Synchronized!");
     app.listen(PORT, () => {
       console.log(`🚀 API Server is running on http://localhost:${PORT}`);
     });
