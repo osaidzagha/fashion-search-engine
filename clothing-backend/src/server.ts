@@ -6,6 +6,7 @@ import { ProductModel } from "./models/Product";
 import productRoutes from "./routes/productRoutes";
 import { runAllScrapers } from "./scrapers/scraperManager";
 import cron from "node-cron";
+import authRoutes from "./routes/authRoutes";
 dotenv.config();
 
 const app = express();
@@ -16,6 +17,9 @@ app.use(express.json());
 
 // Use the product routes for any requests to /api/products
 app.use("/api/products", productRoutes);
+
+// Use the auth routes for any requests to /api/auth
+app.use("/api/auth", authRoutes);
 
 // Test schedule: Run every 1 minute
 cron.schedule("0 3 * * *", async () => {

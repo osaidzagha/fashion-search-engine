@@ -1,16 +1,18 @@
 import express from "express";
-import { getProducts } from "../controllers/productController";
-import { getProductById } from "../controllers/productController";
+import { getProducts, getProductById } from "../controllers/productController";
 import { ProductModel } from "../models/Product";
+
+// 👇 1. Import your new Security Bouncers
+import { protect, admin } from "../middlewares/authMiddleware";
 
 const router = express.Router();
 
-// 1. Define the route for fetching all products
+// ==========================================
+// 🟢 PUBLIC ROUTES (Anyone can access)
+// ==========================================
+
 router.get("/", getProducts);
 
-// 2. Define the route for fetching related products
-// NOTE: It is best practice to put specific routes (like /:id/related)
-// BEFORE generic routes (like /:id) so Express doesn't get confused!
 router.get("/:id/related", async (req, res) => {
   try {
     const product = await ProductModel.findOne({ id: req.params.id });
@@ -35,8 +37,26 @@ router.get("/:id/related", async (req, res) => {
   }
 });
 
-// 3. Define the route for fetching a single product by ID
 router.get("/:id", getProductById);
 
-// 4. Export the fully built router at the very end!
+// ==========================================
+// 🔴 PROTECTED ADMIN ROUTES (Admins Only)
+// ==========================================
+
+// Example: Route to manually add a new product
+router.post("/", protect, admin, (req, res) => {
+  res
+    .status(200)
+    .json({ message: "Admin Access Granted: You can create products!" });
+});
+
+// Example: Route to delete a product
+router.delete("/:id", protect, admin, (req, res) => {
+  res
+    .status(200)
+    .json({
+      message: `Admin Access Granted: Product ${req.params.id} deleted!`,
+    });
+});
+
 export default router;
