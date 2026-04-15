@@ -1,17 +1,33 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+
+// 👇 1. Import your new files
+import ProtectedRoute from "./utils/ProtectedRoute";
+import AdminDashboard from "./pages/AdminDashboard";
 
 export default function App() {
   return (
     <Router>
-      {/* Anything outside of <Routes> (like a Navbar) would show up on EVERY page */}
+      <Navbar />
       <Routes>
-        {/* Route 1: The Main Search Engine */}
         <Route path="/" element={<Home />} />
-
-        {/* Route 2: The Individual Product Page */}
         <Route path="/product/:id" element={<ProductDetails />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        {/* ========================================== */}
+        {/* 🔒 PROTECTED ROUTES                        */}
+        {/* ========================================== */}
+
+        {/* Any route placed INSIDE this block requires Admin privileges */}
+        <Route element={<ProtectedRoute adminOnly={true} />}>
+          {/* Try typing localhost:3000/admin as a normal user! */}
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Route>
       </Routes>
     </Router>
   );

@@ -50,3 +50,39 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     return null;
   }
 }
+
+// ... your existing getProducts code ...
+
+const AUTH_URL = "http://localhost:5000/api/auth";
+
+// 👇 1. The Login Function
+export const loginUser = async (credentials: any) => {
+  const response = await fetch(`${AUTH_URL}/login`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(credentials),
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Failed to login");
+
+  return data; // This contains the user object AND the token!
+};
+
+// 👇 2. The Register Function
+export const registerUser = async (userData: any) => {
+  const response = await fetch(`${AUTH_URL}/register`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(userData),
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || "Failed to register");
+
+  return data;
+};
