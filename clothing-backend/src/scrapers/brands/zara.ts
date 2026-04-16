@@ -102,22 +102,24 @@ export async function scrapeZaraProductData(
       return priceElement ? priceElement.textContent?.trim() || "0" : "0";
     });
 
-    // --- SCROLL ---
+    // --- DEEP SCROLL (For Lazy-Loaded Images) ---
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let totalHeight = 0;
-        const distance = 400;
+        const distance = 300; // 👈 Scroll smaller amounts...
         const timer = setInterval(() => {
           window.scrollBy(0, distance);
           totalHeight += distance;
+
+          // 👈 Increase max limit to 8000px so it reaches the bottom of long pages!
           if (
             totalHeight >= document.body.scrollHeight - window.innerHeight ||
-            totalHeight > 3000
+            totalHeight > 8000
           ) {
             clearInterval(timer);
             resolve(undefined);
           }
-        }, 150);
+        }, 300); // 👈 Wait 300ms between scrolls to let images download (was 150)
       });
     });
 
@@ -126,54 +128,91 @@ export async function scrapeZaraProductData(
       .catch(() => {});
 
     const rawImages = (await page.evaluate(`
-  (() => {
-    const pickHighestRes = (srcset) => {
-      if (!srcset) return null;
-      const candidates = srcset.split(',').map(entry => {
-        const parts = entry.trim().split(/\\s+/);
-        return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
-      });
-      candidates.sort((a, b) => b.width - a.width);
-      return candidates[0]?.url ?? null;
-    };
+      (() => {
+        // 👇 NEW: The Image Upscaler & Sanitizer
+        const sanitizeAndUpscale = (url) => {
+          if (!url) return null;
+          
+          // 1. Filter out the trash (Base64 data, SVGs, and known placeholders)
+          if (url.startsWith('data:')) return null;
+          if (url.endsWith('.svg') || url.includes('placeholder')) return null;
 
-    const gallery =
-      document.querySelector('[class*="product-detail-images"]') ||
-      document.querySelector('[class*="pdp-gallery"]') ||
-      document.querySelector('[class*="media-gallery"]') ||
-      document.querySelector('main');
+          // 2. The Hack: Find Inditex width params (like /w/250/) and force them to /w/1024/
+          return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
+        };
 
-    if (!gallery) return [];
+        const pickHighestRes = (srcset) => {
+          if (!srcset) return null;
+          const candidates = srcset.split(',').map(entry => {
+            const parts = entry.trim().split(/\\s+/);
+            return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+          });
+          candidates.sort((a, b) => b.width - a.width);
+          return candidates[0]?.url ?? null;
+        };
 
-    const clone = gallery.cloneNode(true);
-    ['[class*="complete-the-look"]', '[class*="cross-sell"]',
-     '[class*="recommendations"]', '[class*="carousel"]', 'footer']
-      .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
+        const gallery =
+          document.querySelector('[class*="product-detail-images"]') ||
+          document.querySelector('[class*="pdp-gallery"]') ||
+          document.querySelector('[class*="media-gallery"]') ||
+          document.querySelector('main');
 
-    const images = [];
+        if (!gallery) return [];
 
-    // ONE image per <picture> element — avoids breakpoint duplicates
-    clone.querySelectorAll('picture').forEach(picture => {
-      const source = picture.querySelector('source');
-      if (!source) return;
-      const url = pickHighestRes(source.getAttribute('srcset') || '');
-      if (url && !url.startsWith('data:') && !url.includes('placeholder')) {
-        images.push(url);
-      }
-    });
+        const clone = gallery.cloneNode(true);
+        ['[class*="complete-the-look"]', '[class*="cross-sell"]',
+         '[class*="recommendations"]', '[class*="carousel"]', 'footer']
+          .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
 
-    if (images.length === 0) {
-      clone.querySelectorAll('img').forEach(img => {
-        const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-        if (src && !src.startsWith('data:') && !src.includes('placeholder')) {
-          images.push(src);
+        const images = [];
+
+        clone.querySelectorAll('picture').forEach(picture => {
+          const source = picture.querySelector('source');
+          if (!source) return;
+          
+          // Try to get the highest res from srcset first, fallback to src
+          let rawUrl = pickHighestRes(source.getAttribute('srcset') || '') 
+                       || source.getAttribute('src');
+          
+          const cleanUrl = sanitizeAndUpscale(rawUrl);
+          if (cleanUrl) images.push(cleanUrl);
+        });
+
+        // Fallback for standard <img> tags
+        if (images.length === 0) {
+          clone.querySelectorAll('img').forEach(img => {
+            let rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
+            const cleanUrl = sanitizeAndUpscale(rawUrl);
+            if (cleanUrl) images.push(cleanUrl);
+          });
         }
-      });
-    }
 
-    return [...new Set(images)];
-  })()
-`)) as string[];
+        return [...new Set(images)];
+      })()
+    `)) as string[];
+
+    // 👇 NEW: Zara Video Extractor 👇
+    const cleanVideo = await page
+      .evaluate(() => {
+        // Zara usually puts videos in a specific media container
+        const videoSource =
+          document.querySelector('video source[type="video/mp4"]') ||
+          document.querySelector("video.media-video__video") ||
+          document.querySelector("video");
+
+        if (!videoSource) return null;
+
+        const src =
+          videoSource.getAttribute("src") ||
+          videoSource.getAttribute("data-src");
+
+        // We don't want weird blob URLs, just real mp4s
+        if (src && !src.startsWith("blob:")) {
+          return src;
+        }
+        return null;
+      })
+      .catch(() => null);
 
     let cleanColor = rawColor.split("|")[0].trim();
     const finalPrice = parseUniversalPrice(rawPrice);
@@ -212,6 +251,7 @@ export async function scrapeZaraProductData(
       brand: "Zara",
       // @ts-ignore
       images: rawImages,
+      video: cleanVideo || undefined,
       link: url,
       timestamp: new Date(),
       color: cleanColor,

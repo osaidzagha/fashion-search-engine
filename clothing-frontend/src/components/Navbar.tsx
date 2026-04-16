@@ -45,8 +45,8 @@ const Navbar = () => {
             /* If a user IS logged in, show these... */
             <>
               <span className="text-sm font-medium text-gray-500">
-                Hi, {userInfo.name.split(" ")[0]}!{" "}
-                {/* Shows just their first name */}
+                {/* 👇 The ? stops the crash, and the || provides a fallback! */}
+                Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!{" "}
               </span>
 
               {/* 👑 The Secret Admin Button */}

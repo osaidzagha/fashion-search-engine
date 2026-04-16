@@ -7,6 +7,9 @@ export interface IUser extends Document {
   password: string; // This will be hashed!
   role: "user" | "admin"; // 👇 Here is your Role System!
   savedItems: string[]; // For later: saving product IDs to a wishlist
+  isVerified: boolean; // For email verification
+  verificationToken?: string; // Token for email verification
+  verificationExpires?: Date; // Expiry for the verification token
 }
 
 // 2. MongoDB Schema
@@ -21,6 +24,9 @@ const UserSchema: Schema = new Schema(
       default: "user", // Everyone is a normal user by default
     },
     savedItems: [{ type: String }], // Array of Product IDs
+    isVerified: { type: Boolean, default: false }, // For email verification
+    verificationToken: { type: String }, // Token for email verification
+    verificationExpires: { type: Date }, // Expiry for the verification token
   },
   {
     timestamps: true, // Automatically adds createdAt and updatedAt dates

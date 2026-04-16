@@ -8,7 +8,7 @@ import Register from "./pages/Register";
 // 👇 1. Import your new files
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
-
+import VerifyEmail from "./pages/VerifyEmail";
 export default function App() {
   return (
     <Router>
@@ -25,9 +25,11 @@ export default function App() {
 
         {/* Any route placed INSIDE this block requires Admin privileges */}
         <Route element={<ProtectedRoute adminOnly={true} />}>
-          {/* Try typing localhost:3000/admin as a normal user! */}
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
+
+        {/* The Verification Route */}
+        <Route path="/verify/:token" element={<VerifyEmail />} />
       </Routes>
     </Router>
   );
