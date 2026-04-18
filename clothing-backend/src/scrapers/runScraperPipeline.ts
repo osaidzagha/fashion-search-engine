@@ -68,15 +68,19 @@ export const runScraperPipeline = async (
             await ProductModel.findOneAndUpdate(
               { id: product.id },
               {
-                // 1. Update these fields every time the scraper runs
+                // 👇 FIX: Explicitly tell Mongo to overwrite ALL dynamic fields on every run
                 $set: {
                   name: product.name,
                   price: product.price,
+                  originalPrice: product.originalPrice,
+                  color: product.color,
+                  description: product.description,
+                  composition: product.composition,
                   images: product.images,
                   sizes: product.sizes,
-                  video: product.video, // Don't forget your video!
+                  video: product.video,
                 },
-                // 2. ONLY set these fields if the product is brand new
+                // 2. ONLY set these structural fields if the product is brand new
                 $setOnInsert: {
                   timestamp: new Date(),
                   brand: product.brand,

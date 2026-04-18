@@ -18,7 +18,6 @@ function parseUniversalPrice(rawPrice: string): number {
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
   const xpath = `::-p-xpath(//span[@class='layout-categories-category-name' and text()='${department}'])`;
-
   try {
     const targetElement = await page.waitForSelector(xpath, { timeout: 5000 });
     if (targetElement) {
@@ -35,16 +34,16 @@ async function selectDepartment(page: Page, department: string) {
 }
 
 async function handleGeoModal(page: Page) {
-  console.log("   -->Checking for Geo-Location Modal...");
+  console.log("   --> Checking for Geo-Location Modal...");
   try {
     const stayButtonSelector = '[data-qa-action="stay-in-store"]';
     await page.waitForSelector(stayButtonSelector, { timeout: 3000 });
     console.log("   --> Modal Detected! Clicking 'Stay in Turkey'...");
     await page.click(stayButtonSelector);
     await new Promise((r) => setTimeout(r, 1000));
-    console.log("   -->Modal Dismissed.");
+    console.log("   --> Modal Dismissed.");
   } catch (e) {
-    console.log("   -->No modal found (Safe to proceed).");
+    console.log("   --> No modal found (Safe to proceed).");
   }
 }
 
@@ -68,185 +67,238 @@ export async function scrapeZaraProductData(
     } catch {
       return null;
     }
-    await new Promise((r) => setTimeout(r, 1500));
 
-    const rawDescription = await page
-      .$eval(
-        ".product-detail-description",
-        (el) => el.textContent?.trim() || "",
-      )
-      .catch(() => "");
+    // ─── STEP 1: Wait for JS hydration at page top ───────────────────────────
+    // Page is at top, description/color/composition are rendered in viewport.
+    // Poll until they have text — bail after 8s (some products genuinely lack them).
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var maxWait = 8000;
+          var waited = 0;
+          var interval = setInterval(function() {
+            var descEl  = document.querySelector('.product-detail-description');
+            var colorEl = document.querySelector('.product-color-extended-name');
+            var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length  > 0;
+            var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
+            waited += 100;
+            if ((descReady && colorReady) || waited >= maxWait) {
+              clearInterval(interval);
+              resolve(undefined);
+            }
+          }, 100);
+        });
+      })()
+    `);
 
-    const rawColor = await page
-      .$eval(
-        ".product-color-extended-name",
-        (el) => el.textContent?.trim() || "",
-      )
-      .catch(() => "");
+    // ─── STEP 2: Read ALL text data while page is still at top ───────────────
+    const textData = (await page.evaluate(`
+      (function() {
+        function getText(selector) {
+          var el = document.querySelector(selector);
+          return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        }
 
-    const rawComposition = await page
-      .$eval(
-        ".product-detail-composition",
-        (el) => el.textContent?.trim() || "",
-      )
-      .catch(() => "");
+        var name =
+          getText('h1.product-detail-info__header-name') ||
+          getText('h1');
 
-    const rawName = await page
-      .$eval("h1", (el) => el.textContent?.trim() || "Unknown")
-      .catch(() => "Unknown");
+        var description =
+          getText('.product-detail-description.product-detail-info__description') ||
+          getText('.product-detail-description') ||
+          getText('[class*="product-detail-info__description"]');
 
-    const rawPrice = await page.evaluate(() => {
-      const priceElement = document.querySelector(
-        ".money-amount__main, .price__amount-current, .price__amount",
-      );
-      return priceElement ? priceElement.textContent?.trim() || "0" : "0";
-    });
+        var color =
+          getText('.product-color-extended-name.product-detail-info__color') ||
+          getText('.product-color-extended-name') ||
+          getText('[class*="color-extended"]');
 
-    // --- DEEP SCROLL (For Lazy-Loaded Images) ---
-    await page.evaluate(async () => {
-      await new Promise((resolve) => {
-        let totalHeight = 0;
-        const distance = 300; // 👈 Scroll smaller amounts...
-        const timer = setInterval(() => {
-          window.scrollBy(0, distance);
-          totalHeight += distance;
+        var compItems = Array.from(document.querySelectorAll(
+          '.product-detail-composition__item.product-detail-composition__part'
+        ));
+        var composition = compItems.length > 0
+          ? compItems
+              .map(function(el) { return el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : ''; })
+              .filter(Boolean)
+              .join(', ')
+          : getText('.product-detail-composition.product-detail-view__detailed-composition') ||
+            getText('.product-detail-composition');
 
-          // 👈 Increase max limit to 8000px so it reaches the bottom of long pages!
-          if (
-            totalHeight >= document.body.scrollHeight - window.innerHeight ||
-            totalHeight > 8000
-          ) {
-            clearInterval(timer);
-            resolve(undefined);
-          }
-        }, 300); // 👈 Wait 300ms between scrolls to let images download (was 150)
-      });
-    });
+        function getText2(selector) {
+          var el = document.querySelector(selector);
+          return el && el.textContent ? el.textContent.trim() : '';
+        }
+        var currentRaw =
+          getText2('.price-current__amount .money-amount__main') ||
+          getText2('.price-current .money-amount__main') ||
+          getText2('.money-amount--highlight .money-amount__main') ||
+          getText2('.money-amount__main') ||
+          getText2('.price__amount-current') ||
+          getText2('.price__amount');
+        var originalRaw =
+          getText2('.price__amount--old-price-wrapper .money-amount__main') ||
+          getText2('.price__amount--old-price-wrapper');
+
+        return {
+          name:        name,
+          description: description,
+          color:       color,
+          composition: composition,
+          currentRaw:  currentRaw,
+          originalRaw: originalRaw,
+        };
+      })()
+    `)) as {
+      name: string;
+      description: string;
+      color: string;
+      composition: string;
+      currentRaw: string;
+      originalRaw: string;
+    };
+
+    // ─── STEP 3: Deep scroll to trigger lazy-loaded images ───────────────────
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var totalHeight = 0;
+          var distance = 300;
+          var timer = setInterval(function() {
+            window.scrollBy(0, distance);
+            totalHeight += distance;
+            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
+              clearInterval(timer);
+              resolve(undefined);
+            }
+          }, 300);
+        });
+      })()
+    `);
 
     await page
       .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
       .catch(() => {});
 
+    // ─── STEP 4: Read images after scroll ────────────────────────────────────
     const rawImages = (await page.evaluate(`
-      (() => {
-        // 👇 NEW: The Image Upscaler & Sanitizer
-        const sanitizeAndUpscale = (url) => {
+      (function() {
+        function sanitizeAndUpscale(url) {
           if (!url) return null;
-          
-          // 1. Filter out the trash (Base64 data, SVGs, and known placeholders)
           if (url.startsWith('data:')) return null;
           if (url.endsWith('.svg') || url.includes('placeholder')) return null;
-
-          // 2. The Hack: Find Inditex width params (like /w/250/) and force them to /w/1024/
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
-        };
-
-        const pickHighestRes = (srcset) => {
-          if (!srcset) return null;
-          const candidates = srcset.split(',').map(entry => {
-            const parts = entry.trim().split(/\\s+/);
-            return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+        }
+        function pickHighestResFromSources(sources) {
+          var bestUrl = null;
+          var bestWidth = -1;
+          sources.forEach(function(source) {
+            var srcset = source.getAttribute('srcset') || '';
+            var candidates = srcset.split(',').map(function(entry) {
+              var parts = entry.trim().split(/\\s+/);
+              return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+            });
+            candidates.forEach(function(c) {
+              if (c.width > bestWidth && c.url) { bestWidth = c.width; bestUrl = c.url; }
+            });
+            if (bestUrl === null) { var src = source.getAttribute('src'); if (src) bestUrl = src; }
           });
-          candidates.sort((a, b) => b.width - a.width);
-          return candidates[0]?.url ?? null;
-        };
-
-        const gallery =
+          return bestUrl;
+        }
+        var gallery =
           document.querySelector('[class*="product-detail-images"]') ||
           document.querySelector('[class*="pdp-gallery"]') ||
           document.querySelector('[class*="media-gallery"]') ||
           document.querySelector('main');
-
         if (!gallery) return [];
-
-        const clone = gallery.cloneNode(true);
-        ['[class*="complete-the-look"]', '[class*="cross-sell"]',
-         '[class*="recommendations"]', '[class*="carousel"]', 'footer']
-          .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
-
-        const images = [];
-
-        clone.querySelectorAll('picture').forEach(picture => {
-          const source = picture.querySelector('source');
-          if (!source) return;
-          
-          // Try to get the highest res from srcset first, fallback to src
-          let rawUrl = pickHighestRes(source.getAttribute('srcset') || '') 
-                       || source.getAttribute('src');
-          
-          const cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl) images.push(cleanUrl);
+        var clone = gallery.cloneNode(true);
+        ['[class*="complete-the-look"]','[class*="cross-sell"]',
+         '[class*="recommendations"]','[class*="carousel"]','footer']
+          .forEach(function(sel) {
+            clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
+          });
+        var seen = new Set();
+        var images = [];
+        clone.querySelectorAll('picture').forEach(function(picture) {
+          var sources = Array.from(picture.querySelectorAll('source'));
+          if (sources.length === 0) return;
+          var rawUrl = pickHighestResFromSources(sources);
+          var cleanUrl = sanitizeAndUpscale(rawUrl);
+          if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
         });
-
-        // Fallback for standard <img> tags
         if (images.length === 0) {
-          clone.querySelectorAll('img').forEach(img => {
-            let rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
-            const cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl) images.push(cleanUrl);
+          clone.querySelectorAll('img').forEach(function(img) {
+            var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
+            var cleanUrl = sanitizeAndUpscale(rawUrl);
+            if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
           });
         }
-
-        return [...new Set(images)];
+        return images;
       })()
     `)) as string[];
 
-    // 👇 NEW: Zara Video Extractor 👇
-    const cleanVideo = await page
-      .evaluate(() => {
-        // Zara usually puts videos in a specific media container
-        const videoSource =
+    // ─── STEP 5: Video ────────────────────────────────────────────────────────
+    const cleanVideo = (await page
+      .evaluate(
+        `
+      (function() {
+        var v =
           document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector("video.media-video__video") ||
-          document.querySelector("video");
-
-        if (!videoSource) return null;
-
-        const src =
-          videoSource.getAttribute("src") ||
-          videoSource.getAttribute("data-src");
-
-        // We don't want weird blob URLs, just real mp4s
-        if (src && !src.startsWith("blob:")) {
-          return src;
-        }
+          document.querySelector('video.media-video__video') ||
+          document.querySelector('video');
+        if (!v) return null;
+        var src = v.getAttribute('src') || v.getAttribute('data-src');
+        if (src && !src.startsWith('blob:')) return src;
         return null;
-      })
-      .catch(() => null);
+      })()
+    `,
+      )
+      .catch(() => null)) as string | null;
 
-    let cleanColor = rawColor.split("|")[0].trim();
-    const finalPrice = parseUniversalPrice(rawPrice);
-    const cleanComposition = rawComposition.replace("Composition: ", "").trim();
-
+    // ─── STEP 6: Sizes — click add-to-cart to reveal selector ─────────────────
     try {
-      await page.evaluate(() => {
-        const addBtn = document.querySelector(
-          'button[data-qa-action="add-to-cart"]',
-        );
-        // @ts-ignore
-        if (addBtn) addBtn.click();
-      });
+      await page.evaluate(`
+        (function() {
+          var addBtn = document.querySelector('button[data-qa-action="add-to-cart"]');
+          if (addBtn) addBtn.click();
+        })()
+      `);
       await new Promise((r) => setTimeout(r, 1000));
       await page.waitForSelector(".size-selector-sizes-size__label", {
         timeout: 3000,
       });
     } catch (e) {}
 
-    const sizes = await page.evaluate(() => {
-      const elements = Array.from(
-        document.querySelectorAll(".size-selector-sizes-size__label"),
-      );
-      return elements.map((el) => el.textContent?.trim() || "").filter(Boolean);
-    });
+    const sizes = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('.size-selector-sizes-size__label'))
+          .map(function(el) { return el.textContent ? el.textContent.trim() : ''; })
+          .filter(Boolean);
+      })()
+    `)) as string[];
+
+    // ─── Assemble ─────────────────────────────────────────────────────────────
+    const rawName = textData.name;
+    const rawDescription = textData.description;
+    const cleanColor = textData.color.split("|")[0].trim();
+    const cleanComposition = textData.composition
+      .replace(/^Composition:\s*/i, "")
+      .trim();
+    const finalPrice = parseUniversalPrice(textData.currentRaw);
+    const finalOriginalPrice = textData.originalRaw
+      ? parseUniversalPrice(textData.originalRaw)
+      : undefined;
 
     console.log(
-      `  --> Images found: ${rawImages.length}, Price: ${finalPrice}, Name: ${rawName}`,
+      `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${rawName}`,
     );
 
     return {
       id: productId,
       name: rawName,
       price: finalPrice,
+      ...(finalOriginalPrice !== undefined && {
+        originalPrice: finalOriginalPrice,
+      }),
       currency: "TRY",
       brand: "Zara",
       // @ts-ignore
@@ -274,17 +326,15 @@ export async function getProductLinksFromCategory(
 ): Promise<string[]> {
   console.log(`   --> Zara Scout visiting: ${url}`);
   await page.goto(url, { waitUntil: "domcontentloaded" });
-
   try {
     await page.waitForSelector(".product-link", { timeout: 5000 });
-    const links = await page.$$eval(".product-link", (elements) => {
-      return (
-        elements
-          // @ts-ignore
-          .map((el) => el.href)
-          .filter((href) => href !== "")
-      );
-    });
+    const links = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('.product-link'))
+          .map(function(el) { return el.href; })
+          .filter(function(href) { return href !== ''; });
+      })()
+    `)) as string[];
     return [...new Set(links)];
   } catch (error) {
     return [];
@@ -296,7 +346,6 @@ export async function getZaraCategories(
   department: string,
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
-
   try {
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
@@ -315,18 +364,15 @@ export async function getZaraCategories(
     const linkSelector = ".layout-categories-category-wrapper";
     await page.waitForSelector(linkSelector);
 
-    const links = await page.$$eval(
-      linkSelector,
-      (elements, dept) => {
-        return (
-          elements
-            // @ts-ignore
-            .map((el) => el.href)
-            .filter((href) => href && href.includes(`/${dept.toLowerCase()}-`))
-        );
-      },
-      department,
-    );
+    const deptLower = department.toLowerCase();
+
+    const links = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('.layout-categories-category-wrapper'))
+          .map(function(el) { return el.href; })
+          .filter(function(href) { return href && href.includes('/${deptLower}-'); });
+      })()
+    `)) as string[];
 
     const uniqueLinks = [...new Set(links)];
     console.log(`   --> 🕵️‍♂️ Found ${uniqueLinks.length} categories.`);

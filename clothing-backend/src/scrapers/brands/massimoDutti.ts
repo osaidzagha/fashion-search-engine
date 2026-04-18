@@ -1,32 +1,36 @@
 import { Page } from "puppeteer";
 import { Product } from "../interface";
 
-// Helper to dismiss common Inditex popups
-async function dismissModals(page: Page) {
-  try {
-    await page.evaluate(() => {
-      // 1. Accept Cookies
-      const cookieBtn = document.querySelector("#onetrust-accept-btn-handler");
-      // @ts-ignore
-      if (cookieBtn) cookieBtn.click();
-
-      // 2. Dismiss Location/Geo Modals
-      const stayBtn = document.querySelector(
-        '[data-qa-action="stay-in-store"]',
-      );
-      // @ts-ignore
-      if (stayBtn) stayBtn.click();
-
-      // 3. Dismiss Newsletter
-      const closeNewsletter = document.querySelector(".modal-newsletter-close");
-      // @ts-ignore
-      if (closeNewsletter) closeNewsletter.click();
-    });
-    // Wait for animations to finish
-    await new Promise((r) => setTimeout(r, 1000));
-  } catch (e) {
-    // Silent catch, modals might not exist
+function parseUniversalPrice(rawPrice: string): number {
+  const cleanStr = rawPrice.replace(/[^\d.,]/g, "");
+  if (!cleanStr) return 0;
+  const lastComma = cleanStr.lastIndexOf(",");
+  const lastDot = cleanStr.lastIndexOf(".");
+  if (lastComma > lastDot) {
+    const noDots = cleanStr.replace(/\./g, "");
+    return parseFloat(noDots.replace(",", ".")) || 0;
+  } else {
+    const noCommas = cleanStr.replace(/,/g, "");
+    return parseFloat(noCommas) || 0;
   }
+}
+
+async function dismissModals(page: Page) {
+  await page
+    .evaluate(
+      `
+    (function() {
+      var cookieBtn = document.querySelector('#onetrust-accept-btn-handler');
+      if (cookieBtn) cookieBtn.click();
+      var stayBtn = document.querySelector('[data-qa-action="stay-in-store"]');
+      if (stayBtn) stayBtn.click();
+      var closeNewsletter = document.querySelector('.modal-newsletter-close');
+      if (closeNewsletter) closeNewsletter.click();
+    })()
+  `,
+    )
+    .catch(() => {});
+  await new Promise((r) => setTimeout(r, 1000));
 }
 
 export async function getMassimoCategories(
@@ -34,54 +38,53 @@ export async function getMassimoCategories(
   department: string,
 ): Promise<string[]> {
   console.log(`\n🔍 Crawler: Navigating to Massimo Dutti Homepage...`);
-
   const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.goto(baseUrl, { waitUntil: "networkidle2", timeout: 90000 });
     await dismissModals(page);
 
     console.log(`  --> Opening Mega Menu...`);
-    await page.evaluate(() => {
-      const menuBtn = document.querySelector("#header-menu-ham");
-      // @ts-ignore
-      if (menuBtn) menuBtn.click();
-    });
+    await page.evaluate(`
+      (function() {
+        var menuBtn = document.querySelector('#header-menu-ham');
+        if (menuBtn) menuBtn.click();
+      })()
+    `);
 
     await new Promise((r) => setTimeout(r, 2000));
 
-    console.log(
-      `  --> Crawler: Switching to ${department} tab using HTML IDs...`,
-    );
-
+    console.log(`  --> Switching to ${department} tab using HTML IDs...`);
     const targetId = department === "MAN" ? "#MEN" : "#WOMEN";
 
-    await page.evaluate((selector) => {
-      const tabBtn = document.querySelector(selector);
-      // @ts-ignore
-      if (tabBtn) tabBtn.click();
-    }, targetId);
+    await page.evaluate(`
+      (function() {
+        var tabBtn = document.querySelector('${targetId}');
+        if (tabBtn) tabBtn.click();
+      })()
+    `);
 
     await new Promise((r) => setTimeout(r, 2000));
 
-    let categoryLinks = await page.$$eval("a", (elements) => {
-      // @ts-ignore
-      return elements.map((el) => el.href).filter(Boolean);
-    });
-
     const deptPath = department === "MAN" ? "/men/" : "/women/";
+    const deptAlt = department === "MAN" ? "/erkek/" : "/kadin/";
 
-    categoryLinks = categoryLinks.filter((link) => {
-      const isCorrectDept =
-        link.includes(deptPath) ||
-        link.includes(department === "MAN" ? "/erkek/" : "/kadin/");
-      const isNotShoesOrAccessories =
-        !link.includes("ayakkabi") &&
-        !link.includes("aksesuar") &&
-        !link.includes("shoes") &&
-        !link.includes("accessories");
-      return isCorrectDept && isNotShoesOrAccessories;
-    });
+    const categoryLinks = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('a'))
+          .map(function(el) { return el.href; })
+          .filter(function(href) {
+            if (!href) return false;
+            var isCorrectDept = href.includes('${deptPath}') || href.includes('${deptAlt}');
+            var isNotAccessory =
+              !href.includes('ayakkabi') &&
+              !href.includes('aksesuar') &&
+              !href.includes('shoes') &&
+              !href.includes('accessories');
+            return isCorrectDept && isNotAccessory;
+          });
+      })()
+    `)) as string[];
 
     const cleanLinks = [...new Set(categoryLinks)];
     console.log(
@@ -106,44 +109,41 @@ export async function getMassimoProductLinks(
   try {
     await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
     await new Promise((r) => setTimeout(r, 4000));
-    await page.evaluate(async () => {
-      await new Promise((resolve) => {
-        let totalHeight = 0;
-        const distance = 200;
-        const timer = setInterval(() => {
-          const scrollHeight = document.body.scrollHeight;
-          window.scrollBy(0, distance);
-          totalHeight += distance;
 
-          if (
-            totalHeight >= scrollHeight - window.innerHeight ||
-            totalHeight > 6000
-          ) {
-            clearInterval(timer);
-            resolve(undefined);
-          }
-        }, 200);
-      });
-    });
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var totalHeight = 0;
+          var distance = 200;
+          var timer = setInterval(function() {
+            var scrollHeight = document.body.scrollHeight;
+            window.scrollBy(0, distance);
+            totalHeight += distance;
+            if (totalHeight >= scrollHeight - window.innerHeight || totalHeight > 6000) {
+              clearInterval(timer);
+              resolve(undefined);
+            }
+          }, 200);
+        });
+      })()
+    `);
 
     await new Promise((r) => setTimeout(r, 1000));
 
-    let productLinks = await page.$$eval("a", (anchors) => {
-      return (
-        anchors
-          // @ts-ignore
-          .map((a) => a.href)
-          .filter((href) => {
-            const hasStrictIdFormat = href.match(/-l[a-zA-Z0-9]{8}(\?|$)/);
-            const isNotBanner =
-              !href.includes("/sbl") && !href.includes("banner=true");
+    const productLinks = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('a'))
+          .map(function(a) { return a.href; })
+          .filter(function(href) {
+            var hasStrictIdFormat = /-l[a-zA-Z0-9]{8}(\\?|$)/.test(href);
+            var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
             return hasStrictIdFormat && isNotBanner;
           })
-          .map((href) => href.split("?")[0])
-      );
-    });
+          .map(function(href) { return href.split('?')[0]; })
+          .filter(function(href, index, self) { return self.indexOf(href) === index; });
+      })()
+    `)) as string[];
 
-    productLinks = [...new Set(productLinks)];
     console.log(`  --> Found ${productLinks.length} real product links.`);
     return productLinks;
   } catch (error) {
@@ -173,7 +173,9 @@ export async function scrapeMassimoProductData(
     await dismissModals(page);
 
     try {
-      await page.waitForSelector("h1", { timeout: 8000 });
+      await page.waitForSelector("h1.md-product-heading-title-txt", {
+        timeout: 8000,
+      });
     } catch {
       console.log(`  --> ⚠️ Product H1 didn't load, skipping: ${url}`);
       return null;
@@ -181,244 +183,254 @@ export async function scrapeMassimoProductData(
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    try {
-      await page.waitForSelector(".formatted-price-detail-handler", {
-        timeout: 4000,
-      });
-    } catch {}
+    // 1. Deep scroll to load all images
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var totalHeight = 0;
+          var distance = 300;
+          var timer = setInterval(function() {
+            window.scrollBy(0, distance);
+            totalHeight += distance;
+            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
+              clearInterval(timer);
+              resolve(undefined);
+            }
+          }, 300);
+        });
+      })()
+    `);
 
-    try {
-      await page.waitForSelector('button[role="radio"]', { timeout: 3000 });
-    } catch {}
+    // 2. Scroll back to top so description/color components re-enter viewport and hydrate
+    await page.evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`);
+    await new Promise((r) => setTimeout(r, 1000));
 
-    const rawName = await page
-      .$eval(
-        "h1.md-product-heading-title-txt",
-        (el) => el.textContent?.trim() || "Unknown",
-      )
-      .catch(() => "Unknown");
-    const rawPrice = await page
-      .$eval(
-        ".formatted-price-detail-handler",
-        (el) => el.textContent?.trim() || "0",
-      )
-      .catch(() => "0");
-
-    // --- DEEP SCROLL (For Lazy-Loaded Images) ---
-    await page.evaluate(async () => {
-      await new Promise((resolve) => {
-        let totalHeight = 0;
-        const distance = 300; // 👈 Scroll smaller amounts...
-        const timer = setInterval(() => {
-          window.scrollBy(0, distance);
-          totalHeight += distance;
-
-          // 👈 Increase max limit to 8000px so it reaches the bottom of long pages!
-          if (
-            totalHeight >= document.body.scrollHeight - window.innerHeight ||
-            totalHeight > 8000
-          ) {
-            clearInterval(timer);
-            resolve(undefined);
-          }
-        }, 300); // 👈 Wait 300ms between scrolls to let images download (was 150)
-      });
-    });
-
-    // 👇 NEW: Video Extractor 👇
-    const cleanVideo = await page
-      .evaluate(() => {
-        // Look for a video tag, specifically one with an mp4 source
-        const videoSource =
-          document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector("video");
-        if (!videoSource) return null;
-
-        const src = videoSource.getAttribute("src");
-        // Ignore placeholder blobs
-        if (src && !src.startsWith("blob:")) {
-          return src;
-        }
-        return null;
-      })
-      .catch(() => null);
-
+    // 3. Wait for network to settle after scroll
     await page
       .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
       .catch(() => {});
 
-    const rawImages = (await page.evaluate(`
-      (() => {
-        // 👇 NEW: The Image Upscaler & Sanitizer
-        const sanitizeAndUpscale = (url) => {
-          if (!url) return null;
-          
-          // 1. Filter out the trash (Base64 data, SVGs, and known placeholders)
-          if (url.startsWith('data:')) return null;
-          if (url.endsWith('.svg') || url.includes('placeholder')) return null;
-
-          // 2. The Hack: Find Inditex width params (like /w/250/) and force them to /w/1024/
-          return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
-        };
-
-        const pickHighestRes = (srcset) => {
-          if (!srcset) return null;
-          const candidates = srcset.split(',').map(entry => {
-            const parts = entry.trim().split(/\\s+/);
-            return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
-          });
-          candidates.sort((a, b) => b.width - a.width);
-          return candidates[0]?.url ?? null;
-        };
-
-        const gallery =
-          document.querySelector('[class*="product-detail-images"]') ||
-          document.querySelector('[class*="pdp-gallery"]') ||
-          document.querySelector('[class*="media-gallery"]') ||
-          document.querySelector('main');
-
-        if (!gallery) return [];
-
-        const clone = gallery.cloneNode(true);
-        ['[class*="complete-the-look"]', '[class*="cross-sell"]',
-         '[class*="recommendations"]', '[class*="carousel"]', 'footer']
-          .forEach(sel => clone.querySelectorAll(sel).forEach(el => el.remove()));
-
-        const images = [];
-
-        clone.querySelectorAll('picture').forEach(picture => {
-          const source = picture.querySelector('source');
-          if (!source) return;
-          
-          // Try to get the highest res from srcset first, fallback to src
-          let rawUrl = pickHighestRes(source.getAttribute('srcset') || '') 
-                       || source.getAttribute('src');
-          
-          const cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl) images.push(cleanUrl);
-        });
-
-        // Fallback for standard <img> tags
-        if (images.length === 0) {
-          clone.querySelectorAll('img').forEach(img => {
-            let rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
-            const cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl) images.push(cleanUrl);
-          });
+    // 4. Read ALL text fields in one shot — one DOM snapshot!
+    const textData = (await page.evaluate(`
+      (function() {
+        function getText(selector) {
+          var el = document.querySelector(selector);
+          return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        }
+        
+        function extractFromAriaLabel(el) {
+          if (!el) return '';
+          var label = el.getAttribute('aria-label') || '';
+          var m = label.match(/[\\d][0-9.,]*/);
+          return m ? m[0] : '';
         }
 
-        return [...new Set(images)];
+        var name = getText('h1.md-product-heading-title-txt') || getText('h1');
+
+        var description = 
+          getText('.md-pdp5-box--info-short') || 
+          getText('.md-pdp5-box--info p') || 
+          getText('.md-pdp5-box--info');
+
+        var color = 
+          getText('.md-color-selector-title-color') || 
+          getText('.md-color-selector-title-label') || 
+          getText('.md-color-selector-title');
+
+        var discountedEl = document.querySelector('[aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
+        var originalEl   = document.querySelector('[aria-label*="Original price"], [aria-label*="Orijinal fiyat"], .is-through[aria-label]');
+        var fallbackEl   = document.querySelector('.formatted-price-detail-handler');
+
+        var currentRaw = discountedEl
+          ? extractFromAriaLabel(discountedEl)
+          : (fallbackEl && fallbackEl.textContent ? fallbackEl.textContent.trim() : '');
+          
+        var originalRaw = originalEl ? extractFromAriaLabel(originalEl) : '';
+
+        return { 
+          name: name, 
+          description: description, 
+          color: color, 
+          currentRaw: currentRaw, 
+          originalRaw: originalRaw 
+        };
+      })()
+    `)) as {
+      name: string;
+      description: string;
+      color: string;
+      currentRaw: string;
+      originalRaw: string;
+    };
+
+    const rawName = textData.name;
+    const rawDescription = textData.description;
+    const cleanColor = textData.color.split("|")[0].trim();
+    const finalPrice = parseUniversalPrice(textData.currentRaw);
+    const finalOriginalPrice = textData.originalRaw
+      ? parseUniversalPrice(textData.originalRaw)
+      : undefined;
+
+    // 5. Images
+    const rawImages = (await page.evaluate(`
+      (function() {
+        function sanitizeAndUpscale(url) {
+          if (!url) return null;
+          if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
+          var cleanUrl = url.split('?')[0];
+          return cleanUrl.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
+        }
+        function pickHighestResFromSources(sources) {
+          var bestUrl = null;
+          var bestWidth = -1;
+          sources.forEach(function(source) {
+            var srcset = source.getAttribute('srcset') || '';
+            var candidates = srcset.split(',').map(function(entry) {
+              var parts = entry.trim().split(/\\s+/);
+              return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
+            });
+            candidates.forEach(function(c) {
+              if (c.width > bestWidth && c.url) { bestWidth = c.width; bestUrl = c.url; }
+            });
+            if (bestUrl === null) { var src = source.getAttribute('src'); if (src) bestUrl = src; }
+          });
+          return bestUrl;
+        }
+        var gallery = document.querySelector('main') || document.body;
+        var clone = gallery.cloneNode(true);
+        ['[class*="complete-the-look"]','[class*="cross-sell"]','[class*="recommendations"]','[class*="carousel"]','footer']
+          .forEach(function(sel) { clone.querySelectorAll(sel).forEach(function(el) { el.remove(); }); });
+        var seen = new Set();
+        var images = [];
+        clone.querySelectorAll('picture').forEach(function(picture) {
+          var sources = Array.from(picture.querySelectorAll('source'));
+          if (sources.length === 0) return;
+          var rawUrl = pickHighestResFromSources(sources);
+          var cleanUrl = sanitizeAndUpscale(rawUrl);
+          if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+        });
+        if (images.length === 0) {
+          clone.querySelectorAll('img').forEach(function(img) {
+            var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
+            var cleanUrl = sanitizeAndUpscale(rawUrl);
+            if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+          });
+        }
+        return images;
       })()
     `)) as string[];
 
-    const rawDescription = await page
-      .$eval(".md-pdp5-box--info p", (el) => el.textContent?.trim() || "")
-      .catch(() => "");
-    const cleanColor = await page
-      .$eval(
-        ".md-color-selector-title-color",
-        (el) => el.textContent?.trim() || "",
+    // 6. Video
+    const cleanVideo = (await page
+      .evaluate(
+        `
+      (function() {
+        var videoSource =
+          document.querySelector('video source[type="video/mp4"]') ||
+          document.querySelector('video');
+        if (!videoSource) return null;
+        var src = videoSource.getAttribute('src');
+        if (src && !src.startsWith('blob:')) return src;
+        return null;
+      })()
+    `,
       )
-      .catch(() => "");
+      .catch(() => null)) as string | null;
 
+    // 7. Click Add to Cart to reveal sizes
     try {
-      await page.evaluate(() => {
-        const addBtn = document.querySelector("pdp-add-to-cart-button button");
-        if (addBtn) {
-          // @ts-ignore
-          addBtn.click();
-        } else {
-          const buttons = Array.from(document.querySelectorAll("button"));
-          const textBtn = buttons.find((b) => {
-            const text = b.textContent?.toUpperCase() || "";
-            return text.includes("SEPETE EKLE") || text.includes("ADD TO CART");
-          });
-          if (textBtn) textBtn.click();
-        }
-      });
-
+      await page.evaluate(`
+        (function() {
+          var addBtn = document.querySelector('pdp-add-to-cart-button button');
+          if (addBtn) {
+            addBtn.click();
+          } else {
+            var buttons = Array.from(document.querySelectorAll('button'));
+            var textBtn = buttons.find(function(b) {
+              var text = b.textContent ? b.textContent.toUpperCase() : '';
+              return text.includes('SEPETE EKLE') || text.includes('ADD TO CART');
+            });
+            if (textBtn) textBtn.click();
+          }
+        })()
+      `);
       await new Promise((r) => setTimeout(r, 1000));
       await page.waitForSelector('button[role="option"]', { timeout: 3000 });
     } catch (e) {}
 
-    // 👇 UPGRADED: In-Stock Size Extractor 👇
-    const sizes = await page.evaluate(() => {
-      const sizeSpans = Array.from(
-        document.querySelectorAll(".md-size-selector-btn-title"),
-      );
+    // 8. Extract Sizes
+    const sizes = (await page.evaluate(`
+      (function() {
+        return Array.from(document.querySelectorAll('.md-size-selector-btn-title'))
+          .filter(function(span) {
+            var parentBtn = span.closest('button') || span.parentElement;
+            if (!parentBtn) return true;
+            return !(
+              parentBtn.hasAttribute('disabled') ||
+              parentBtn.className.includes('disabled') ||
+              parentBtn.className.includes('out-of-stock')
+            );
+          })
+          .map(function(span) {
+            return span.textContent ? span.textContent.replace(/\\n/g, ' ').replace(/\\s+/g, ' ').trim() : '';
+          })
+          .filter(Boolean);
+      })()
+    `)) as string[];
 
-      return sizeSpans
-        .filter((span) => {
-          // Find the actual clickable button that wraps this text
-          const parentBtn = span.closest("button") || span.parentElement;
-          if (!parentBtn) return true; // Safety fallback
-
-          // Check if the button is legally disabled or has a 'sold out' class
-          const isDisabled =
-            parentBtn.hasAttribute("disabled") ||
-            parentBtn.className.includes("disabled") ||
-            parentBtn.className.includes("out-of-stock");
-
-          // Only keep it if it is NOT disabled
-          return !isDisabled;
-        })
-        .map(
-          (span) =>
-            span.textContent?.replace(/\n/g, " ").replace(/\s+/g, " ").trim() ||
-            "",
-        )
-        .filter(Boolean);
-    });
-
-    let cleanComposition = "Unknown";
+    // 9. Click and read Composition
+    let cleanComposition = "";
     try {
-      await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll("button"));
-        const fabricBtn = buttons.find((b) => {
-          const text = b.textContent?.toUpperCase() || "";
-          return (
-            text.includes("KUMAŞ") ||
-            text.includes("MALZEME") ||
-            text.includes("BAKIM") ||
-            text.includes("İÇERİK") ||
-            text.includes("COMPOSITION") ||
-            text.includes("MATERIALS") ||
-            text.includes("CARE")
-          );
-        });
-        if (fabricBtn) fabricBtn.click();
-      });
-
+      await page.evaluate(`
+        (function() {
+          var byClass = document.querySelector('button.btn.md-list-action.label-m.ttu.w-100');
+          if (byClass) {
+            byClass.click();
+          } else {
+            var buttons = Array.from(document.querySelectorAll('button'));
+            var fabricBtn = buttons.find(function(b) {
+              var text = b.textContent ? b.textContent.toUpperCase() : '';
+              return (
+                text.includes('KUMA\\u015e') ||
+                text.includes('MALZEME') ||
+                text.includes('BAKIM') ||
+                text.includes('\\u0130\\u00c7ER\\u0130K') ||
+                text.includes('COMPOSITION') ||
+                text.includes('MATERIALS') ||
+                text.includes('CARE')
+              );
+            });
+            if (fabricBtn) fabricBtn.click();
+          }
+        })()
+      `);
       await new Promise((r) => setTimeout(r, 1500));
 
-      cleanComposition = await page.$$eval(
-        ".ma-product-compo-zone-list span",
-        (elements) => {
-          return elements
-            .map((el) => el.textContent?.trim() || "")
-            .join(" ")
-            .replace(/\s+/g, " ")
+      cleanComposition = (await page.evaluate(`
+        (function() {
+          return Array.from(document.querySelectorAll('.ma-product-compo-zone-list span'))
+            .map(function(el) { return el.textContent ? el.textContent.trim() : ''; })
+            .filter(Boolean)
+            .join(' ')
+            .replace(/\\s+/g, ' ')
             .trim();
-        },
-      );
+        })()
+      `)) as string;
     } catch (err) {}
 
-    let cleanPrice = rawPrice.replace(/TL/gi, "").trim();
-    cleanPrice = cleanPrice.replace(/\./g, "");
-    cleanPrice = cleanPrice.replace(/,/g, ".");
-    const finalPrice = parseFloat(cleanPrice) || 0;
-
     console.log(
-      `  --> Images found: ${rawImages.length}, Price: ${finalPrice}, Name: ${rawName}`,
+      `   --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Name: ${rawName}`,
     );
 
     return {
       id: productId,
       name: rawName,
       price: finalPrice,
+      ...(finalOriginalPrice !== undefined && {
+        originalPrice: finalOriginalPrice,
+      }),
       currency: "TRY",
       brand: "Massimo Dutti",
-      // @ts-ignore
       images: rawImages,
       video: cleanVideo || undefined,
       link: url,
@@ -431,7 +443,7 @@ export async function scrapeMassimoProductData(
       department: department,
     };
   } catch (error: any) {
-    console.error(`  --> ❌ Massimo Dutti Scraper crashed on ${url}:`);
+    console.error(`   --> ❌ Massimo Dutti Scraper crashed on ${url}:`);
     console.error(error.message);
     return null;
   }
