@@ -2,16 +2,19 @@ export interface Product {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number; // ← add
   currency: string;
   brand: string;
   images: string[];
+  video?: string; // ← add
   link: string;
   category: string;
+  department?: string; // ← add
   color?: string;
   description?: string;
   composition?: string;
   sizes?: string[];
-  timestamp?: string; // Or Date, depending on how your API sends it
+  timestamp?: string;
   priceHistory?: { price: number; date: string }[];
 }
 export interface PaginatedResponse {

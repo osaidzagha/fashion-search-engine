@@ -183,7 +183,79 @@ export async function scrapeMassimoProductData(
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    // 1. Deep scroll to load all images
+    // ─── STEP 1: Poll for text hydration at page top ──────────────────────────
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var maxWait = 8000;
+          var waited = 0;
+          var interval = setInterval(function() {
+            var descEl  = document.querySelector('.md-pdp5-box--info-short, .md-pdp5-box--info');
+            var colorEl = document.querySelector('.md-color-selector-title-color');
+            var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length > 0;
+            var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
+            waited += 100;
+            if ((descReady && colorReady) || waited >= maxWait) {
+              clearInterval(interval);
+              resolve(undefined);
+            }
+          }, 100);
+        });
+      })()
+    `);
+
+    // ─── STEP 2: Read ALL text data while page is at top ─────────────────────
+    const textData = (await page.evaluate(`
+      (function() {
+        function getText(selector) {
+          var el = document.querySelector(selector);
+          return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+        }
+        function extractFromAriaLabel(el) {
+          if (!el) return '';
+          var label = el.getAttribute('aria-label') || '';
+          var m = label.match(/[\\d][0-9.,]*/);
+          return m ? m[0] : '';
+        }
+
+        var name = getText('h1.md-product-heading-title-txt') || getText('h1');
+
+        var description =
+          getText('.md-pdp5-box--info-short') ||
+          getText('.md-pdp5-box--info p') ||
+          getText('.md-pdp5-box--info');
+
+        var color =
+          getText('.md-color-selector-title-color') ||
+          getText('.md-color-selector-title-label') ||
+          getText('.md-color-selector-title');
+
+        var discountedEl = document.querySelector('[aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
+        var originalEl   = document.querySelector('[aria-label*="Original price"], [aria-label*="Orijinal fiyat"], .is-through[aria-label]');
+        var fallbackEl   = document.querySelector('.formatted-price-detail-handler');
+
+        var currentRaw = discountedEl
+          ? extractFromAriaLabel(discountedEl)
+          : (fallbackEl && fallbackEl.textContent ? fallbackEl.textContent.trim() : '');
+        var originalRaw = originalEl ? extractFromAriaLabel(originalEl) : '';
+
+        return {
+          name: name,
+          description: description,
+          color: color,
+          currentRaw: currentRaw,
+          originalRaw: originalRaw,
+        };
+      })()
+    `)) as {
+      name: string;
+      description: string;
+      color: string;
+      currentRaw: string;
+      originalRaw: string;
+    };
+
+    // ─── STEP 3: Deep scroll to trigger lazy-loaded images ────────────────────
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
@@ -201,135 +273,100 @@ export async function scrapeMassimoProductData(
       })()
     `);
 
-    // 2. Scroll back to top so description/color components re-enter viewport and hydrate
-    await page.evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`);
-    await new Promise((r) => setTimeout(r, 1000));
-
-    // 3. Wait for network to settle after scroll
     await page
       .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
       .catch(() => {});
 
-    // 4. Read ALL text fields in one shot — one DOM snapshot!
-    const textData = (await page.evaluate(`
-      (function() {
-        function getText(selector) {
-          var el = document.querySelector(selector);
-          return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
-        }
-        
-        function extractFromAriaLabel(el) {
-          if (!el) return '';
-          var label = el.getAttribute('aria-label') || '';
-          var m = label.match(/[\\d][0-9.,]*/);
-          return m ? m[0] : '';
-        }
-
-        var name = getText('h1.md-product-heading-title-txt') || getText('h1');
-
-        var description = 
-          getText('.md-pdp5-box--info-short') || 
-          getText('.md-pdp5-box--info p') || 
-          getText('.md-pdp5-box--info');
-
-        var color = 
-          getText('.md-color-selector-title-color') || 
-          getText('.md-color-selector-title-label') || 
-          getText('.md-color-selector-title');
-
-        var discountedEl = document.querySelector('[aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
-        var originalEl   = document.querySelector('[aria-label*="Original price"], [aria-label*="Orijinal fiyat"], .is-through[aria-label]');
-        var fallbackEl   = document.querySelector('.formatted-price-detail-handler');
-
-        var currentRaw = discountedEl
-          ? extractFromAriaLabel(discountedEl)
-          : (fallbackEl && fallbackEl.textContent ? fallbackEl.textContent.trim() : '');
-          
-        var originalRaw = originalEl ? extractFromAriaLabel(originalEl) : '';
-
-        return { 
-          name: name, 
-          description: description, 
-          color: color, 
-          currentRaw: currentRaw, 
-          originalRaw: originalRaw 
-        };
-      })()
-    `)) as {
-      name: string;
-      description: string;
-      color: string;
-      currentRaw: string;
-      originalRaw: string;
-    };
-
-    const rawName = textData.name;
-    const rawDescription = textData.description;
-    const cleanColor = textData.color.split("|")[0].trim();
-    const finalPrice = parseUniversalPrice(textData.currentRaw);
-    const finalOriginalPrice = textData.originalRaw
-      ? parseUniversalPrice(textData.originalRaw)
-      : undefined;
-
-    // 5. Images
+    // ─── STEP 4: Images — after scroll ───────────────────────────────────────
+    // ✅ FIX: Massimo uses plain <img srcset="..."> NOT <picture><source>.
+    //         The old fallback read img.src which contains "w=undefined" → broken URL.
+    //         Now we read srcset on both <source> AND <img> and pick the highest res.
     const rawImages = (await page.evaluate(`
       (function() {
-        function sanitizeAndUpscale(url) {
+        function sanitizeUrl(url) {
           if (!url) return null;
           if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
-          var cleanUrl = url.split('?')[0];
-          return cleanUrl.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
+          // Strip query string — Massimo's CDN serves the full image without params
+          // (the w= param is just a resize hint, dropping it gives the original)
+          var clean = url.split('?')[0];
+          if (!clean || clean.length < 10) return null;
+          return clean;
         }
-        function pickHighestResFromSources(sources) {
-          var bestUrl = null;
+
+        function pickHighestResFromSrcset(srcset) {
+          if (!srcset) return null;
+          var best = null;
           var bestWidth = -1;
-          sources.forEach(function(source) {
-            var srcset = source.getAttribute('srcset') || '';
-            var candidates = srcset.split(',').map(function(entry) {
-              var parts = entry.trim().split(/\\s+/);
-              return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
-            });
-            candidates.forEach(function(c) {
-              if (c.width > bestWidth && c.url) { bestWidth = c.width; bestUrl = c.url; }
-            });
-            if (bestUrl === null) { var src = source.getAttribute('src'); if (src) bestUrl = src; }
+          srcset.split(',').forEach(function(entry) {
+            var parts = entry.trim().split(/\\s+/);
+            var u = parts[0];
+            var w = parts[1] ? parseInt(parts[1]) : 0;
+            if (w > bestWidth && u) { bestWidth = w; best = u; }
           });
-          return bestUrl;
+          return best;
         }
+
         var gallery = document.querySelector('main') || document.body;
         var clone = gallery.cloneNode(true);
-        ['[class*="complete-the-look"]','[class*="cross-sell"]','[class*="recommendations"]','[class*="carousel"]','footer']
-          .forEach(function(sel) { clone.querySelectorAll(sel).forEach(function(el) { el.remove(); }); });
+
+        ['[class*="complete-the-look"]','[class*="cross-sell"]',
+         '[class*="recommendations"]','[class*="carousel"]','footer']
+          .forEach(function(sel) {
+            clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
+          });
+
         var seen = new Set();
         var images = [];
+
+        function addUrl(rawUrl) {
+          var clean = sanitizeUrl(rawUrl);
+          if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
+        }
+
+        // Try <picture><source> first (Zara-style)
         clone.querySelectorAll('picture').forEach(function(picture) {
           var sources = Array.from(picture.querySelectorAll('source'));
           if (sources.length === 0) return;
-          var rawUrl = pickHighestResFromSources(sources);
-          var cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+          var best = null;
+          var bestWidth = -1;
+          sources.forEach(function(source) {
+            var srcset = source.getAttribute('srcset') || '';
+            srcset.split(',').forEach(function(entry) {
+              var parts = entry.trim().split(/\\s+/);
+              var w = parts[1] ? parseInt(parts[1]) : 0;
+              if (w > bestWidth && parts[0]) { bestWidth = w; best = parts[0]; }
+            });
+            if (best === null) { var src = source.getAttribute('src'); if (src) best = src; }
+          });
+          addUrl(best);
         });
+
+        // ✅ FIX: If no <picture> elements, fall back to <img> tags.
+        //         Prefer srcset (pick highest res) over src (which may have w=undefined).
         if (images.length === 0) {
           clone.querySelectorAll('img').forEach(function(img) {
-            var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
-            var cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+            var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+            var rawUrl = srcset
+              ? pickHighestResFromSrcset(srcset)
+              : img.getAttribute('data-src') || img.getAttribute('src');
+            addUrl(rawUrl);
           });
         }
+
         return images;
       })()
     `)) as string[];
 
-    // 6. Video
+    // ─── STEP 5: Video ────────────────────────────────────────────────────────
     const cleanVideo = (await page
       .evaluate(
         `
       (function() {
-        var videoSource =
+        var v =
           document.querySelector('video source[type="video/mp4"]') ||
           document.querySelector('video');
-        if (!videoSource) return null;
-        var src = videoSource.getAttribute('src');
+        if (!v) return null;
+        var src = v.getAttribute('src');
         if (src && !src.startsWith('blob:')) return src;
         return null;
       })()
@@ -337,7 +374,7 @@ export async function scrapeMassimoProductData(
       )
       .catch(() => null)) as string | null;
 
-    // 7. Click Add to Cart to reveal sizes
+    // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
     try {
       await page.evaluate(`
         (function() {
@@ -358,7 +395,6 @@ export async function scrapeMassimoProductData(
       await page.waitForSelector('button[role="option"]', { timeout: 3000 });
     } catch (e) {}
 
-    // 8. Extract Sizes
     const sizes = (await page.evaluate(`
       (function() {
         return Array.from(document.querySelectorAll('.md-size-selector-btn-title'))
@@ -378,7 +414,7 @@ export async function scrapeMassimoProductData(
       })()
     `)) as string[];
 
-    // 9. Click and read Composition
+    // ─── STEP 7: Composition ──────────────────────────────────────────────────
     let cleanComposition = "";
     try {
       await page.evaluate(`
@@ -417,6 +453,15 @@ export async function scrapeMassimoProductData(
         })()
       `)) as string;
     } catch (err) {}
+
+    // ─── Assemble ─────────────────────────────────────────────────────────────
+    const rawName = textData.name;
+    const rawDescription = textData.description;
+    const cleanColor = textData.color.split("|")[0].trim();
+    const finalPrice = parseUniversalPrice(textData.currentRaw);
+    const finalOriginalPrice = textData.originalRaw
+      ? parseUniversalPrice(textData.originalRaw)
+      : undefined;
 
     console.log(
       `   --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Name: ${rawName}`,

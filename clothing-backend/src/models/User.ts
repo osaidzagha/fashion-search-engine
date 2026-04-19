@@ -1,18 +1,23 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-// 1. TypeScript Types
+export interface IWatchlistItem {
+  productId: string;
+  addedAt: Date;
+}
+
 export interface IUser extends Document {
   name: string;
   email: string;
-  password: string; // This will be hashed!
-  role: "user" | "admin"; // 👇 Here is your Role System!
-  savedItems: string[]; // For later: saving product IDs to a wishlist
-  isVerified: boolean; // For email verification
-  verificationToken?: string; // Token for email verification
-  verificationExpires?: Date; // Expiry for the verification token
+  password: string;
+  role: "user" | "admin";
+  savedItems: string[];
+  isVerified: boolean;
+  verificationToken?: string;
+  verificationExpires?: Date;
+  // ✅ Watchlist: array of { productId, addedAt }
+  watchlist: IWatchlistItem[];
 }
 
-// 2. MongoDB Schema
 const UserSchema: Schema = new Schema(
   {
     name: { type: String, required: true },
@@ -21,17 +26,23 @@ const UserSchema: Schema = new Schema(
     role: {
       type: String,
       enum: ["user", "admin"],
-      default: "user", // Everyone is a normal user by default
+      default: "user",
     },
-    savedItems: [{ type: String }], // Array of Product IDs
-    isVerified: { type: Boolean, default: false }, // For email verification
-    verificationToken: { type: String }, // Token for email verification
-    verificationExpires: { type: Date }, // Expiry for the verification token
+    savedItems: [{ type: String }],
+    isVerified: { type: Boolean, default: false },
+    verificationToken: { type: String },
+    verificationExpires: { type: Date },
+    // ✅ New watchlist field
+    watchlist: [
+      {
+        productId: { type: String, required: true },
+        addedAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   {
-    timestamps: true, // Automatically adds createdAt and updatedAt dates
+    timestamps: true,
   },
 );
 
-// 3. Export the Model
 export const UserModel = mongoose.model<IUser>("User", UserSchema);

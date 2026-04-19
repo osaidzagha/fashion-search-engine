@@ -1,6 +1,7 @@
 import { Page } from "puppeteer";
-import { Product } from "./interface"; // Ensure this path is correct
-import { ProductModel } from "../models/Product"; // Ensure this path is correct
+import { Product } from "./interface";
+import { ProductModel } from "../models/Product";
+import { notifyWatchlistUsers } from "../controllers/watchlistController";
 
 const shuffleArray = (array: any[]) => {
   return [...array].sort(() => Math.random() - 0.5);
@@ -35,11 +36,11 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    // 1. Shuffle the categories, then grab a few
     const shuffledCategories = shuffleArray(categories);
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
       : shuffledCategories.slice(0, 3);
+
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       const links = await getLinks(page, categoryUrl);
@@ -51,13 +52,12 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      // 2. Shuffle the product links, then grab a subset
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
         : shuffledLinks.slice(0, 15);
+
       for (const link of toTest) {
-        // Safe category extraction (handles URLs with or without .html)
         const category =
           categoryUrl.split("/").pop()?.replace(".html", "") || "Unknown";
 
@@ -65,45 +65,79 @@ export const runScraperPipeline = async (
 
         if (product) {
           try {
+            // Check existing product BEFORE upserting to detect price changes
+            const existingProduct = await ProductModel.findOne(
+              { id: product.id },
+              { price: 1 },
+            ).lean();
+
+            const oldPrice = existingProduct?.price ?? null;
+            const isNewProduct = oldPrice === null;
+            const isPriceDrop = !isNewProduct && product.price < oldPrice!;
+            // ✅ FIX: Only record a price history entry when:
+            //    - It's a brand new product (first ever entry), OR
+            //    - The price actually changed since last scrape
+            //    This prevents flat duplicate lines on the chart.
+            const shouldRecordPrice =
+              isNewProduct || product.price !== oldPrice;
+
+            const updateQuery: any = {
+              $set: {
+                name: product.name,
+                price: product.price,
+                originalPrice: product.originalPrice,
+                color: product.color,
+                description: product.description,
+                composition: product.composition,
+                images: product.images,
+                sizes: product.sizes,
+                video: product.video,
+              },
+              $setOnInsert: {
+                timestamp: new Date(),
+                brand: product.brand,
+                department: product.department,
+                category: product.category,
+                link: product.link,
+                currency: product.currency,
+              },
+            };
+
+            if (shouldRecordPrice) {
+              updateQuery.$push = {
+                priceHistory: {
+                  $each: [{ price: product.price, date: new Date() }],
+                  $slice: -30,
+                },
+              };
+            }
+
             await ProductModel.findOneAndUpdate(
               { id: product.id },
-              {
-                // 👇 FIX: Explicitly tell Mongo to overwrite ALL dynamic fields on every run
-                $set: {
-                  name: product.name,
-                  price: product.price,
-                  originalPrice: product.originalPrice,
-                  color: product.color,
-                  description: product.description,
-                  composition: product.composition,
-                  images: product.images,
-                  sizes: product.sizes,
-                  video: product.video,
-                },
-                // 2. ONLY set these structural fields if the product is brand new
-                $setOnInsert: {
-                  timestamp: new Date(),
-                  brand: product.brand,
-                  department: product.department,
-                  category: product.category,
-                  link: product.link,
-                  currency: product.currency,
-                },
-                // 3. Keep tracking price history
-                $push: {
-                  priceHistory: {
-                    $each: [{ price: product.price, date: new Date() }],
-                    $slice: -30,
-                  },
-                },
-              },
-              {
-                upsert: true,
-                returnDocument: "after",
-              },
+              updateQuery,
+              { upsert: true, returnDocument: "after" },
             );
-            console.log(`   --> 💾 Saved: ${product.name}`);
+
+            console.log(
+              `   --> 💾 Saved: ${product.name}${shouldRecordPrice ? " (price recorded)" : " (price unchanged)"}`,
+            );
             totalSaved++;
+
+            if (isPriceDrop) {
+              console.log(
+                `   --> 📉 Price drop: ${oldPrice} → ${product.price} ${product.currency} for "${product.name}"`,
+              );
+              notifyWatchlistUsers(
+                product.id,
+                product.name,
+                product.link,
+                oldPrice!,
+                product.price,
+                product.currency,
+              ).catch((err) =>
+                console.error("   --> ⚠️ Watchlist notification failed:", err),
+              );
+            }
           } catch (dbError) {
             console.error(
               `   --> ❌ DB Error saving ${product.name}:`,
@@ -112,18 +146,17 @@ export const runScraperPipeline = async (
           }
         }
 
-        // Politeness Delay: Always pause between products to avoid bans
-        const delay = testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000; // 2-4 seconds in prod
+        const delay = testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000;
         await new Promise((r) => setTimeout(r, delay));
       }
 
       console.log("  --> 🛑 Category complete. Resting...");
-      // Longer pause between categories
       const catDelay = testMode
         ? 4000
         : Math.floor(Math.random() * 5000) + 5000;
       await new Promise((r) => setTimeout(r, catDelay));
     }
   }
+
   return totalSaved;
 };
