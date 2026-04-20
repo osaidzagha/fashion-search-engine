@@ -68,9 +68,7 @@ export async function scrapeZaraProductData(
       return null;
     }
 
-    // ─── STEP 1: Wait for JS hydration at page top ───────────────────────────
-    // Page is at top, description/color/composition are rendered in viewport.
-    // Poll until they have text — bail after 8s (some products genuinely lack them).
+    // ─── STEP 1: Poll for text hydration while page is at top ─────────────────
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
@@ -79,7 +77,7 @@ export async function scrapeZaraProductData(
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
             var colorEl = document.querySelector('.product-color-extended-name');
-            var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length  > 0;
+            var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length > 0;
             var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
             waited += 100;
             if ((descReady && colorReady) || waited >= maxWait) {
@@ -91,7 +89,7 @@ export async function scrapeZaraProductData(
       })()
     `);
 
-    // ─── STEP 2: Read ALL text data while page is still at top ───────────────
+    // ─── STEP 2: Read ALL text + price in one snapshot ────────────────────────
     const textData = (await page.evaluate(`
       (function() {
         function getText(selector) {
@@ -124,27 +122,24 @@ export async function scrapeZaraProductData(
           : getText('.product-detail-composition.product-detail-view__detailed-composition') ||
             getText('.product-detail-composition');
 
-        function getText2(selector) {
-          var el = document.querySelector(selector);
-          return el && el.textContent ? el.textContent.trim() : '';
-        }
         var currentRaw =
-          getText2('.price-current__amount .money-amount__main') ||
-          getText2('.price-current .money-amount__main') ||
-          getText2('.money-amount--highlight .money-amount__main') ||
-          getText2('.money-amount__main') ||
-          getText2('.price__amount-current') ||
-          getText2('.price__amount');
+          getText('.price-current__amount .money-amount__main') ||
+          getText('.price-current .money-amount__main') ||
+          getText('.money-amount--highlight .money-amount__main') ||
+          getText('.money-amount__main') ||
+          getText('.price__amount-current') ||
+          getText('.price__amount');
+
         var originalRaw =
-          getText2('.price__amount--old-price-wrapper .money-amount__main') ||
-          getText2('.price__amount--old-price-wrapper');
+          getText('.price__amount--old-price-wrapper .money-amount__main') ||
+          getText('.price__amount--old-price-wrapper');
 
         return {
-          name:        name,
+          name: name,
           description: description,
-          color:       color,
+          color: color,
           composition: composition,
-          currentRaw:  currentRaw,
+          currentRaw: currentRaw,
           originalRaw: originalRaw,
         };
       })()
@@ -157,104 +152,166 @@ export async function scrapeZaraProductData(
       originalRaw: string;
     };
 
-    // ─── STEP 3: Deep scroll to trigger lazy-loaded images ───────────────────
+    // ─── STEP 3: Slow scroll through gallery to hydrate all media items ────────
+    // Zara renders each .product-detail-image__image lazily as it enters viewport.
+    // We scroll slowly so every item gets a chance to load before we read them.
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
           var totalHeight = 0;
-          var distance = 300;
+          var distance = 200;
           var timer = setInterval(function() {
             window.scrollBy(0, distance);
             totalHeight += distance;
-            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
+            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 12000) {
               clearInterval(timer);
               resolve(undefined);
             }
-          }, 300);
+          }, 250);
         });
       })()
     `);
 
+    // Wait for network to settle so lazy images finish downloading
     await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .waitForNetworkIdle({ idleTime: 2000, timeout: 12_000 })
       .catch(() => {});
+    await new Promise((r) => setTimeout(r, 500));
 
-    // ─── STEP 4: Read images after scroll ────────────────────────────────────
-    const rawImages = (await page.evaluate(`
+    // ─── STEP 4: Extract ALL media from .product-detail-image__image items ────
+    // Each item is either an image or a video. We read both in one pass.
+    const mediaData = (await page.evaluate(`
       (function() {
-        function sanitizeAndUpscale(url) {
+        function sanitizeUrl(url) {
           if (!url) return null;
-          if (url.startsWith('data:')) return null;
-          if (url.endsWith('.svg') || url.includes('placeholder')) return null;
+          if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
+          // Force /w/1024/ for consistent high-res
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
         }
-        function pickHighestResFromSources(sources) {
-          var bestUrl = null;
+
+        function pickHighestResFromSrcset(srcset) {
+          if (!srcset) return null;
+          var best = null;
           var bestWidth = -1;
-          sources.forEach(function(source) {
-            var srcset = source.getAttribute('srcset') || '';
-            var candidates = srcset.split(',').map(function(entry) {
-              var parts = entry.trim().split(/\\s+/);
-              return { url: parts[0], width: parts[1] ? parseInt(parts[1]) : 0 };
-            });
-            candidates.forEach(function(c) {
-              if (c.width > bestWidth && c.url) { bestWidth = c.width; bestUrl = c.url; }
-            });
-            if (bestUrl === null) { var src = source.getAttribute('src'); if (src) bestUrl = src; }
+          srcset.split(',').forEach(function(entry) {
+            var parts = entry.trim().split(/\\s+/);
+            var w = parts[1] ? parseInt(parts[1]) : 0;
+            if (w > bestWidth && parts[0]) { bestWidth = w; best = parts[0]; }
           });
-          return bestUrl;
+          return best;
         }
-        var gallery =
-          document.querySelector('[class*="product-detail-images"]') ||
-          document.querySelector('[class*="pdp-gallery"]') ||
-          document.querySelector('[class*="media-gallery"]') ||
-          document.querySelector('main');
-        if (!gallery) return [];
-        var clone = gallery.cloneNode(true);
-        ['[class*="complete-the-look"]','[class*="cross-sell"]',
-         '[class*="recommendations"]','[class*="carousel"]','footer']
-          .forEach(function(sel) {
-            clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
-          });
+
         var seen = new Set();
         var images = [];
-        clone.querySelectorAll('picture').forEach(function(picture) {
-          var sources = Array.from(picture.querySelectorAll('source'));
-          if (sources.length === 0) return;
-          var rawUrl = pickHighestResFromSources(sources);
-          var cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+        var video = null;
+
+        // ✅ Primary: read every media item from the gallery
+        var mediaItems = document.querySelectorAll('.product-detail-image__image');
+
+        mediaItems.forEach(function(item) {
+          // Check if this item is a video
+          // .media-video__video is the <video> element itself — its src is a blob.
+          // The real URL lives in the <source> child or data attributes.
+          var videoContainer =
+            item.querySelector('.media-video') ||
+            item.querySelector('.media-video__player');
+
+          if (videoContainer) {
+            var src = null;
+
+            // 1. <source type="video/mp4"> inside the video element
+            var sourceEl = videoContainer.querySelector('source[type="video/mp4"]');
+            if (sourceEl) {
+              src = sourceEl.getAttribute('src') || sourceEl.getAttribute('data-src');
+            }
+
+            // 2. Any <source> inside the video element
+            if (!src || src.startsWith('blob:')) {
+              var anySource = videoContainer.querySelector('source');
+              if (anySource) {
+                src = anySource.getAttribute('src') || anySource.getAttribute('data-src');
+              }
+            }
+
+            // 3. data-src on the <video> element itself
+            if (!src || src.startsWith('blob:')) {
+              var videoEl = videoContainer.querySelector('video') || videoContainer;
+              src = videoEl.getAttribute('data-src') ||
+                    videoEl.getAttribute('data-video-src') ||
+                    videoEl.getAttribute('data-lazy-src');
+            }
+
+            // 4. src on the <video> only if it's not a blob
+            if (!src || src.startsWith('blob:')) {
+              var videoEl2 = videoContainer.querySelector('video');
+              if (videoEl2) {
+                var directSrc = videoEl2.getAttribute('src');
+                if (directSrc && !directSrc.startsWith('blob:')) src = directSrc;
+              }
+            }
+
+            if (src && !src.startsWith('blob:') && !video) {
+              video = src.split('?')[0];
+            }
+            return; // Don't also add the poster as an image
+          }
+
+          // Otherwise treat as image
+          // Try <picture><source> first
+          var source = item.querySelector('picture source');
+          if (source) {
+            var best = pickHighestResFromSrcset(source.getAttribute('srcset') || '');
+            if (!best) best = source.getAttribute('src');
+            var clean = sanitizeUrl(best);
+            if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
+            return;
+          }
+
+          // Fall back to <img srcset>
+          var img = item.querySelector('img');
+          if (img) {
+            var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+            var rawUrl = srcset
+              ? pickHighestResFromSrcset(srcset)
+              : img.getAttribute('data-src') || img.getAttribute('src');
+            var clean = sanitizeUrl(rawUrl);
+            if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
+          }
         });
+
+        // ✅ Fallback: if no .product-detail-image__image found, try the wrapper
         if (images.length === 0) {
-          clone.querySelectorAll('img').forEach(function(img) {
-            var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
-            var cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+          var wrapper = document.querySelector('.product-detail-view__main-image-wrapper');
+          if (wrapper) {
+            wrapper.querySelectorAll('picture source').forEach(function(source) {
+              var best = pickHighestResFromSrcset(source.getAttribute('srcset') || '');
+              if (!best) best = source.getAttribute('src');
+              var clean = sanitizeUrl(best);
+              if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
+            });
+          }
+        }
+
+        // ✅ Last resort: any img on the page with product-looking URLs
+        if (images.length === 0) {
+          document.querySelectorAll('img').forEach(function(img) {
+            var src = img.getAttribute('src') || '';
+            if (!src.includes('static.zara') && !src.includes('zara.net')) return;
+            var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+            var rawUrl = srcset ? pickHighestResFromSrcset(srcset) : src;
+            var clean = sanitizeUrl(rawUrl);
+            if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
           });
         }
-        return images;
-      })()
-    `)) as string[];
 
-    // ─── STEP 5: Video ────────────────────────────────────────────────────────
-    const cleanVideo = (await page
-      .evaluate(
-        `
-      (function() {
-        var v =
-          document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector('video.media-video__video') ||
-          document.querySelector('video');
-        if (!v) return null;
-        var src = v.getAttribute('src') || v.getAttribute('data-src');
-        if (src && !src.startsWith('blob:')) return src;
-        return null;
+        return { images: images, video: video };
       })()
-    `,
-      )
-      .catch(() => null)) as string | null;
+    `)) as { images: string[]; video: string | null };
 
-    // ─── STEP 6: Sizes — click add-to-cart to reveal selector ─────────────────
+    const rawImages = mediaData.images;
+    const cleanVideo = mediaData.video || null;
+
+    // ─── STEP 5: Sizes ────────────────────────────────────────────────────────
     try {
       await page.evaluate(`
         (function() {
@@ -289,7 +346,7 @@ export async function scrapeZaraProductData(
       : undefined;
 
     console.log(
-      `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${rawName}`,
+      `  --> Images: ${rawImages.length}${cleanVideo ? " + video" : ""} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Name: ${rawName}`,
     );
 
     return {

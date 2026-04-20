@@ -183,7 +183,7 @@ export async function scrapeMassimoProductData(
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    // ─── STEP 1: Poll for text hydration at page top ──────────────────────────
+    // ─── STEP 1: Poll for text hydration while page is at top ─────────────────
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
@@ -204,7 +204,7 @@ export async function scrapeMassimoProductData(
       })()
     `);
 
-    // ─── STEP 2: Read ALL text data while page is at top ─────────────────────
+    // ─── STEP 2: Read ALL text + price while page is at top ───────────────────
     const textData = (await page.evaluate(`
       (function() {
         function getText(selector) {
@@ -255,126 +255,149 @@ export async function scrapeMassimoProductData(
       originalRaw: string;
     };
 
-    // ─── STEP 3: Deep scroll to trigger lazy-loaded images ────────────────────
+    // ─── STEP 3: Slow scroll to hydrate all .product-media__img items ─────────
+    // Massimo lazy-loads each image card as it enters the viewport.
+    // 200px steps at 250ms gives each card time to render before we move on.
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
           var totalHeight = 0;
-          var distance = 300;
+          var distance = 200;
           var timer = setInterval(function() {
             window.scrollBy(0, distance);
             totalHeight += distance;
-            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
+            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 12000) {
               clearInterval(timer);
               resolve(undefined);
             }
-          }, 300);
+          }, 250);
         });
       })()
     `);
 
     await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .waitForNetworkIdle({ idleTime: 2000, timeout: 12_000 })
       .catch(() => {});
+    await new Promise((r) => setTimeout(r, 500));
 
-    // ─── STEP 4: Images — after scroll ───────────────────────────────────────
-    // ✅ FIX: Massimo uses plain <img srcset="..."> NOT <picture><source>.
-    //         The old fallback read img.src which contains "w=undefined" → broken URL.
-    //         Now we read srcset on both <source> AND <img> and pick the highest res.
-    const rawImages = (await page.evaluate(`
+    // ─── STEP 4: Extract images from .product-media__img img ─────────────────
+    // Massimo structure: .product-media__img > .media-image > img[srcset]
+    // Each button wraps exactly one image. srcset has 400w/850w/1024w/1440w/1920w/2400w/4000w.
+    // We pick the highest-res entry from srcset and strip the query string.
+    const mediaData = (await page.evaluate(`
       (function() {
-        function sanitizeUrl(url) {
-          if (!url) return null;
-          if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
-          // Strip query string — Massimo's CDN serves the full image without params
-          // (the w= param is just a resize hint, dropping it gives the original)
-          var clean = url.split('?')[0];
-          if (!clean || clean.length < 10) return null;
-          return clean;
-        }
-
         function pickHighestResFromSrcset(srcset) {
           if (!srcset) return null;
           var best = null;
           var bestWidth = -1;
           srcset.split(',').forEach(function(entry) {
             var parts = entry.trim().split(/\\s+/);
-            var u = parts[0];
             var w = parts[1] ? parseInt(parts[1]) : 0;
-            if (w > bestWidth && u) { bestWidth = w; best = u; }
+            if (w > bestWidth && parts[0]) { bestWidth = w; best = parts[0]; }
           });
           return best;
         }
 
-        var gallery = document.querySelector('main') || document.body;
-        var clone = gallery.cloneNode(true);
-
-        ['[class*="complete-the-look"]','[class*="cross-sell"]',
-         '[class*="recommendations"]','[class*="carousel"]','footer']
-          .forEach(function(sel) {
-            clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
-          });
+        function sanitizeUrl(url) {
+          if (!url) return null;
+          if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
+          // Strip query string — CDN serves original at full res without params
+          return url.split('?')[0];
+        }
 
         var seen = new Set();
         var images = [];
+        var video = null;
 
-        function addUrl(rawUrl) {
+        // ✅ PRIMARY: each .product-media__img wraps exactly one product image
+        var mediaItems = document.querySelectorAll('.product-media__img');
+
+        mediaItems.forEach(function(item) {
+          // Check for video first — same multi-method approach as Zara
+          var videoContainer =
+            item.querySelector('.media-video') ||
+            item.querySelector('.media-video__player') ||
+            item.querySelector('video');
+
+          if (videoContainer) {
+            var src = null;
+
+            // 1. <source type="video/mp4"> inside the video element
+            var sourceEl = videoContainer.querySelector('source[type="video/mp4"]');
+            if (sourceEl) {
+              src = sourceEl.getAttribute('src') || sourceEl.getAttribute('data-src');
+            }
+
+            // 2. Any <source> inside the video element
+            if (!src || src.startsWith('blob:')) {
+              var anySource = videoContainer.querySelector('source');
+              if (anySource) {
+                src = anySource.getAttribute('src') || anySource.getAttribute('data-src');
+              }
+            }
+
+            // 3. data-src on the video element itself
+            if (!src || src.startsWith('blob:')) {
+              var videoEl = videoContainer.querySelector('video') || videoContainer;
+              src = videoEl.getAttribute('data-src') ||
+                    videoEl.getAttribute('data-video-src') ||
+                    videoEl.getAttribute('data-lazy-src');
+            }
+
+            // 4. Direct src only if not a blob
+            if (!src || src.startsWith('blob:')) {
+              var videoEl2 = videoContainer.querySelector
+                ? videoContainer.querySelector('video')
+                : videoContainer;
+              if (videoEl2) {
+                var directSrc = videoEl2.getAttribute('src');
+                if (directSrc && !directSrc.startsWith('blob:')) src = directSrc;
+              }
+            }
+
+            if (src && !src.startsWith('blob:') && !video) {
+              video = src.split('?')[0];
+            }
+            return;
+          }
+
+          // Image: read srcset from the img tag and pick highest res
+          var img = item.querySelector('img');
+          if (!img) return;
+
+          var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
+          var rawUrl = srcset
+            ? pickHighestResFromSrcset(srcset)
+            : img.getAttribute('data-src') || img.getAttribute('src');
+
           var clean = sanitizeUrl(rawUrl);
-          if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
-        }
-
-        // Try <picture><source> first (Zara-style)
-        clone.querySelectorAll('picture').forEach(function(picture) {
-          var sources = Array.from(picture.querySelectorAll('source'));
-          if (sources.length === 0) return;
-          var best = null;
-          var bestWidth = -1;
-          sources.forEach(function(source) {
-            var srcset = source.getAttribute('srcset') || '';
-            srcset.split(',').forEach(function(entry) {
-              var parts = entry.trim().split(/\\s+/);
-              var w = parts[1] ? parseInt(parts[1]) : 0;
-              if (w > bestWidth && parts[0]) { bestWidth = w; best = parts[0]; }
-            });
-            if (best === null) { var src = source.getAttribute('src'); if (src) best = src; }
-          });
-          addUrl(best);
+          if (clean && !seen.has(clean)) {
+            seen.add(clean);
+            images.push(clean);
+          }
         });
 
-        // ✅ FIX: If no <picture> elements, fall back to <img> tags.
-        //         Prefer srcset (pick highest res) over src (which may have w=undefined).
+        // ✅ FALLBACK: if .product-media__img returns nothing, try any img
+        //    with massimodutti CDN URLs (avoids picking up icons/logos)
         if (images.length === 0) {
-          clone.querySelectorAll('img').forEach(function(img) {
+          document.querySelectorAll('img').forEach(function(img) {
+            var src = img.getAttribute('src') || '';
+            if (!src.includes('massimodutti') && !src.includes('static.massimo')) return;
             var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
-            var rawUrl = srcset
-              ? pickHighestResFromSrcset(srcset)
-              : img.getAttribute('data-src') || img.getAttribute('src');
-            addUrl(rawUrl);
+            var rawUrl = srcset ? pickHighestResFromSrcset(srcset) : src;
+            var clean = sanitizeUrl(rawUrl);
+            if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
           });
         }
 
-        return images;
+        return { images: images, video: video };
       })()
-    `)) as string[];
+    `)) as { images: string[]; video: string | null };
 
-    // ─── STEP 5: Video ────────────────────────────────────────────────────────
-    const cleanVideo = (await page
-      .evaluate(
-        `
-      (function() {
-        var v =
-          document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector('video');
-        if (!v) return null;
-        var src = v.getAttribute('src');
-        if (src && !src.startsWith('blob:')) return src;
-        return null;
-      })()
-    `,
-      )
-      .catch(() => null)) as string | null;
+    const rawImages = mediaData.images;
+    const cleanVideo = mediaData.video || null;
 
-    // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
+    // ─── STEP 5: Sizes ────────────────────────────────────────────────────────
     try {
       await page.evaluate(`
         (function() {
@@ -414,7 +437,7 @@ export async function scrapeMassimoProductData(
       })()
     `)) as string[];
 
-    // ─── STEP 7: Composition ──────────────────────────────────────────────────
+    // ─── STEP 6: Composition ──────────────────────────────────────────────────
     let cleanComposition = "";
     try {
       await page.evaluate(`
@@ -464,7 +487,7 @@ export async function scrapeMassimoProductData(
       : undefined;
 
     console.log(
-      `   --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Name: ${rawName}`,
+      `   --> Images: ${rawImages.length}${cleanVideo ? " + video" : ""} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Name: ${rawName}`,
     );
 
     return {

@@ -222,26 +222,40 @@ export default function ProductDetails() {
   const imageIndex = hasVideo ? activeImage - 1 : activeImage;
   const mediaCount = hasVideo ? images.length + 1 : images.length;
 
-  // ✅ NEW — only show chart when prices actually differ
-  const chartData =
-    product.priceHistory &&
-    product.priceHistory.length > 1 &&
-    new Set(product.priceHistory.map((p) => p.price)).size > 1
-      ? product.priceHistory.map((p) => ({
-          price: p.price,
-          date: new Date(p.date).toLocaleDateString("tr-TR", {
-            day: "numeric",
-            month: "short",
-          }),
-        }))
-      : null;
-
   const isOnSale =
     product.originalPrice !== undefined &&
     product.originalPrice > product.price;
   const discount = isOnSale
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
+
+  // ✅ Build chart data from real history if we have multiple different prices,
+  //    OR use originalPrice as the baseline when item is on sale (new product case)
+  const chartData = (() => {
+    const history = product.priceHistory ?? [];
+
+    // Real history with price movement — best case
+    if (history.length > 1 && new Set(history.map((p) => p.price)).size > 1) {
+      return history.map((p) => ({
+        price: p.price,
+        date: new Date(p.date).toLocaleDateString("tr-TR", {
+          day: "numeric",
+          month: "short",
+        }),
+      }));
+    }
+
+    // On sale but no history yet — show original → current as a 2-point chart
+    if (isOnSale && product.originalPrice) {
+      return [
+        { price: product.originalPrice, date: "Original" },
+        { price: product.price, date: "Now" },
+      ];
+    }
+
+    // Not enough data
+    return null;
+  })();
 
   return (
     <div style={{ minHeight: "100vh", background: "#faf9f6" }}>
