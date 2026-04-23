@@ -3,49 +3,78 @@ import { Product } from "../types";
 
 // 1. Define what the shelf looks like
 interface ProductState {
-  items: Product[]; // The array of jackets
-  isLoading: boolean; // Is the fetch running right now?
-  searchTerm: string; // What did the user type in the search bar?
-  selectBrands?: string[]; // Which brands did the user select to filter by?
-  selectDepartments?: string[]; // Which departments did the user select to filter by?
-  maxPrice?: number; // What is the maximum price the user wants to see?
+  items: Product[];
+  availableSizes: string[]; // <--- The dynamic list from the API
+  availableColors: string[]; // <--- The dynamic list from the API
+  selectSizes: string[]; // <--- What the user actually clicked
+  selectColors?: string[]; // <--- What the user actually clicked
+  isLoading: boolean;
+  searchTerm: string;
+  selectBrands?: string[];
+  selectDepartments?: string[];
+  maxPrice?: number;
 }
 
 // 2. Set the starting values (Before the API loads)
 const initialState: ProductState = {
   items: [],
+  availableSizes: [], // ✅ FIX: Added starting value
+  availableColors: [], // ✅ FIX: Added starting value
   isLoading: false,
   searchTerm: "",
   selectBrands: [],
   selectDepartments: [],
+  selectSizes: [],
+  selectColors: [],
   maxPrice: undefined,
 };
 
-// 3. Create the Slice (The machine that updates the shelf)
+// 3. Create the Slice
 const productSlice = createSlice({
   name: "products",
   initialState,
   reducers: {
-    // We will add our update actions here next!
-    // YOUR TURN: Create an action to set the products (setProducts)
     setProducts(state, action: PayloadAction<Product[]>) {
       state.items = action.payload;
     },
-    // YOUR TURN: Create an action to set the loading state (setLoading)
+    // ✅ NEW: Actions to save the dynamic filters from the backend
+    setAvailableSizes(state, action: PayloadAction<string[]>) {
+      state.availableSizes = action.payload;
+    },
+    setAvailableColors(state, action: PayloadAction<string[]>) {
+      state.availableColors = action.payload;
+    },
     setLoading(state, action: PayloadAction<boolean>) {
       state.isLoading = action.payload;
     },
-    // YOUR TURN: Create an action to set the search term (setSearchTerm)
     setSearchTerm(state, action: PayloadAction<string>) {
       state.searchTerm = action.payload;
     },
     toggleBrand(state, action: PayloadAction<string>) {
       const brand = action.payload;
-      // If it's already in the array, remove it. If it's not, add it!
       if (state.selectBrands?.includes(brand)) {
         state.selectBrands = state.selectBrands.filter((b) => b !== brand);
       } else {
         state.selectBrands?.push(brand);
+      }
+    },
+    setBrands(state, action: PayloadAction<string[]>) {
+      state.selectBrands = action.payload;
+    },
+    toggleSize(state, action: PayloadAction<string>) {
+      const size = action.payload;
+      if (state.selectSizes?.includes(size)) {
+        state.selectSizes = state.selectSizes.filter((s) => s !== size);
+      } else {
+        state.selectSizes?.push(size);
+      }
+    },
+    toggleColor(state, action: PayloadAction<string>) {
+      const color = action.payload;
+      if (state.selectColors?.includes(color)) {
+        state.selectColors = state.selectColors.filter((c) => c !== color);
+      } else {
+        state.selectColors?.push(color);
       }
     },
     setDepartments(state, action: PayloadAction<string[]>) {
@@ -56,12 +85,19 @@ const productSlice = createSlice({
     },
   },
 });
+
 export const {
   setProducts,
+  setAvailableSizes, // ✅ NEW
+  setAvailableColors, // ✅ NEW
   setLoading,
   setSearchTerm,
   toggleBrand,
+  toggleSize,
+  toggleColor,
   setDepartments,
   setMaxPrice,
+  setBrands,
 } = productSlice.actions;
+
 export default productSlice.reducer;

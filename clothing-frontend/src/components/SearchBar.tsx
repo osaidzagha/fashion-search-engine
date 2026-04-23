@@ -1,34 +1,117 @@
-import { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { RootState } from "../store/store"; // Adjust path if needed
-import { setSearchTerm } from "../store/productSlice"; // Adjust path if needed
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../store/store";
+import { setSearchTerm } from "../store/productSlice"; // 👈 Add this
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-export const SearchBar = () => {
-  const [inputValue, setInputValue] = useState("");
+interface SearchBarProps {
+  initialValue?: string;
+  variant?: "hero" | "compact";
+}
+
+export const SearchBar = ({
+  initialValue = "",
+  variant = "compact",
+}: SearchBarProps) => {
+  const [inputValue, setInputValue] = useState(initialValue);
   const [focused, setFocused] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]); // ✅ Now strictly an array of strings
+  const [highlightedIdx, setHighlightedIdx] = useState(-1);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      dispatch(setSearchTerm(inputValue));
-    }, 500);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [inputValue, dispatch]);
-
-  // TODO 3: Read from Redux
-  // Use useSelector to grab 'searchTerm' from state.products.searchTerm
-  const searchTerm = useSelector(
-    (state: RootState) => state.products.searchTerm,
+  const { selectDepartments } = useSelector(
+    (state: RootState) => state.products,
   );
 
+  useEffect(() => {
+    setInputValue(initialValue);
+  }, [initialValue]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (inputValue.length < 2) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const dept = selectDepartments?.[0];
+        const deptQuery = dept
+          ? `&departments=${encodeURIComponent(dept)}`
+          : "";
+
+        const res = await fetch(
+          `${BASE_URL}/api/products/suggestions?q=${encodeURIComponent(inputValue)}${deptQuery}`,
+        );
+        if (!res.ok) throw new Error("Failed");
+
+        const data: string[] = await res.json();
+        setSuggestions(data);
+
+        if (focused) setShowDropdown(data.length > 0);
+        setHighlightedIdx(-1);
+      } catch (e) {
+        setSuggestions([]);
+        setShowDropdown(false);
+      }
+    }, 250);
+  }, [inputValue, focused, selectDepartments]);
+
+  const doSearch = (term: string) => {
+    if (!term.trim()) return;
+    setSuggestions([]);
+    setShowDropdown(false);
+    dispatch(setSearchTerm(term.trim())); // ✅ Save to Redux
+    navigate(`/search?q=${encodeURIComponent(term.trim())}`);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showDropdown) {
+      if (e.key === "Enter") doSearch(inputValue);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIdx((i) => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIdx((i) => Math.max(i - 1, -1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (highlightedIdx >= 0 && suggestions[highlightedIdx]) {
+        doSearch(suggestions[highlightedIdx]);
+      } else {
+        doSearch(inputValue);
+      }
+    } else if (e.key === "Escape") {
+      setShowDropdown(false);
+      setHighlightedIdx(-1);
+    }
+  };
+
+  const isHero = variant === "hero";
+
   return (
-    <div style={{ width: "100%", maxWidth: "600px", margin: "0 auto" }}>
+    <div
+      style={{
+        width: "100%",
+        maxWidth: isHero ? "680px" : "560px",
+        margin: "0 auto",
+        position: "relative",
+        zIndex: 100,
+      }}
+    >
+      {/* Input */}
       <div
         style={{ position: "relative", display: "flex", alignItems: "center" }}
       >
-        {/* Search icon */}
         <svg
           width="14"
           height="14"
@@ -36,11 +119,9 @@ export const SearchBar = () => {
           fill="none"
           style={{
             position: "absolute",
-            left: "0",
-            transition: "color 0.3s ease",
-            flexShrink: 0,
-            // TODO 4: Use a ternary. If focused is true -> "#1a1a1a", else -> "#aaa"
+            left: 0,
             color: focused ? "#1a1a1a" : "#aaa",
+            transition: "color 0.2s ease",
           }}
         >
           <circle
@@ -63,80 +144,107 @@ export const SearchBar = () => {
 
         <input
           type="text"
-          placeholder="Search linen shirts, navy blazers, dresses…"
-          // TODO 5: Wire up the input to your local state
-          // - Bind value to inputValue
-          // - onChange updates inputValue
-          // - onFocus sets focused to true
-          // - onBlur sets focused to false
+          placeholder="Search linen shirts, navy blazers, trousers…"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onFocus={() => {
+            setFocused(true);
+            if (suggestions.length > 0) setShowDropdown(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            setTimeout(() => setShowDropdown(false), 200);
+          }}
+          onKeyDown={handleKeyDown}
           style={{
             width: "100%",
             background: "transparent",
             border: "none",
             outline: "none",
-            padding: "10px 0 10px 24px",
+            padding: isHero ? "14px 0 14px 28px" : "10px 0 10px 24px",
             fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "20px",
+            fontSize: isHero ? "26px" : "20px",
             fontWeight: 300,
             color: "#1a1a1a",
-            letterSpacing: "0.01em",
-            transition: "border-color 0.3s ease",
             caretColor: "#1a1a1a",
-
-            // Font style switches from italic (placeholder) to normal (typing)
             fontStyle: inputValue ? "normal" : "italic",
-
-            // TODO 6: Dynamic border color
-            // Use a ternary inside a template literal. If focused is true -> "1px solid #1a1a1a", else -> "1px solid #d4d0c8"
             borderBottom: focused ? "1px solid #1a1a1a" : "1px solid #d4d0c8",
+            transition: "border-color 0.2s ease",
           }}
         />
-
-        {/* Clear button */}
-        {/* TODO 7: Use the && operator to ONLY render this button if 'inputValue' is truthy */}
-        {inputValue && (
-          <button
-            onClick={() => setInputValue("")}
-            style={{
-              position: "absolute",
-              right: 0,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "11px",
-              letterSpacing: "0.08em",
-              color: "#999",
-              padding: "4px",
-              transition: "color 0.2s ease",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#999")}
-          >
-            CLEAR
-          </button>
-        )}
       </div>
 
-      {/* Live query echo */}
-      {/* TODO 8: Use the && operator to ONLY render this paragraph if 'searchTerm' (from Redux) is truthy */}
-      {searchTerm && (
-        <p
+      {/* ✅ Text-Only Dropdown List */}
+      {showDropdown && suggestions.length > 0 && (
+        <div
           style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "10px",
-            letterSpacing: "0.1em",
-            color: "#bbb",
-            marginTop: "8px",
-            textTransform: "uppercase",
+            position: "absolute",
+            top: "calc(100% + 2px)",
+            left: 0,
+            right: 0,
+            background: "#faf9f6",
+            border: "1px solid #e8e4dc",
+            zIndex: 999,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.08)",
+            padding: "8px 0",
           }}
         >
-          Showing results for &ldquo;{searchTerm}&rdquo;
-        </p>
+          {suggestions.map((suggestion, idx) => (
+            <div
+              key={idx}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                doSearch(suggestion);
+              }}
+              onMouseEnter={() => setHighlightedIdx(idx)}
+              style={{
+                padding: "10px 24px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                background: highlightedIdx === idx ? "#f0ede8" : "transparent",
+                transition: "background 0.1s ease",
+              }}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 14 14"
+                fill="none"
+                style={{ color: "#aaa" }}
+              >
+                <circle
+                  cx="5.5"
+                  cy="5.5"
+                  r="4.5"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                />
+                <line
+                  x1="9"
+                  y1="9"
+                  x2="13.5"
+                  y2="13.5"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "12px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: "#1a1a1a",
+                }}
+              >
+                {suggestion}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

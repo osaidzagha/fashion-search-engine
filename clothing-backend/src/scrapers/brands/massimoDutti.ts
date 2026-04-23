@@ -77,10 +77,12 @@ export async function getMassimoCategories(
             if (!href) return false;
             var isCorrectDept = href.includes('${deptPath}') || href.includes('${deptAlt}');
             var isNotAccessory =
-              !href.includes('ayakkabi') &&
-              !href.includes('aksesuar') &&
-              !href.includes('shoes') &&
-              !href.includes('accessories');
+                  !href.includes('ayakkabi') &&
+                  !href.includes('aksesuar') &&
+                  !href.includes('shoes') &&
+                  !href.includes('accessories') &&
+                  !href.includes('total-look') &&
+                  !href.includes('/product-l');
             return isCorrectDept && isNotAccessory;
           });
       })()
@@ -192,10 +194,17 @@ export async function scrapeMassimoProductData(
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.md-pdp5-box--info-short, .md-pdp5-box--info');
             var colorEl = document.querySelector('.md-color-selector-title-color');
+            // 👇 Look for the price element
+            var priceEl = document.querySelector('.formatted-price-detail-handler, [aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
+            
             var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length > 0;
             var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
+            // 👇 Require actual numbers to be present!
+            var priceReady = priceEl && /[0-9]/.test(priceEl.textContent); 
+
             waited += 100;
-            if ((descReady && colorReady) || waited >= maxWait) {
+            // 👇 Don't resolve until priceReady is true
+            if ((descReady && colorReady && priceReady) || waited >= maxWait) {
               clearInterval(interval);
               resolve(undefined);
             }
@@ -459,6 +468,14 @@ export async function scrapeMassimoProductData(
     const rawDescription = textData.description;
     const cleanColor = textData.color.split("|")[0].trim();
     const finalPrice = parseUniversalPrice(textData.currentRaw);
+
+    if (finalPrice <= 0) {
+      console.log(
+        `   --> ⚠️ Price evaluated to 0 (Dynamic load failed). Skipping to protect DB.`,
+      );
+      return null;
+    }
+
     const finalOriginalPrice = textData.originalRaw
       ? parseUniversalPrice(textData.originalRaw)
       : undefined;

@@ -36,7 +36,32 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const shuffledCategories = shuffleArray(categories);
+    // ✅ NEW: The Category Blocklist
+    const forbiddenKeywords = [
+      "bag",
+      "perfume",
+      "fragrance",
+      "edt",
+      "edp",
+      "wallet",
+      "belt",
+      "scarf",
+      "sunglasses",
+      "beauty",
+      "accessories",
+    ];
+
+    const cleanCategories = categories.filter((url) => {
+      const lowerUrl = url.toLowerCase();
+      return !forbiddenKeywords.some((keyword) => lowerUrl.includes(keyword));
+    });
+
+    console.log(
+      `  --> 🛡️ Filtered out ${categories.length - cleanCategories.length} non-clothing categories.`,
+    );
+
+    // Make sure to change `categories` to `cleanCategories` here!
+    const shuffledCategories = shuffleArray(cleanCategories);
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
       : shuffledCategories.slice(0, 3);

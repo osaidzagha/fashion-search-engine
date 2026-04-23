@@ -6,12 +6,26 @@ interface ProductCardProps {
   product: Product;
 }
 
+// ✅ Added helper for the badge calculation
+function discountPercent(original: number, current: number): number {
+  return Math.round(((original - current) / original) * 100);
+}
+
 export const ProductCard = ({ product }: ProductCardProps) => {
   const [hovered, setHovered] = useState(false);
   const hasHoverImage = product.images && product.images.length > 1;
   const isNew = product.timestamp
     ? Date.now() - new Date(product.timestamp).getTime() < 48 * 60 * 60 * 1000
     : false;
+
+  // ✅ Added Sale Logic
+  const isOnSale =
+    product.originalPrice !== undefined &&
+    product.originalPrice > product.price;
+  const discount = isOnSale
+    ? discountPercent(product.originalPrice!, product.price)
+    : 0;
+
   return (
     <Link
       to={`/product/${product.id}`}
@@ -25,7 +39,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         style={{
           position: "relative",
           overflow: "hidden",
-          aspectRatio: "3/4",
           backgroundColor: "#f0ede8",
         }}
       >
@@ -35,10 +48,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             src={product.images[0]}
             alt={product.name}
             style={{
-              position: "absolute",
+              position: "relative",
               inset: 0,
               width: "100%",
-              height: "100%",
+              height: "auto ",
               objectFit: "cover",
               transition: "opacity 0.6s ease, transform 0.8s ease",
               opacity: hovered && hasHoverImage ? 0 : 1,
@@ -64,6 +77,28 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             }}
           />
         )}
+
+        {/* ✅ THE NEW SALE BADGE (Top Left) */}
+        {isOnSale && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              left: 12,
+              zIndex: 10,
+              background: "#b94040", // High-visibility red
+              color: "#fff",
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "9px",
+              letterSpacing: "0.12em",
+              padding: "4px 8px",
+              borderRadius: "2px",
+            }}
+          >
+            −{discount}%
+          </div>
+        )}
+
         {/* the NEW badge right here inside the container! */}
         {isNew && (
           <div
@@ -86,17 +121,18 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         )}
         {/* --- NEW LAYER 2 UI BELOW --- */}
 
-        {/* Brand badge (Top Left Overlay) */}
+        {/* Brand badge (Top Left Overlay - Adjusted slightly so it doesn't overlap the Sale Badge) */}
         <div
           style={{
             position: "absolute",
-            top: 12,
+            top: isOnSale ? 40 : 12, // ✅ Pushes it down if the sale badge is active
             left: 12,
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(4px)",
             padding: "3px 8px",
-            transition: "opacity 0.3s ease",
+            transition: "opacity 0.3s ease, top 0.3s ease",
             opacity: hovered ? 1 : 0,
+            zIndex: 5,
           }}
         >
           <span
@@ -196,18 +232,34 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
             .join(" ")}
         </p>
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "15px",
-            fontWeight: 400,
-            color: "#666",
-            margin: 0,
-          }}
-        >
-          {/* TODO 7: Output the price and currency here. Use .toLocaleString("tr-TR") on the price to make it look nice! */}
-          {product.price.toLocaleString("tr-TR")} {product.currency}
-        </p>
+
+        {/* ✅ UPDATED PRICE DISPLAY */}
+        <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+          <p
+            style={{
+              fontFamily: "'Cormorant Garamond', serif",
+              fontSize: "15px",
+              fontWeight: 400,
+              color: isOnSale ? "#b94040" : "#666", // Red if on sale!
+              margin: 0,
+            }}
+          >
+            {product.price.toLocaleString("tr-TR")} {product.currency}
+          </p>
+          {isOnSale && (
+            <p
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: "13px",
+                color: "#bbb",
+                textDecoration: "line-through",
+                margin: 0,
+              }}
+            >
+              {product.originalPrice!.toLocaleString("tr-TR")}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Hover underline accent */}

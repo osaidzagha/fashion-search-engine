@@ -22,11 +22,15 @@ export interface PaginatedResponse {
   totalCount: number;
   totalPages: number;
   currentPage: number;
+  availableSizes?: string[];
+  availableColors?: string[];
 }
 export interface FetchProductParams {
   searchTerm: string;
   page: number;
   brands?: string[];
   departments?: string[];
+  sizes?: string[]; // already in api.ts but missing from types
+  colors?: string[]; // same
   maxPrice?: number;
 }

@@ -1,492 +1,362 @@
-import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { RootState } from "../store/store";
 import {
   toggleBrand,
-  setDepartments,
+  toggleSize,
+  toggleColor,
   setMaxPrice,
 } from "../store/productSlice";
 
-const BRANDS = ["Zara", "Massimo Dutti"];
-const DEPARTMENTS = ["MAN", "WOMAN"];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export function Sidebar() {
-  const dispatch = useDispatch();
-  const { selectBrands, selectDepartments, maxPrice } = useSelector(
-    (state: any) => state.products,
+// Letter sizes in display order
+const LETTER_SIZE_ORDER = [
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "XXXL",
+  "ONE SIZE",
+];
+
+// Whether a size string is a letter size
+function isLetterSize(s: string): boolean {
+  return LETTER_SIZE_ORDER.includes(s.toUpperCase().trim());
+}
+
+// Whether a size string is numeric (e.g. 32, 34, 36, 30/32)
+function isNumericSize(s: string): boolean {
+  return /^\d+([\/\-]\d+)?$/.test(s.trim());
+}
+
+// Sort letter sizes by order array, numeric sizes numerically
+function sortLetterSizes(sizes: string[]): string[] {
+  return sizes.sort(
+    (a, b) =>
+      LETTER_SIZE_ORDER.indexOf(a.toUpperCase().trim()) -
+      LETTER_SIZE_ORDER.indexOf(b.toUpperCase().trim()),
   );
-  const [expanded, setExpanded] = useState(false);
+}
 
-  const toggleDepartment = (department: string) => {
-    const current = selectDepartments || [];
-    dispatch(
-      setDepartments(
-        current.includes(department)
-          ? current.filter((d: string) => d !== department)
-          : [...current, department],
-      ),
-    );
-  };
+function sortNumericSizes(sizes: string[]): string[] {
+  return sizes.sort((a, b) => parseInt(a) - parseInt(b));
+}
 
-  const activeFilterCount =
-    (selectBrands?.length || 0) +
-    (selectDepartments?.length || 0) +
-    (maxPrice && maxPrice < 15000 ? 1 : 0);
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: "9px",
+        letterSpacing: "0.2em",
+        textTransform: "uppercase",
+        color: "#aaa",
+        margin: "0 0 12px",
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function Divider() {
+  return (
+    <div style={{ height: "1px", background: "#e8e4dc", margin: "24px 0" }} />
+  );
+}
+
+function SizeChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: "11px",
+        padding: "6px 10px",
+        border: "1px solid",
+        borderColor: active ? "#1a1a1a" : "#d4d0c8",
+        background: active ? "#1a1a1a" : "transparent",
+        color: active ? "#fff" : "#555",
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+        letterSpacing: "0.04em",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+
+export const Sidebar = () => {
+  const dispatch = useDispatch();
+
+  const {
+    selectBrands,
+    selectSizes,
+    selectColors,
+    maxPrice,
+    availableSizes,
+    availableColors,
+  } = useSelector((state: RootState) => state.products);
+
+  // Split sizes into groups
+  const letterSizes = sortLetterSizes(
+    availableSizes.filter((s) => isLetterSize(s)),
+  );
+  const numericSizes = sortNumericSizes(
+    availableSizes.filter((s) => isNumericSize(s)),
+  );
+  const otherSizes = availableSizes.filter(
+    (s) => !isLetterSize(s) && !isNumericSize(s),
+  );
+
+  const hasSizes = availableSizes.length > 0;
+  const hasColors = availableColors.length > 0;
 
   return (
     <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
       style={{
-        position: "sticky",
-        top: "89px", // height of your sticky header
-        height: "calc(100vh - 89px)",
+        width: "220px",
         flexShrink: 0,
-        width: expanded ? "220px" : "52px",
         borderRight: "1px solid #e8e4dc",
-        background: "#faf9f6",
-        transition: "width 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-        overflow: "hidden",
-        zIndex: 10,
-        display: "flex",
-        flexDirection: "column",
+        padding: "40px 32px 40px 48px",
+        position: "sticky",
+        top: "73px", // below the search header
+        height: "calc(100vh - 73px)",
+        overflowY: "auto",
+        scrollbarWidth: "none",
       }}
     >
-      {/* ── COLLAPSED STATE: icon column ── */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "52px",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          paddingTop: "28px",
-          gap: "28px",
-          opacity: expanded ? 0 : 1,
-          transition: "opacity 0.2s ease",
-          pointerEvents: expanded ? "none" : "auto",
-        }}
-      >
-        {/* Filter icon */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "6px",
-          }}
-        >
-          <svg width="16" height="12" viewBox="0 0 16 12" fill="none">
-            <line x1="0" y1="1" x2="16" y2="1" stroke="#888" strokeWidth="1" />
-            <line x1="3" y1="6" x2="13" y2="6" stroke="#888" strokeWidth="1" />
-            <line
-              x1="5"
-              y1="11"
-              x2="11"
-              y2="11"
-              stroke="#888"
-              strokeWidth="1"
-            />
-          </svg>
-          {activeFilterCount > 0 && (
-            <div
+      {/* ── Brand ── */}
+      <SectionLabel>Brand</SectionLabel>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {["Zara", "Massimo Dutti"].map((brand) => {
+          const active = selectBrands?.includes(brand);
+          return (
+            <button
+              key={brand}
+              onClick={() => dispatch(toggleBrand(brand))}
               style={{
-                width: "16px",
-                height: "16px",
-                borderRadius: "50%",
-                background: "#1a1a1a",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "12px",
+                letterSpacing: "0.04em",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0",
+                textAlign: "left",
+                color: active ? "#1a1a1a" : "#888",
+                fontWeight: active ? 500 : 400,
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "center",
+                gap: "8px",
+                transition: "color 0.15s ease",
               }}
             >
               <span
                 style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "9px",
-                  color: "#fff",
-                  lineHeight: 1,
+                  width: "12px",
+                  height: "12px",
+                  border: "1px solid",
+                  borderColor: active ? "#1a1a1a" : "#d4d0c8",
+                  background: active ? "#1a1a1a" : "transparent",
+                  display: "inline-block",
+                  flexShrink: 0,
+                  transition: "all 0.15s ease",
                 }}
-              >
-                {activeFilterCount}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Brand dots */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-            alignItems: "center",
-          }}
-        >
-          {BRANDS.map((brand) => (
-            <div
-              key={brand}
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: selectBrands?.includes(brand)
-                  ? "#1a1a1a"
-                  : "#d4d0c8",
-                transition: "background 0.2s",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Dept dots */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "6px",
-            alignItems: "center",
-          }}
-        >
-          {DEPARTMENTS.map((dept) => (
-            <div
-              key={dept}
-              style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
-                background: selectDepartments?.includes(dept)
-                  ? "#1a1a1a"
-                  : "#d4d0c8",
-                transition: "background 0.2s",
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Price bar mini */}
-        <div
-          style={{
-            width: "2px",
-            height: "40px",
-            background: "#e8e4dc",
-            borderRadius: "2px",
-            position: "relative",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: `${((maxPrice || 15000) / 15000) * 100}%`,
-              background: "#1a1a1a",
-              borderRadius: "2px",
-              transition: "height 0.3s ease",
-            }}
-          />
-        </div>
+              />
+              {brand}
+            </button>
+          );
+        })}
       </div>
 
-      {/* ── EXPANDED STATE: full panel ── */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "220px",
-          height: "100%",
-          padding: "28px 24px",
-          opacity: expanded ? 1 : 0,
-          transition: "opacity 0.25s ease 0.1s",
-          pointerEvents: expanded ? "auto" : "none",
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: "32px",
-        }}
-      >
-        {/* Header */}
+      <Divider />
+
+      {/* ── Price ── */}
+      <SectionLabel>Max Price</SectionLabel>
+      <div>
+        <input
+          type="range"
+          min={0}
+          max={15000}
+          step={100}
+          value={maxPrice ?? 15000}
+          onChange={(e) => {
+            const val = Number(e.target.value);
+            dispatch(setMaxPrice(val >= 15000 ? undefined : val));
+          }}
+          style={{
+            width: "100%",
+            accentColor: "#1a1a1a",
+            cursor: "pointer",
+          }}
+        />
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            marginTop: "6px",
           }}
         >
           <span
             style={{
               fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: "#aaa",
+              fontSize: "10px",
+              color: "#bbb",
             }}
           >
-            Filters
+            0
           </span>
-          {activeFilterCount > 0 && (
-            <button
-              onClick={() => {
-                dispatch(setDepartments([]));
-                BRANDS.forEach((b) => {
-                  if (selectBrands?.includes(b)) dispatch(toggleBrand(b));
-                });
-                dispatch(setMaxPrice(15000));
-              }}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "#999",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                transition: "color 0.2s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#999")}
-            >
-              Clear all
-            </button>
+          <span
+            style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "10px",
+              color: maxPrice ? "#1a1a1a" : "#bbb",
+            }}
+          >
+            {maxPrice ? `${maxPrice.toLocaleString("tr-TR")} TL` : "Any"}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Sizes ── */}
+      {hasSizes && (
+        <>
+          <Divider />
+
+          {/* Letter sizes (S, M, L…) */}
+          {letterSizes.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              <SectionLabel>Size</SectionLabel>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {letterSizes.map((size) => (
+                  <SizeChip
+                    key={size}
+                    label={size}
+                    active={selectSizes?.includes(size) ?? false}
+                    onClick={() => dispatch(toggleSize(size))}
+                  />
+                ))}
+              </div>
+            </div>
           )}
-        </div>
 
-        {/* Brands */}
-        <div>
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#bbb",
-              margin: "0 0 14px",
-            }}
-          >
-            Brand
-          </p>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-          >
-            {BRANDS.map((brand) => {
-              const active = selectBrands?.includes(brand);
+          {/* Numeric sizes (30, 32, 34…) — only show if present */}
+          {numericSizes.length > 0 && (
+            <div style={{ marginBottom: "16px" }}>
+              {letterSizes.length === 0 && <SectionLabel>Size</SectionLabel>}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {numericSizes.map((size) => (
+                  <SizeChip
+                    key={size}
+                    label={size}
+                    active={selectSizes?.includes(size) ?? false}
+                    onClick={() => dispatch(toggleSize(size))}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Other sizes */}
+          {otherSizes.length > 0 && (
+            <div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {otherSizes.map((size) => (
+                  <SizeChip
+                    key={size}
+                    label={size}
+                    active={selectSizes?.includes(size) ?? false}
+                    onClick={() => dispatch(toggleSize(size))}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Colors ── */}
+      {hasColors && (
+        <>
+          <Divider />
+          <SectionLabel>Color</SectionLabel>
+
+          {/* Show top 12 colors as text chips — readable and not overwhelming */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {availableColors.slice(0, 12).map((color) => {
+              const active = selectColors?.includes(color);
               return (
                 <button
-                  key={brand}
-                  onClick={() => dispatch(toggleBrand(brand))}
+                  key={color}
+                  onClick={() => dispatch(toggleColor(color))}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: "11px",
+                    letterSpacing: "0.04em",
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    padding: 0,
+                    padding: "0",
                     textAlign: "left",
+                    color: active ? "#1a1a1a" : "#888",
+                    fontWeight: active ? 500 : 400,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "color 0.15s ease",
                   }}
                 >
-                  <div
-                    style={{
-                      width: "14px",
-                      height: "14px",
-                      flexShrink: 0,
-                      border: `1px solid ${active ? "#1a1a1a" : "#d4d0c8"}`,
-                      background: active ? "#1a1a1a" : "transparent",
-                      transition: "all 0.2s ease",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {active && (
-                      <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                        <polyline
-                          points="1,3 3,5 7,1"
-                          stroke="#fff"
-                          strokeWidth="1.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
                   <span
                     style={{
-                      fontFamily: "'Cormorant Garamond', serif",
-                      fontSize: "16px",
-                      fontWeight: 300,
-                      fontStyle: "italic",
-                      color: active ? "#1a1a1a" : "#888",
-                      transition: "color 0.2s",
+                      width: "12px",
+                      height: "12px",
+                      border: "1px solid",
+                      borderColor: active ? "#1a1a1a" : "#d4d0c8",
+                      background: active ? "#1a1a1a" : "transparent",
+                      display: "inline-block",
+                      flexShrink: 0,
+                      transition: "all 0.15s ease",
                     }}
-                  >
-                    {brand}
-                  </span>
+                  />
+                  {color}
                 </button>
               );
             })}
           </div>
-        </div>
 
-        {/* Departments */}
-        <div>
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: "#bbb",
-              margin: "0 0 14px",
-            }}
-          >
-            Department
-          </p>
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-          >
-            {DEPARTMENTS.map((dept) => {
-              const active = selectDepartments?.includes(dept);
-              return (
-                <button
-                  key={dept}
-                  onClick={() => toggleDepartment(dept)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "14px",
-                      height: "14px",
-                      flexShrink: 0,
-                      border: `1px solid ${active ? "#1a1a1a" : "#d4d0c8"}`,
-                      background: active ? "#1a1a1a" : "transparent",
-                      transition: "all 0.2s ease",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {active && (
-                      <svg width="8" height="6" viewBox="0 0 8 6" fill="none">
-                        <polyline
-                          points="1,3 3,5 7,1"
-                          stroke="#fff"
-                          strokeWidth="1.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  <span
-                    style={{
-                      fontFamily: "'Cormorant Garamond', serif",
-                      fontSize: "16px",
-                      fontWeight: 300,
-                      fontStyle: "italic",
-                      color: active ? "#1a1a1a" : "#888",
-                      transition: "color 0.2s",
-                    }}
-                  >
-                    {dept === "MAN" ? "Man" : "Woman"}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Price */}
-        <div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: "14px",
-            }}
-          >
+          {/* "More colors" count if there are extras */}
+          {availableColors.length > 12 && (
             <p
               style={{
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: "9px",
-                letterSpacing: "0.16em",
+                letterSpacing: "0.12em",
                 textTransform: "uppercase",
                 color: "#bbb",
-                margin: 0,
+                margin: "10px 0 0",
               }}
             >
-              Max price
+              +{availableColors.length - 12} more
             </p>
-            <span
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: "15px",
-                fontWeight: 400,
-                color: "#1a1a1a",
-              }}
-            >
-              {(maxPrice || 15000).toLocaleString("tr-TR")} TL
-            </span>
-          </div>
-
-          <input
-            type="range"
-            min="500"
-            max="15000"
-            step="500"
-            value={maxPrice || 15000}
-            onChange={(e) => dispatch(setMaxPrice(Number(e.target.value)))}
-            style={{
-              width: "100%",
-              accentColor: "#1a1a1a",
-              cursor: "pointer",
-              height: "2px",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: "8px",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                color: "#ccc",
-              }}
-            >
-              500
-            </span>
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                color: "#ccc",
-              }}
-            >
-              15,000
-            </span>
-          </div>
-        </div>
-      </div>
+          )}
+        </>
+      )}
     </aside>
   );
-}
+};

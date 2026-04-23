@@ -32,6 +32,14 @@ export const fetchProductsFromAPI = async (
       urlParams.set("departments", filters.departments.join(","));
     if (filters.maxPrice)
       urlParams.set("maxPrice", filters.maxPrice.toString());
+    if (filters.maxPrice)
+      urlParams.set("maxPrice", filters.maxPrice.toString());
+
+    // 👇 ADD THESE TWO LINES 👇
+    if (filters.sizes && filters.sizes.length > 0)
+      urlParams.set("sizes", filters.sizes.join(","));
+    if (filters.colors && filters.colors.length > 0)
+      urlParams.set("colors", filters.colors.join(","));
 
     const response = await fetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,

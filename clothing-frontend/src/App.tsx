@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import SearchResults from "./pages/SearchResults";
 
 // 👇 1. Import your new files
 import ProtectedRoute from "./utils/ProtectedRoute";
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/product/:id" element={<ProductDetails />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/search" element={<SearchResults />} />
 
         {/* ========================================== */}
         {/* 🔒 PROTECTED ROUTES                        */}
