@@ -15,30 +15,34 @@ interface PriceHistoryEntry {
   date: string | Date;
 }
 
-interface PriceHistoryChartProps {
+export interface PriceHistoryChartProps {
   history?: PriceHistoryEntry[];
   currentPrice: number;
-  originalPrice?: number; // 👈 ADDED THIS
+  originalPrice?: number;
   currency: string;
+  theme?: "light" | "dark";
 }
 
-// EXACTLY your old Tooltip
-const PriceTooltip = ({ active, payload, label, currency }: any) => {
+// ─── TOOLTIP AESTHETIC MATCHED TO PRODUCT DETAILS ──────────────────────────
+const PriceTooltip = ({ active, payload, label, currency, theme }: any) => {
   if (active && payload && payload.length) {
+    const isDark = theme === "dark";
     return (
       <div
         style={{
-          background: "#1a1a1a",
-          padding: "8px 12px",
-          borderRadius: "2px",
+          background: isDark ? "#0f0f0d" : "#fff",
+          border: `1px solid ${isDark ? "#2e2e2c" : "#e8e4dc"}`,
+          padding: "10px 14px",
+          boxShadow: isDark ? "none" : "0 4px 12px rgba(0,0,0,0.05)",
         }}
       >
         <p
           style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "11px",
-            color: "#fff",
+            fontFamily: "'Cormorant Garamond', serif",
+            fontSize: "18px",
+            color: isDark ? "#f0ede6" : "#1a1a1a",
             margin: 0,
+            lineHeight: 1,
           }}
         >
           {payload[0].value.toLocaleString("tr-TR")} {currency}
@@ -46,9 +50,11 @@ const PriceTooltip = ({ active, payload, label, currency }: any) => {
         <p
           style={{
             fontFamily: "'DM Sans', sans-serif",
-            fontSize: "9px",
-            color: "#888",
-            margin: "2px 0 0",
+            fontSize: "8px",
+            letterSpacing: "0.15em",
+            textTransform: "uppercase",
+            color: isDark ? "#5a5754" : "#aaa",
+            margin: "6px 0 0",
           }}
         >
           {label}
@@ -59,13 +65,15 @@ const PriceTooltip = ({ active, payload, label, currency }: any) => {
   return null;
 };
 
+// ─── MAIN COMPONENT ────────────────────────────────────────────────────────
 export default function PriceHistoryChart({
   history = [],
   currentPrice,
   originalPrice,
   currency,
+  theme = "light",
 }: PriceHistoryChartProps) {
-  // 1. Build the base chart data
+  // 1. Map existing database history
   let chartData = history.map((p) => ({
     price: p.price,
     date: new Date(p.date).toLocaleDateString("tr-TR", {
@@ -74,52 +82,62 @@ export default function PriceHistoryChart({
     }),
   }));
 
-  // 2. THE FIX: If there is only 1 day of history, fake a data point from 7 days ago
-  // so the line chart actually has a line to draw!
+  // 2. "Day 1 Illusion" for brand new scraped items
   if (chartData.length <= 1) {
     const today = new Date();
     const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const dateTodayStr = today.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "short",
+    });
+    const dateLastWeekStr = lastWeek.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "short",
+    });
 
-    chartData = [
-      {
-        price: currentPrice,
-        date: lastWeek.toLocaleDateString("tr-TR", {
-          day: "numeric",
-          month: "short",
-        }),
-      },
-      {
-        price: currentPrice,
-        date: today.toLocaleDateString("tr-TR", {
-          day: "numeric",
-          month: "short",
-        }),
-      },
-    ];
+    if (originalPrice && originalPrice > currentPrice) {
+      // Scenario A: New item, ON SALE (Draws downward slope)
+      chartData = [
+        { price: originalPrice, date: dateLastWeekStr },
+        { price: currentPrice, date: dateTodayStr },
+      ];
+    } else {
+      // Scenario B: New item, NO SALE (Draws flat stable line)
+      chartData = [
+        { price: currentPrice, date: dateLastWeekStr },
+        { price: currentPrice, date: dateTodayStr },
+      ];
+    }
   }
 
-  // 3. Dynamic Y-Axis calculation so the Original Price doesn't get cut off the top of the chart
+  // 3. Scaling Math
   const dataMax = Math.max(...chartData.map((d) => d.price));
   const dataMin = Math.min(...chartData.map((d) => d.price));
   const absoluteMax = originalPrice
     ? Math.max(dataMax, originalPrice)
     : dataMax;
 
+  // 4. Dynamic Theme Variables
+  const lineColor = theme === "dark" ? "#f0ede6" : "#1a1a1a";
+  const gridColor = theme === "dark" ? "#1e1e1c" : "#e8e4dc";
+  const textColor = theme === "dark" ? "#5a5754" : "#aaa";
+
   return (
-    <div style={{ marginBottom: "32px" }}>
+    <div>
       <p
         style={{
           fontFamily: "'DM Sans', sans-serif",
-          fontSize: "10px",
-          letterSpacing: "0.14em",
+          fontSize: "8px",
+          letterSpacing: "0.22em",
           textTransform: "uppercase",
-          color: "#aaa",
-          marginBottom: "12px",
+          color: theme === "dark" ? "#3a3734" : "#aaa",
+          margin: "0 0 16px",
         }}
       >
-        Price history
+        Price History
       </p>
-      <div style={{ width: "100%", height: 120 }}>
+
+      <div style={{ width: "100%", height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
@@ -128,25 +146,22 @@ export default function PriceHistoryChart({
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
-              stroke="#e8e4dc"
+              stroke={gridColor}
             />
             <XAxis
               dataKey="date"
               tick={{
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 9,
-                fill: "#bbb",
+                fill: textColor,
               }}
               axisLine={false}
               tickLine={false}
+              dy={10}
             />
-            <YAxis
-              hide
-              // Expand the domain so the red line fits perfectly
-              domain={[dataMin * 0.9, absoluteMax * 1.1]}
-            />
+            <YAxis hide domain={[dataMin * 0.95, absoluteMax * 1.05]} />
 
-            {/* 👇 Shows the Retail Price as a red dotted line if it's on sale */}
+            {/* The Red "Retail" Ceiling Line */}
             {originalPrice && originalPrice > currentPrice && (
               <ReferenceLine
                 y={originalPrice}
@@ -155,35 +170,31 @@ export default function PriceHistoryChart({
                 strokeWidth={1}
                 label={{
                   position: "insideTopLeft",
-                  value: "Retail",
+                  value: "RETAIL",
                   fill: "#b94040",
-                  fontSize: 9,
+                  fontSize: 8,
                   fontFamily: "'DM Sans', sans-serif",
+                  letterSpacing: "0.1em",
                 }}
               />
             )}
 
             <Line
-              type="stepAfter" // Switched to stepAfter to make it look like a real price tracker
+              type="monotone"
               dataKey="price"
-              stroke="#1a1a1a"
+              stroke={lineColor}
               strokeWidth={1.5}
-              dot={{ r: 2, fill: "#1a1a1a" }}
-              activeDot={{ r: 4 }}
+              dot={false}
+              activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
               isAnimationActive={false}
             />
-            <Tooltip content={<PriceTooltip currency={currency} />} />
+            <Tooltip
+              content={<PriceTooltip currency={currency} theme={theme} />}
+              cursor={{ stroke: gridColor, strokeWidth: 1 }}
+            />
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div
-        style={{
-          height: "1px",
-          background: "#e8e4dc",
-          marginTop: "24px",
-          marginBottom: "32px",
-        }}
-      />
     </div>
   );
 }

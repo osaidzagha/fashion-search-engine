@@ -85,16 +85,23 @@ const productSlice = createSlice({
       state.maxPrice = action.payload;
     },
 
-    // 👇 NEW: The brain logic for the Compare feature
+    // 👇 NEW: Wipes all filters clean, but keeps the items and compare queue intact
+    clearFilters(state) {
+      state.selectBrands = [];
+      state.selectSizes = [];
+      state.selectColors = [];
+      state.selectDepartments = [];
+      state.maxPrice = undefined;
+    },
+
+    // The brain logic for the Compare feature
     toggleCompare(state, action: PayloadAction<Product>) {
       const exists = state.compareQueue.find((p) => p.id === action.payload.id);
       if (exists) {
-        // If it's already in the queue, remove it
         state.compareQueue = state.compareQueue.filter(
           (p) => p.id !== action.payload.id,
         );
       } else {
-        // If not in queue, add it (strict limit of 2)
         if (state.compareQueue.length < 2) {
           state.compareQueue.push(action.payload);
         }
@@ -118,8 +125,9 @@ export const {
   setDepartments,
   setMaxPrice,
   setBrands,
-  toggleCompare, // ✅ Exported!
-  clearCompare, // ✅ Exported!
+  toggleCompare,
+  clearCompare,
+  clearFilters, // ✅ Exported here!
 } = productSlice.actions;
 
 export default productSlice.reducer;

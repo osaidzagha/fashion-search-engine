@@ -7,7 +7,7 @@ import { SearchBar } from "../components/SearchBar";
 import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import SaleCard from "../components/SaleCard";
-import { setBrands, setSearchTerm } from "../store/productSlice";
+import { setBrands, setSearchTerm, clearFilters } from "../store/productSlice";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -239,7 +239,14 @@ export default function Home() {
                   className="cat-pill"
                   onClick={() => {
                     setActiveCategory(cat.query);
-                    dispatch(setSearchTerm(cat.query));
+
+                    // 1. Wipe out any old filters (Brands, Sizes, Prices)
+                    dispatch(clearFilters());
+
+                    // 2. Set the search term in Redux (so your search bar stays in sync)
+                    dispatch(setSearchTerm(cat.query || ""));
+
+                    // 3. Navigate
                     if (cat.query) {
                       navigate(`/search?q=${encodeURIComponent(cat.query)}`);
                     } else {
@@ -378,7 +385,7 @@ export default function Home() {
             </div>
             <button
               className="view-all-btn"
-              onClick={() => navigate("/search")}
+              onClick={() => navigate("/collection/sale")}
               style={{
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: "10px",
@@ -455,7 +462,7 @@ export default function Home() {
             </div>
             <button
               className="view-all-btn"
-              onClick={() => navigate("/search")}
+              onClick={() => navigate("/collection/new-in")}
               style={{
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: "10px",
@@ -513,9 +520,9 @@ export default function Home() {
           {/* Zara */}
           <div
             onClick={() => {
-              dispatch(setSearchTerm(""));
-              dispatch(setBrands(["Zara"]));
-              navigate("/search");
+              dispatch(clearFilters()); // Wipe old filters (sizes, colors, prices)
+              dispatch(setSearchTerm("")); // Wipe the search bar
+              navigate("/collection/zara"); // Route to the new cinematic page
             }}
             style={{
               padding: "48px 64px",
@@ -572,9 +579,9 @@ export default function Home() {
           {/* Massimo Dutti */}
           <div
             onClick={() => {
-              dispatch(setSearchTerm(""));
-              dispatch(setBrands(["Massimo Dutti"]));
-              navigate("/search");
+              dispatch(clearFilters()); // Wipe old filters
+              dispatch(setSearchTerm("")); // Wipe the search bar
+              navigate("/collection/massimo-dutti"); // Route to the new cinematic page
             }}
             style={{
               padding: "48px 64px",

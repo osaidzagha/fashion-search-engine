@@ -733,7 +733,9 @@ export default function ProductDetails() {
             <PriceHistoryChart
               history={product.priceHistory}
               currentPrice={product.price}
+              originalPrice={product.originalPrice} // 👈 Feeds the red "Retail" line
               currency={product.currency}
+              theme="dark" // 👈 Triggers the dark-mode colors
             />
           </div>
 

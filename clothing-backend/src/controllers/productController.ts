@@ -95,6 +95,10 @@ function buildBaseFilter(query: any): any {
     };
   }
 
+  if (query.onSale === "true") {
+    filter.originalPrice = { $exists: true, $ne: null, $gt: 0 };
+  }
+
   return filter;
 }
 

@@ -33,4 +33,5 @@ export interface FetchProductParams {
   sizes?: string[]; // already in api.ts but missing from types
   colors?: string[]; // same
   maxPrice?: number;
+  onSale?: boolean; // ← add this line
 }

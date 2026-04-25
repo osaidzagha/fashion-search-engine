@@ -12,11 +12,14 @@ import AdminDashboard from "./pages/AdminDashboard";
 import VerifyEmail from "./pages/VerifyEmail";
 import { CompareBanner } from "./components/CompareBanner";
 import Compare from "./pages/Compare";
+import ScrollToTop from "./components/ScrollToTop";
+import Collection from "./pages/Collection";
 export default function App() {
   return (
     <Router>
       <Navbar />
       <CompareBanner />
+      <ScrollToTop />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/product/:id" element={<ProductDetails />} />
@@ -24,6 +27,7 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/search" element={<SearchResults />} />
         <Route path="/compare" element={<Compare />} />
+        <Route path="/collection/:type" element={<Collection />} />
 
         {/* ========================================== */}
         {/* 🔒 PROTECTED ROUTES                        */}
