@@ -1,18 +1,39 @@
 import { Page } from "puppeteer";
 import { Product } from "../interface";
 
-function parseUniversalPrice(rawPrice: string): number {
-  const cleanStr = rawPrice.replace(/[^\d.,]/g, "");
-  if (!cleanStr) return 0;
+export function parseUniversalPrice(rawPrice: string): number | undefined {
+  if (!rawPrice) return undefined;
+
+  let cleanStr = rawPrice.replace(/[^\d.,]/g, "");
+  if (!cleanStr) return undefined;
+
   const lastComma = cleanStr.lastIndexOf(",");
   const lastDot = cleanStr.lastIndexOf(".");
-  if (lastComma > lastDot) {
-    const noDots = cleanStr.replace(/\./g, "");
-    return parseFloat(noDots.replace(",", ".")) || 0;
-  } else {
-    const noCommas = cleanStr.replace(/,/g, "");
-    return parseFloat(noCommas) || 0;
+
+  // Case 1: String has BOTH a dot and a comma (e.g., 1.790,00 or 1,790.00)
+  if (lastComma > -1 && lastDot > -1) {
+    if (lastComma > lastDot) {
+      // TR/EU Format: 1.790,00 -> Remove dot, change comma to decimal
+      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
+    } else {
+      // US Format: 1,790.00 -> Remove comma
+      cleanStr = cleanStr.replace(/,/g, "");
+    }
   }
+  // Case 2: String has ONLY a dot (e.g., 2.990 or 29.90)
+  else if (lastDot > -1 && lastComma === -1) {
+    // If exactly 3 digits follow the dot, it is a thousands separator, NOT a decimal
+    if (cleanStr.length - lastDot === 4) {
+      cleanStr = cleanStr.replace(/\./g, ""); // "2.990" -> "2990"
+    }
+  }
+  // Case 3: String has ONLY a comma (e.g., 2990,00)
+  else if (lastComma > -1 && lastDot === -1) {
+    cleanStr = cleanStr.replace(",", "."); // "2990,00" -> "2990.00"
+  }
+
+  const parsed = parseFloat(cleanStr);
+  return isNaN(parsed) ? undefined : parsed;
 }
 
 async function dismissModals(page: Page) {
@@ -161,6 +182,46 @@ export async function scrapeMassimoProductData(
   department: string = "",
 ): Promise<Product | null> {
   console.log(`   --> Scraping Massimo Dutti product: ${url}`);
+  let trueVideoUrl: string | undefined = undefined;
+
+  // ─── 1. THE WIRETAP (Network Interception) ──────────────────────────────
+  const responseHandler = async (response: any) => {
+    const reqUrl = response.url();
+
+    // Listen for the exact API call you found in the Network tab
+    if (reqUrl.includes("itxrest") && reqUrl.includes("productsArray")) {
+      try {
+        const json = await response.json();
+
+        // Recursive function to hunt down the .mp4 file anywhere in the JSON tree
+        const findMp4 = (obj: any): string | null => {
+          if (typeof obj === "string" && obj.includes(".mp4")) return obj;
+          if (typeof obj === "object" && obj !== null) {
+            for (const key of Object.keys(obj)) {
+              const found = findMp4(obj[key]);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+
+        const mp4Path = findMp4(json);
+
+        if (mp4Path) {
+          // Inditex JSON usually gives relative paths, so we prepend the Massimo Dutti CDN
+          trueVideoUrl = mp4Path.startsWith("http")
+            ? mp4Path
+            : `https://static.massimodutti.net/3/photos${mp4Path}`;
+          console.log(`   --> 🎯 WIRETAP SUCCESS: Intercepted raw video JSON!`);
+        }
+      } catch (e) {
+        // Silently ignore if JSON fails to parse
+      }
+    }
+  };
+
+  // Turn on the wiretap
+  page.on("response", responseHandler);
   try {
     const cleanUrl = url.split("?")[0];
     const match = cleanUrl.match(/-l([a-zA-Z0-9]{8})$/);
@@ -220,12 +281,6 @@ export async function scrapeMassimoProductData(
           var el = document.querySelector(selector);
           return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
         }
-        function extractFromAriaLabel(el) {
-          if (!el) return '';
-          var label = el.getAttribute('aria-label') || '';
-          var m = label.match(/[\\d][0-9.,]*/);
-          return m ? m[0] : '';
-        }
 
         var name = getText('h1.md-product-heading-title-txt') || getText('h1');
 
@@ -239,14 +294,40 @@ export async function scrapeMassimoProductData(
           getText('.md-color-selector-title-label') ||
           getText('.md-color-selector-title');
 
-        var discountedEl = document.querySelector('[aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
-        var originalEl   = document.querySelector('[aria-label*="Original price"], [aria-label*="Orijinal fiyat"], .is-through[aria-label]');
-        var fallbackEl   = document.querySelector('.formatted-price-detail-handler');
+        // 👇 Helper specifically designed to steal Massimo's accessibility labels
+        function getMDPrice(selector) {
+          var el = document.querySelector(selector);
+          if (!el) return '';
+          
+          var aria = el.getAttribute('aria-label');
+          if (aria && /[0-9]/.test(aria)) {
+            return aria; 
+          }
+          
+          return el.textContent ? el.textContent.trim() : '';
+        }
 
-        var currentRaw = discountedEl
-          ? extractFromAriaLabel(discountedEl)
-          : (fallbackEl && fallbackEl.textContent ? fallbackEl.textContent.trim() : '');
-        var originalRaw = originalEl ? extractFromAriaLabel(originalEl) : '';
+        var originalRaw =
+          getMDPrice('[aria-label*="Market Price"]') ||
+          getMDPrice('[aria-label*="Original"]') ||
+          getMDPrice('.is-through');
+
+        var currentRaw =
+          getMDPrice('[aria-label*="Discounted price"]') ||
+          getMDPrice('.d-price-special') ||
+          getMDPrice('.price') || 
+          getMDPrice('.product-price');
+
+        // 2. Fallback
+        if (!originalRaw || !currentRaw) {
+           var oldPriceEl = document.querySelector('.is-through');
+           var newPriceEl = document.querySelector('.d-price-special');
+           
+           if (oldPriceEl && newPriceEl) {
+               originalRaw = originalRaw || oldPriceEl.textContent.trim();
+               currentRaw = currentRaw || newPriceEl.textContent.trim();
+           }
+        }
 
         return {
           name: name,
@@ -287,16 +368,18 @@ export async function scrapeMassimoProductData(
       .catch(() => {});
 
     // ─── STEP 4: Images — after scroll ───────────────────────────────────────
-    // ✅ FIX: Massimo uses plain <img srcset="..."> NOT <picture><source>.
-    //         The old fallback read img.src which contains "w=undefined" → broken URL.
-    //         Now we read srcset on both <source> AND <img> and pick the highest res.
     const rawImages = (await page.evaluate(`
       (function() {
         function sanitizeUrl(url) {
           if (!url) return null;
-          if (url.startsWith('data:') || url.endsWith('.svg') || url.includes('placeholder')) return null;
+          var lowerUrl = url.toLowerCase();
+          
+          if (lowerUrl.startsWith('data:') || lowerUrl.endsWith('.svg') || lowerUrl.includes('placeholder')) return null;
+          
+          // 👇 DEFENSE 1: Block known swatch and texture keywords in the URL
+          if (lowerUrl.includes('swatch') || lowerUrl.includes('texture') || lowerUrl.includes('icon')) return null;
+
           // Strip query string — Massimo's CDN serves the full image without params
-          // (the w= param is just a resize hint, dropping it gives the original)
           var clean = url.split('?')[0];
           if (!clean || clean.length < 10) return null;
           return clean;
@@ -318,8 +401,10 @@ export async function scrapeMassimoProductData(
         var gallery = document.querySelector('main') || document.body;
         var clone = gallery.cloneNode(true);
 
+        // 👇 DEFENSE 2: Aggressively delete color selectors and swatches from the DOM before searching!
         ['[class*="complete-the-look"]','[class*="cross-sell"]',
-         '[class*="recommendations"]','[class*="carousel"]','footer']
+         '[class*="recommendations"]','[class*="carousel"]','footer',
+         '[class*="color-selector"]', '[class*="swatch"]', '[class*="thumb"]']
           .forEach(function(sel) {
             clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
           });
@@ -332,7 +417,6 @@ export async function scrapeMassimoProductData(
           if (clean && !seen.has(clean)) { seen.add(clean); images.push(clean); }
         }
 
-        // Try <picture><source> first (Zara-style)
         clone.querySelectorAll('picture').forEach(function(picture) {
           var sources = Array.from(picture.querySelectorAll('source'));
           if (sources.length === 0) return;
@@ -350,8 +434,6 @@ export async function scrapeMassimoProductData(
           addUrl(best);
         });
 
-        // ✅ FIX: If no <picture> elements, fall back to <img> tags.
-        //         Prefer srcset (pick highest res) over src (which may have w=undefined).
         if (images.length === 0) {
           clone.querySelectorAll('img').forEach(function(img) {
             var srcset = img.getAttribute('srcset') || img.getAttribute('data-srcset');
@@ -365,23 +447,6 @@ export async function scrapeMassimoProductData(
         return images;
       })()
     `)) as string[];
-
-    // ─── STEP 5: Video ────────────────────────────────────────────────────────
-    const cleanVideo = (await page
-      .evaluate(
-        `
-      (function() {
-        var v =
-          document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector('video');
-        if (!v) return null;
-        var src = v.getAttribute('src');
-        if (src && !src.startsWith('blob:')) return src;
-        return null;
-      })()
-    `,
-      )
-      .catch(() => null)) as string | null;
 
     // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
     try {
@@ -464,10 +529,12 @@ export async function scrapeMassimoProductData(
     } catch (err) {}
 
     // ─── Assemble ─────────────────────────────────────────────────────────────
+    page.off("response", responseHandler);
+
     const rawName = textData.name;
     const rawDescription = textData.description;
     const cleanColor = textData.color.split("|")[0].trim();
-    const finalPrice = parseUniversalPrice(textData.currentRaw);
+    const finalPrice = parseUniversalPrice(textData.currentRaw) ?? 0;
 
     if (finalPrice <= 0) {
       console.log(
@@ -494,7 +561,7 @@ export async function scrapeMassimoProductData(
       currency: "TRY",
       brand: "Massimo Dutti",
       images: rawImages,
-      video: cleanVideo || undefined,
+      video: trueVideoUrl,
       link: url,
       timestamp: new Date(),
       color: cleanColor,
@@ -505,6 +572,7 @@ export async function scrapeMassimoProductData(
       department: department,
     };
   } catch (error: any) {
+    page.off("response", responseHandler);
     console.error(`   --> ❌ Massimo Dutti Scraper crashed on ${url}:`);
     console.error(error.message);
     return null;

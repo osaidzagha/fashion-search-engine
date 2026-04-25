@@ -4,27 +4,29 @@ import { Product } from "../types";
 // 1. Define what the shelf looks like
 interface ProductState {
   items: Product[];
-  availableSizes: string[]; // <--- The dynamic list from the API
-  availableColors: string[]; // <--- The dynamic list from the API
-  selectSizes: string[]; // <--- What the user actually clicked
-  selectColors?: string[]; // <--- What the user actually clicked
+  availableSizes: string[];
+  availableColors: string[];
+  selectSizes: string[];
+  selectColors?: string[];
   isLoading: boolean;
+  compareQueue: Product[]; // ✅ Queue state is here
   searchTerm: string;
   selectBrands?: string[];
   selectDepartments?: string[];
   maxPrice?: number;
 }
 
-// 2. Set the starting values (Before the API loads)
+// 2. Set the starting values
 const initialState: ProductState = {
   items: [],
-  availableSizes: [], // ✅ FIX: Added starting value
-  availableColors: [], // ✅ FIX: Added starting value
+  availableSizes: [],
+  availableColors: [],
   isLoading: false,
   searchTerm: "",
   selectBrands: [],
   selectDepartments: [],
   selectSizes: [],
+  compareQueue: [], // ✅ Queue starts empty
   selectColors: [],
   maxPrice: undefined,
 };
@@ -37,7 +39,6 @@ const productSlice = createSlice({
     setProducts(state, action: PayloadAction<Product[]>) {
       state.items = action.payload;
     },
-    // ✅ NEW: Actions to save the dynamic filters from the backend
     setAvailableSizes(state, action: PayloadAction<string[]>) {
       state.availableSizes = action.payload;
     },
@@ -83,13 +84,32 @@ const productSlice = createSlice({
     setMaxPrice(state, action: PayloadAction<number | undefined>) {
       state.maxPrice = action.payload;
     },
+
+    // 👇 NEW: The brain logic for the Compare feature
+    toggleCompare(state, action: PayloadAction<Product>) {
+      const exists = state.compareQueue.find((p) => p.id === action.payload.id);
+      if (exists) {
+        // If it's already in the queue, remove it
+        state.compareQueue = state.compareQueue.filter(
+          (p) => p.id !== action.payload.id,
+        );
+      } else {
+        // If not in queue, add it (strict limit of 2)
+        if (state.compareQueue.length < 2) {
+          state.compareQueue.push(action.payload);
+        }
+      }
+    },
+    clearCompare(state) {
+      state.compareQueue = [];
+    },
   },
 });
 
 export const {
   setProducts,
-  setAvailableSizes, // ✅ NEW
-  setAvailableColors, // ✅ NEW
+  setAvailableSizes,
+  setAvailableColors,
   setLoading,
   setSearchTerm,
   toggleBrand,
@@ -98,6 +118,8 @@ export const {
   setDepartments,
   setMaxPrice,
   setBrands,
+  toggleCompare, // ✅ Exported!
+  clearCompare, // ✅ Exported!
 } = productSlice.actions;
 
 export default productSlice.reducer;

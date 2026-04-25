@@ -1,18 +1,39 @@
 import { Page } from "puppeteer";
 import { Product } from "../interface";
 
-function parseUniversalPrice(rawPrice: string): number {
-  const cleanStr = rawPrice.replace(/[^\d.,]/g, "");
-  if (!cleanStr) return 0;
+export function parseUniversalPrice(rawPrice: string): number | undefined {
+  if (!rawPrice) return undefined;
+
+  let cleanStr = rawPrice.replace(/[^\d.,]/g, "");
+  if (!cleanStr) return undefined;
+
   const lastComma = cleanStr.lastIndexOf(",");
   const lastDot = cleanStr.lastIndexOf(".");
-  if (lastComma > lastDot) {
-    const noDots = cleanStr.replace(/\./g, "");
-    return parseFloat(noDots.replace(",", ".")) || 0;
-  } else {
-    const noCommas = cleanStr.replace(/,/g, "");
-    return parseFloat(noCommas) || 0;
+
+  // Case 1: String has BOTH a dot and a comma (e.g., 1.790,00 or 1,790.00)
+  if (lastComma > -1 && lastDot > -1) {
+    if (lastComma > lastDot) {
+      // TR/EU Format: 1.790,00 -> Remove dot, change comma to decimal
+      cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
+    } else {
+      // US Format: 1,790.00 -> Remove comma
+      cleanStr = cleanStr.replace(/,/g, "");
+    }
   }
+  // Case 2: String has ONLY a dot (e.g., 2.990 or 29.90)
+  else if (lastDot > -1 && lastComma === -1) {
+    // If exactly 3 digits follow the dot, it is a thousands separator, NOT a decimal
+    if (cleanStr.length - lastDot === 4) {
+      cleanStr = cleanStr.replace(/\./g, ""); // "2.990" -> "2990"
+    }
+  }
+  // Case 3: String has ONLY a comma (e.g., 2990,00)
+  else if (lastComma > -1 && lastDot === -1) {
+    cleanStr = cleanStr.replace(",", "."); // "2990,00" -> "2990.00"
+  }
+
+  const parsed = parseFloat(cleanStr);
+  return isNaN(parsed) ? undefined : parsed;
 }
 
 async function selectDepartment(page: Page, department: string) {
@@ -69,8 +90,6 @@ export async function scrapeZaraProductData(
     }
 
     // ─── STEP 1: Wait for JS hydration at page top ───────────────────────────
-    // Page is at top, description/color/composition are rendered in viewport.
-    // Poll until they have text — bail after 8s (some products genuinely lack them).
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
@@ -79,10 +98,17 @@ export async function scrapeZaraProductData(
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
             var colorEl = document.querySelector('.product-color-extended-name');
+            // 👇 FIX: Look for Zara's price element
+            var priceEl = document.querySelector('.money-amount__main, .price__amount');
+            
             var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length  > 0;
             var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
+            // 👇 FIX: Force the scraper to wait until a number actually exists!
+            var priceReady = priceEl && /[0-9]/.test(priceEl.textContent);
+            
             waited += 100;
-            if ((descReady && colorReady) || waited >= maxWait) {
+            // 👇 FIX: Require priceReady before advancing
+            if ((descReady && colorReady && priceReady) || waited >= maxWait) {
               clearInterval(interval);
               resolve(undefined);
             }
@@ -99,46 +125,46 @@ export async function scrapeZaraProductData(
           return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
         }
 
-        var name =
-          getText('h1.product-detail-info__header-name') ||
-          getText('h1');
+        var name = getText('h1.product-detail-info__header-name') || getText('h1');
+        var description = getText('.product-detail-description') || getText('[class*="product-detail-info__description"]');
+        var color = getText('.product-color-extended-name') || getText('[class*="color-extended"]');
 
-        var description =
-          getText('.product-detail-description.product-detail-info__description') ||
-          getText('.product-detail-description') ||
-          getText('[class*="product-detail-info__description"]');
-
-        var color =
-          getText('.product-color-extended-name.product-detail-info__color') ||
-          getText('.product-color-extended-name') ||
-          getText('[class*="color-extended"]');
-
-        var compItems = Array.from(document.querySelectorAll(
-          '.product-detail-composition__item.product-detail-composition__part'
-        ));
+        var compItems = Array.from(document.querySelectorAll('.product-detail-composition__item.product-detail-composition__part'));
         var composition = compItems.length > 0
-          ? compItems
-              .map(function(el) { return el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : ''; })
-              .filter(Boolean)
-              .join(', ')
-          : getText('.product-detail-composition.product-detail-view__detailed-composition') ||
-            getText('.product-detail-composition');
-
+          ? compItems.map(function(el) { return el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : ''; }).filter(Boolean).join(', ')
+          : getText('.product-detail-composition.product-detail-view__detailed-composition') || getText('.product-detail-composition');
+        
         function getText2(selector) {
           var el = document.querySelector(selector);
           return el && el.textContent ? el.textContent.trim() : '';
         }
+
+        // 1. Try to grab prices using Zara's most stable QA tags and exact classes
+        var originalRaw =
+          getText2('[data-qa-qualifier="price-amount-old"] .money-amount__main') ||
+          getText2('[data-qa-qualifier="price-amount-old"]') ||
+          getText2('.price-old__amount .money-amount__main') ||
+          getText2('.price__amount--old-price-wrapper .money-amount__main');
+
         var currentRaw =
           getText2('.price-current__amount .money-amount__main') ||
           getText2('.price-current .money-amount__main') ||
-          getText2('.money-amount--highlight .money-amount__main') ||
-          getText2('.money-amount__main') ||
-          getText2('.price__amount-current') ||
-          getText2('.price__amount');
-        var originalRaw =
-          getText2('.price__amount--old-price-wrapper .money-amount__main') ||
-          getText2('.price__amount--old-price-wrapper');
+          getText2('.price__amount--on-sale .money-amount__main');
 
+        // 2. THE NUCLEAR FALLBACK
+        if (!originalRaw || !currentRaw) {
+          var allPrices = Array.from(document.querySelectorAll('.product-detail-info__price .money-amount__main'))
+            .map(function(el) { return el.textContent ? el.textContent.trim() : ''; })
+            .filter(Boolean);
+          
+          if (allPrices.length >= 2) {
+            originalRaw = originalRaw || allPrices[0];
+            currentRaw = currentRaw || allPrices[allPrices.length - 1];
+          } else if (allPrices.length === 1) {
+            currentRaw = currentRaw || allPrices[0];
+          }
+        }
+          
         return {
           name:        name,
           description: description,
@@ -184,10 +210,17 @@ export async function scrapeZaraProductData(
       (function() {
         function sanitizeAndUpscale(url) {
           if (!url) return null;
-          if (url.startsWith('data:')) return null;
-          if (url.endsWith('.svg') || url.includes('placeholder')) return null;
+          var lowerUrl = url.toLowerCase();
+          
+          if (lowerUrl.startsWith('data:') || lowerUrl.endsWith('.svg') || lowerUrl.includes('placeholder')) return null;
+          
+          // 👇 DEFENSE 1: Block Zara-specific swatch/texture keywords
+          if (lowerUrl.includes('swatch') || lowerUrl.includes('texture') || lowerUrl.includes('color-selector')) return null;
+
+          // Upscale the image if it matches the Zara pattern
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
         }
+
         function pickHighestResFromSources(sources) {
           var bestUrl = null;
           var bestWidth = -1;
@@ -204,20 +237,28 @@ export async function scrapeZaraProductData(
           });
           return bestUrl;
         }
+
         var gallery =
           document.querySelector('[class*="product-detail-images"]') ||
           document.querySelector('[class*="pdp-gallery"]') ||
           document.querySelector('[class*="media-gallery"]') ||
           document.querySelector('main');
+          
         if (!gallery) return [];
         var clone = gallery.cloneNode(true);
+
+        // 👇 DEFENSE 2: Delete Zara's color selectors and thumbs before searching!
         ['[class*="complete-the-look"]','[class*="cross-sell"]',
-         '[class*="recommendations"]','[class*="carousel"]','footer']
+         '[class*="recommendations"]','[class*="carousel"]','footer',
+         '[class*="color-selector"]', '[class*="product-detail-color"]',
+         '[class*="thumbnail"]', '[class*="swatch"]']
           .forEach(function(sel) {
             clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
           });
+
         var seen = new Set();
         var images = [];
+
         clone.querySelectorAll('picture').forEach(function(picture) {
           var sources = Array.from(picture.querySelectorAll('source'));
           if (sources.length === 0) return;
@@ -225,6 +266,7 @@ export async function scrapeZaraProductData(
           var cleanUrl = sanitizeAndUpscale(rawUrl);
           if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
         });
+
         if (images.length === 0) {
           clone.querySelectorAll('img').forEach(function(img) {
             var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
@@ -241,13 +283,30 @@ export async function scrapeZaraProductData(
       .evaluate(
         `
       (function() {
-        var v =
-          document.querySelector('video source[type="video/mp4"]') ||
-          document.querySelector('video.media-video__video') ||
-          document.querySelector('video');
-        if (!v) return null;
-        var src = v.getAttribute('src') || v.getAttribute('data-src');
-        if (src && !src.startsWith('blob:')) return src;
+        var videos = Array.from(document.querySelectorAll('video'));
+
+        for (var i = 0; i < videos.length; i++) {
+          var v = videos[i];
+
+          // 👇 DEFENSE 1: Ignore Zara's specific cross-sell and footer sections
+          if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) {
+            continue;
+          }
+
+          // Extract the URL from the video or its <source> tag
+          var src = v.getAttribute('src') || v.getAttribute('data-src');
+          if (!src) {
+            var source = v.querySelector('source[type="video/mp4"], source');
+            if (source) {
+              src = source.getAttribute('src') || source.getAttribute('data-src');
+            }
+          }
+
+          // 👇 DEFENSE 2: Reject blobs and campaign URLs
+          if (src && !src.startsWith('blob:') && !src.includes('campaign') && !src.includes('banner')) {
+            return src; // We found the true product video!
+          }
+        }
         return null;
       })()
     `,
@@ -283,7 +342,7 @@ export async function scrapeZaraProductData(
     const cleanComposition = textData.composition
       .replace(/^Composition:\s*/i, "")
       .trim();
-    const finalPrice = parseUniversalPrice(textData.currentRaw);
+    const finalPrice = parseUniversalPrice(textData.currentRaw) ?? 0;
     const finalOriginalPrice = textData.originalRaw
       ? parseUniversalPrice(textData.originalRaw)
       : undefined;

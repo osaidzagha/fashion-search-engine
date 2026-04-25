@@ -10,16 +10,20 @@ import SearchResults from "./pages/SearchResults";
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
 import VerifyEmail from "./pages/VerifyEmail";
+import { CompareBanner } from "./components/CompareBanner";
+import Compare from "./pages/Compare";
 export default function App() {
   return (
     <Router>
       <Navbar />
+      <CompareBanner />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/product/:id" element={<ProductDetails />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/compare" element={<Compare />} />
 
         {/* ========================================== */}
         {/* 🔒 PROTECTED ROUTES                        */}

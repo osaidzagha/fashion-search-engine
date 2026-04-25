@@ -5,7 +5,10 @@ import { RootState } from "../store/store";
 import { Product } from "../types";
 import { SearchBar } from "../components/SearchBar";
 import ProductCard from "../components/ProductCard";
+import ProductMosaic from "../components/ProductMosaic";
+import SaleCard from "../components/SaleCard";
 import { setBrands, setSearchTerm } from "../store/productSlice";
+
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,24 +24,11 @@ interface FeaturedData {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function toTitleCase(str: string) {
-  return str
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function discountPct(original: number, current: number) {
-  return Math.round(((original - current) / original) * 100);
-}
-
-// Collect all non-null products from the featured response for the mosaic
 function getMosaicImages(featured: FeaturedData): Product[] {
   const pool: Product[] = [
     ...(featured.newIn.zara || []),
     ...(featured.newIn.massimo || []),
   ].filter((p) => p.images?.[0]);
-  // Shuffle deterministically enough for visual variety
   return pool.sort(() => 0.5 - Math.random()).slice(0, 6);
 }
 
@@ -57,7 +47,6 @@ const CATEGORIES = [
 ];
 
 // ─── CSS injection ────────────────────────────────────────────────────────────
-// Inject keyframes once — avoids inline style limitations
 if (
   typeof document !== "undefined" &&
   !document.getElementById("home-keyframes")
@@ -85,174 +74,17 @@ if (
     .cat-pill:hover { background: #1a1a1a !important; color: #fff !important; border-color: #1a1a1a !important; }
     .view-all-btn { transition: opacity 0.2s ease; }
     .view-all-btn:hover { opacity: 0.6 !important; }
-    ::-webkit-scrollbar { display: none; }
+    
+    /* Cross-browser scrollbar hiding for our carousels */
+    .hide-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none; /* Chrome, Safari and Opera */
+    }
   `;
   document.head.appendChild(style);
-}
-
-// ─── Product Mosaic (hero right panel) ───────────────────────────────────────
-function ProductMosaic({ products }: { products: Product[] }) {
-  const navigate = useNavigate();
-  if (products.length < 4) return null;
-
-  // Layout: 3 columns, varying heights for editorial feel
-  // Col 1: tall (spans 2 rows) | Col 2: two small | Col 3: one tall
-  const [p0, p1, p2, p3, p4, p5] = products;
-
-  const cell = (p: Product, style: React.CSSProperties, delay: number) => (
-    <div
-      key={p.id}
-      onClick={() => navigate(`/product/${p.id}`)}
-      style={{
-        ...style,
-        overflow: "hidden",
-        background: "#e8e4dc",
-        cursor: "pointer",
-        animation: `imgReveal 0.8s ease ${delay}s both`,
-      }}
-    >
-      <img
-        className="mosaic-img"
-        src={p.images[0]}
-        alt={p.name}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
-    </div>
-  );
-
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1.2fr 1fr 1.1fr",
-        gridTemplateRows: "1fr 1fr",
-        gap: "6px",
-        height: "100%",
-        width: "100%",
-      }}
-    >
-      {/* Col 1: tall spanning both rows */}
-      {p0 && cell(p0, { gridRow: "1 / 3" }, 0.1)}
-      {/* Col 2 top */}
-      {p1 && cell(p1, {}, 0.2)}
-      {/* Col 3 top */}
-      {p2 && cell(p2, {}, 0.3)}
-      {/* Col 2 bottom */}
-      {p3 && cell(p3, {}, 0.35)}
-      {/* Col 3 bottom */}
-      {p4 && cell(p4, {}, 0.4)}
-    </div>
-  );
-}
-
-// ─── Sale strip card ──────────────────────────────────────────────────────────
-function SaleCard({ product }: { product: Product }) {
-  const navigate = useNavigate();
-  const pct = product.originalPrice
-    ? discountPct(product.originalPrice, product.price)
-    : 0;
-
-  return (
-    <div
-      className="sale-card"
-      onClick={() => navigate(`/product/${product.id}`)}
-      style={{ flexShrink: 0, width: "180px" }}
-    >
-      <div
-        style={{
-          position: "relative",
-          aspectRatio: "3/4",
-          overflow: "hidden",
-          background: "#1e1e1c",
-          marginBottom: "10px",
-        }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            zIndex: 2,
-            background: "#b94040",
-            color: "#fff",
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "9px",
-            letterSpacing: "0.08em",
-            padding: "3px 7px",
-            fontWeight: 500,
-          }}
-        >
-          −{pct}%
-        </span>
-        {product.images?.[0] && (
-          <img
-            src={product.images[0]}
-            alt={product.name}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              opacity: 0.88,
-              transition: "opacity 0.3s ease, transform 0.5s ease",
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLImageElement).style.opacity = "1";
-              (e.currentTarget as HTMLImageElement).style.transform =
-                "scale(1.04)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLImageElement).style.opacity = "0.88";
-              (e.currentTarget as HTMLImageElement).style.transform =
-                "scale(1)";
-            }}
-          />
-        )}
-      </div>
-      <p
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "12px",
-          fontWeight: 300,
-          color: "#e0ddd8",
-          margin: "0 0 3px",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {toTitleCase(product.name)}
-      </p>
-      <div style={{ display: "flex", gap: "6px", alignItems: "baseline" }}>
-        <span
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "11px",
-            color: "#b94040",
-            fontWeight: 500,
-          }}
-        >
-          {product.price.toLocaleString("tr-TR")}
-        </span>
-        {product.originalPrice && (
-          <span
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "10px",
-              color: "#555",
-              textDecoration: "line-through",
-            }}
-          >
-            {product.originalPrice.toLocaleString("tr-TR")}
-          </span>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -298,7 +130,7 @@ export default function Home() {
             new Date(b.timestamp || 0).getTime() -
             new Date(a.timestamp || 0).getTime(),
         )
-        .slice(0, 8)
+        .slice(0, 12) // Show up to 12 in the carousel
     : [];
 
   return (
@@ -308,7 +140,7 @@ export default function Home() {
         style={{
           display: "grid",
           gridTemplateColumns: "42% 58%",
-          height: "calc(100vh - 57px)", // subtract navbar height
+          height: "calc(100vh - 57px)",
           borderBottom: "1px solid #e0ddd8",
         }}
       >
@@ -323,7 +155,6 @@ export default function Home() {
             position: "relative",
           }}
         >
-          {/* Eyebrow */}
           <p
             style={{
               fontFamily: "'DM Sans', sans-serif",
@@ -344,7 +175,6 @@ export default function Home() {
                 : "Zara · Massimo Dutti"}
           </p>
 
-          {/* Headline */}
           <h1
             style={{
               fontFamily: "'Cormorant Garamond', serif",
@@ -362,7 +192,6 @@ export default function Home() {
             <em style={{ fontStyle: "italic", color: "#6b6560" }}>tracked.</em>
           </h1>
 
-          {/* Sub */}
           <p
             style={{
               fontFamily: "'DM Sans', sans-serif",
@@ -378,7 +207,6 @@ export default function Home() {
             to buy.
           </p>
 
-          {/* Search */}
           <div
             style={{
               position: "relative",
@@ -389,9 +217,9 @@ export default function Home() {
             <SearchBar variant="hero" />
           </div>
 
-          {/* Category pills */}
           <div
             ref={stripRef}
+            className="hide-scrollbar"
             style={{
               position: "relative",
               zIndex: 10,
@@ -400,7 +228,6 @@ export default function Home() {
               overflowX: "auto",
               marginTop: "36px",
               paddingBottom: "4px",
-              scrollbarWidth: "none",
               animation: "fadeUp 0.6s ease 0.5s both",
             }}
           >
@@ -440,7 +267,6 @@ export default function Home() {
             })}
           </div>
 
-          {/* Bottom watermark */}
           <div
             style={{
               position: "absolute",
@@ -513,7 +339,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══ SALE STRIP ════════════════════════════════════════════════════════ */}
+      {/* ══ SALE STRIP CAROUSEL ══════════════════════════════════════════════ */}
       {!loading && featured?.onSale && featured.onSale.length > 0 && (
         <section style={{ background: "#0f0f0d", padding: "48px 64px" }}>
           <div
@@ -570,14 +396,15 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Horizontal scroll */}
           <div
+            className="hide-scrollbar"
             style={{
               display: "flex",
               gap: "20px",
               overflowX: "auto",
               paddingBottom: "8px",
-              scrollbarWidth: "none",
+              scrollSnapType: "x mandatory",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {featured.onSale.map((p) => (
@@ -587,7 +414,7 @@ export default function Home() {
         </section>
       )}
 
-      {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
+      {/* ══ NEW IN CAROUSEL ══════════════════════════════════════════════════ */}
       {!loading && newInAll.length > 0 && (
         <section style={{ padding: "80px 64px" }}>
           <div
@@ -645,16 +472,30 @@ export default function Home() {
             </button>
           </div>
 
-          {/* 4-column grid */}
+          {/* Replaced 4-column grid with horizontal snapping carousel */}
           <div
+            className="hide-scrollbar"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
+              display: "flex",
               gap: "24px",
+              overflowX: "auto",
+              paddingBottom: "24px",
+              scrollSnapType: "x mandatory",
+              WebkitOverflowScrolling: "touch",
             }}
           >
             {newInAll.map((p) => (
-              <ProductCard key={p.id} product={p} />
+              <div
+                key={p.id}
+                style={{
+                  minWidth: "300px",
+                  maxWidth: "300px",
+                  flexShrink: 0,
+                  scrollSnapAlign: "start",
+                }}
+              >
+                <ProductCard product={p} />
+              </div>
             ))}
           </div>
         </section>
@@ -672,8 +513,8 @@ export default function Home() {
           {/* Zara */}
           <div
             onClick={() => {
-              dispatch(setSearchTerm("")); // Clear any text search
-              dispatch(setBrands(["Zara"])); // Lock the strict brand filter
+              dispatch(setSearchTerm(""));
+              dispatch(setBrands(["Zara"]));
               navigate("/search");
             }}
             style={{
@@ -731,8 +572,8 @@ export default function Home() {
           {/* Massimo Dutti */}
           <div
             onClick={() => {
-              dispatch(setSearchTerm("")); // Clear any text search
-              dispatch(setBrands(["Massimo Dutti"])); // Lock the strict brand filter
+              dispatch(setSearchTerm(""));
+              dispatch(setBrands(["Massimo Dutti"]));
               navigate("/search");
             }}
             style={{

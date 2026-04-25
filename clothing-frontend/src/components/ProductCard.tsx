@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Product } from "../types";
 import { Link } from "react-router-dom";
-
+import { useDispatch, useSelector } from "react-redux";
+import { toggleCompare } from "../store/productSlice";
+import { RootState } from "../store/store"; // Adjust path if needed
 interface ProductCardProps {
   product: Product;
 }
@@ -12,6 +14,13 @@ function discountPercent(original: number, current: number): number {
 }
 
 export const ProductCard = ({ product }: ProductCardProps) => {
+  const dispatch = useDispatch();
+  const compareQueue = useSelector(
+    (state: RootState) => state.products.compareQueue,
+  );
+
+  const isComparing = compareQueue.some((p) => p.id === product.id);
+  const isQueueFull = compareQueue.length >= 2 && !isComparing;
   const [hovered, setHovered] = useState(false);
   const hasHoverImage = product.images && product.images.length > 1;
   const isNew = product.timestamp
@@ -59,6 +68,46 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             }}
           />
         )}
+        {/* The Compare Button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation(); // Prevents navigating to the product details page
+            e.preventDefault();
+            if (!isQueueFull) dispatch(toggleCompare(product));
+          }}
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            zIndex: 10,
+            background: isComparing ? "#1a1a1a" : "rgba(255,255,255,0.9)",
+            color: isComparing ? "#fff" : "#1a1a1a",
+            border: "none",
+            borderRadius: "50%",
+            width: "32px",
+            height: "32px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: isQueueFull ? "not-allowed" : "pointer",
+            opacity: isQueueFull ? 0.4 : 1,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            transition: "all 0.2s ease",
+          }}
+          title={isComparing ? "Remove from Compare" : "Add to Compare"}
+        >
+          {/* Subtle scale/balance icon */}
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M12 3v18M3 12h18" />
+          </svg>
+        </button>
 
         {/* Hover image (From Layer 1) */}
         {hasHoverImage && (

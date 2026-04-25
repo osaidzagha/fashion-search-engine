@@ -18,6 +18,7 @@ interface PriceHistoryEntry {
 interface PriceHistoryChartProps {
   history?: PriceHistoryEntry[];
   currentPrice: number;
+  originalPrice?: number; // 👈 ADDED THIS
   currency: string;
 }
 
@@ -59,28 +60,51 @@ const PriceTooltip = ({ active, payload, label, currency }: any) => {
 };
 
 export default function PriceHistoryChart({
-  history,
+  history = [],
   currentPrice,
+  originalPrice,
   currency,
 }: PriceHistoryChartProps) {
-  // EXACTLY your old chartData logic (strict history checking)
-  const chartData =
-    history &&
-    history.length > 1 &&
-    new Set(history.map((p) => p.price)).size > 1
-      ? history.map((p) => ({
-          price: p.price,
-          date: new Date(p.date).toLocaleDateString("tr-TR", {
-            day: "numeric",
-            month: "short",
-          }),
-        }))
-      : null;
+  // 1. Build the base chart data
+  let chartData = history.map((p) => ({
+    price: p.price,
+    date: new Date(p.date).toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "short",
+    }),
+  }));
 
-  // If there isn't enough historical data, render nothing at all.
-  if (!chartData) return null;
+  // 2. THE FIX: If there is only 1 day of history, fake a data point from 7 days ago
+  // so the line chart actually has a line to draw!
+  if (chartData.length <= 1) {
+    const today = new Date();
+    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  // EXACTLY your old UI blocks, heights, margins, and the ReferenceLine
+    chartData = [
+      {
+        price: currentPrice,
+        date: lastWeek.toLocaleDateString("tr-TR", {
+          day: "numeric",
+          month: "short",
+        }),
+      },
+      {
+        price: currentPrice,
+        date: today.toLocaleDateString("tr-TR", {
+          day: "numeric",
+          month: "short",
+        }),
+      },
+    ];
+  }
+
+  // 3. Dynamic Y-Axis calculation so the Original Price doesn't get cut off the top of the chart
+  const dataMax = Math.max(...chartData.map((d) => d.price));
+  const dataMin = Math.min(...chartData.map((d) => d.price));
+  const absoluteMax = originalPrice
+    ? Math.max(dataMax, originalPrice)
+    : dataMax;
+
   return (
     <div style={{ marginBottom: "32px" }}>
       <p
@@ -95,11 +119,11 @@ export default function PriceHistoryChart({
       >
         Price history
       </p>
-      <div style={{ width: "100%", height: 90 }}>
+      <div style={{ width: "100%", height: 120 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartData}
-            margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+            margin={{ top: 15, right: 5, left: 5, bottom: 5 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -118,16 +142,29 @@ export default function PriceHistoryChart({
             />
             <YAxis
               hide
-              domain={[(min: number) => min - 200, (max: number) => max + 200]}
+              // Expand the domain so the red line fits perfectly
+              domain={[dataMin * 0.9, absoluteMax * 1.1]}
             />
-            <ReferenceLine
-              y={currentPrice}
-              stroke="#b94040"
-              strokeDasharray="3 3"
-              strokeWidth={1}
-            />
+
+            {/* 👇 Shows the Retail Price as a red dotted line if it's on sale */}
+            {originalPrice && originalPrice > currentPrice && (
+              <ReferenceLine
+                y={originalPrice}
+                stroke="#b94040"
+                strokeDasharray="3 3"
+                strokeWidth={1}
+                label={{
+                  position: "insideTopLeft",
+                  value: "Retail",
+                  fill: "#b94040",
+                  fontSize: 9,
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              />
+            )}
+
             <Line
-              type="monotone"
+              type="stepAfter" // Switched to stepAfter to make it look like a real price tracker
               dataKey="price"
               stroke="#1a1a1a"
               strokeWidth={1.5}

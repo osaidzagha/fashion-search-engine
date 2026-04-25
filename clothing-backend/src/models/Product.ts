@@ -27,6 +27,7 @@ const ProductSchema: Schema = new Schema({
   id: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   price: { type: Number, required: true },
+  originalPrice: { type: Number, required: false },
   currency: { type: String, required: true, default: "TRY" },
   brand: { type: String, required: true },
   images: { type: [String], required: true },
