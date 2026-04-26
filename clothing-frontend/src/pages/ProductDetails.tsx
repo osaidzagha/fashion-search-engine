@@ -208,8 +208,13 @@ export default function ProductDetails() {
   }
 
   const images = product.images ?? [];
-  const heroImg = images[0] || null;
-  const gridImages = images.slice(1); // remaining images go into the grid
+  const hasVideo = !!product.video;
+
+  // If we have a video, the Hero is the video, and ALL images go to the grid.
+  // If we don't have a video, Hero gets the 1st image, and the grid gets the rest.
+  const gridImages = hasVideo ? images : images.slice(1);
+  const heroImg = hasVideo ? null : images[0] || null;
+
   const isOnSale =
     product.originalPrice !== undefined &&
     product.originalPrice > product.price;
@@ -245,8 +250,24 @@ export default function ProductDetails() {
           setLightboxOpen(true);
         }}
       >
-        {/* Hero image */}
-        {heroImg && (
+        {/* Dynamic Hero: Video priority, Image fallback */}
+        {hasVideo ? (
+          <video
+            src={product.video}
+            autoPlay
+            muted
+            loop
+            playsInline
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+              animation:
+                "pd-heroIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+            }}
+          />
+        ) : heroImg ? (
           <img
             src={heroImg}
             alt={product.name}
@@ -259,7 +280,7 @@ export default function ProductDetails() {
                 "pd-heroIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
             }}
           />
-        )}
+        ) : null}
 
         {/* Gradient overlay — bottom */}
         <div
@@ -488,42 +509,6 @@ export default function ProductDetails() {
             borderRight: "1px solid #e0ddd8",
           }}
         >
-          {/* Video cell first if present */}
-          {product.video && (
-            <div
-              style={{
-                gridColumn: "1 / 3",
-                aspectRatio: "16 / 9",
-                overflow: "hidden",
-                background: "#1a1a1a",
-                position: "relative",
-              }}
-            >
-              <video
-                src={product.video}
-                autoPlay
-                muted
-                loop
-                playsInline
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: "16px",
-                  left: "16px",
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "8px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  color: "rgba(255,255,255,0.5)",
-                }}
-              >
-                Video
-              </div>
-            </div>
-          )}
-
           {/* Grid images */}
           {gridImages.map((img, idx) => {
             const { gridColumn, aspectRatio } = getGridStyle(idx);

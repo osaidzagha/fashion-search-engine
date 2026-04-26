@@ -4,6 +4,9 @@ import { Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toggleCompare } from "../store/productSlice";
 import { RootState } from "../store/store"; // Adjust path if needed
+import { useCompare } from "../context/CompareContext";
+import { theme } from "../styles/theme";
+
 interface ProductCardProps {
   product: Product;
 }
@@ -14,14 +17,15 @@ function discountPercent(original: number, current: number): number {
 }
 
 export const ProductCard = ({ product }: ProductCardProps) => {
-  const dispatch = useDispatch();
-  const compareQueue = useSelector(
-    (state: RootState) => state.products.compareQueue,
-  );
-
-  const isComparing = compareQueue.some((p) => p.id === product.id);
-  const isQueueFull = compareQueue.length >= 2 && !isComparing;
   const [hovered, setHovered] = useState(false);
+  const dispatch = useDispatch();
+  // 👇 Rip out Redux, use the new Context!
+  const { compareList, addToCompare, removeFromCompare, isInCompare } =
+    useCompare();
+
+  const isComparing = isInCompare(product.id);
+  const isQueueFull = compareList.length >= 2 && !isComparing;
+
   const hasHoverImage = product.images && product.images.length > 1;
   const isNew = product.timestamp
     ? Date.now() - new Date(product.timestamp).getTime() < 48 * 60 * 60 * 1000
@@ -71,9 +75,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         {/* The Compare Button */}
         <button
           onClick={(e) => {
-            e.stopPropagation(); // Prevents navigating to the product details page
+            e.stopPropagation();
             e.preventDefault();
-            if (!isQueueFull) dispatch(toggleCompare(product));
+            // 👇 Use the new Context functions
+            if (isComparing) {
+              removeFromCompare(product.id);
+            } else if (!isQueueFull) {
+              addToCompare(product);
+            }
           }}
           style={{
             position: "absolute",
@@ -155,8 +164,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               position: "absolute",
               top: 12,
               right: 12,
-              background: "#1a1a1a",
-              color: "#fff",
+              background: theme.colors.bgSecondary,
+              color: theme.colors.textPrimary,
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "8px",
               letterSpacing: "0.16em",

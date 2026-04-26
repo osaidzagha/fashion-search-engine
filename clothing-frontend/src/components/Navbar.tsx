@@ -4,6 +4,7 @@ import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
 import { setDepartments } from "../store/productSlice";
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { theme } from "../styles/theme";
 // 🚨 IMPORTANT: You will need to import your actual action from productSlice!
 // import { setDepartments } from "../store/productSlice";
 
@@ -126,6 +127,7 @@ const Navbar = () => {
       <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
         {!userInfo ? (
           <>
+            {/* ... Keep your existing Sign In / Register links ... */}
             <Link
               to="/login"
               style={{
@@ -165,6 +167,27 @@ const Navbar = () => {
           </>
         ) : (
           <>
+            {/* 👇 NEW: The Watchlist Button */}
+            <button
+              onClick={() => navigate("/watchlist")}
+              style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "10px",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: "#888",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                transition: "color 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
+            >
+              Watchlist
+            </button>
+
             <span
               style={{
                 fontFamily: "'DM Sans', sans-serif",
@@ -185,7 +208,7 @@ const Navbar = () => {
                   fontSize: "10px",
                   letterSpacing: "0.14em",
                   textTransform: "uppercase",
-                  color: "#b94040", // Same red as the sale badge!
+                  color: "#b94040",
                   textDecoration: "none",
                 }}
               >

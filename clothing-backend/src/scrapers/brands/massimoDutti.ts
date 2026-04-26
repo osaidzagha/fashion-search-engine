@@ -184,21 +184,46 @@ export async function scrapeMassimoProductData(
   console.log(`   --> Scraping Massimo Dutti product: ${url}`);
   let trueVideoUrl: string | undefined = undefined;
 
-  // ─── 1. THE WIRETAP (Network Interception) ──────────────────────────────
+  // 👇 1. TARGET LOCK: Extract the ID BEFORE the wiretap starts
+  const cleanUrl = url.split("?")[0];
+  const match = cleanUrl.match(/-l([a-zA-Z0-9]{8})$/);
+
+  if (!match) {
+    console.log(`  --> ⚠️ URL format unexpected, skipping: ${url}`);
+    return null;
+  }
+  const rawId = match[1]; // e.g., '06695508'
+  const productId = `md_${rawId}`;
+
+  // ─── 2. THE WIRETAP (Network Interception) ──────────────────────────────
   const responseHandler = async (response: any) => {
     const reqUrl = response.url();
 
-    // Listen for the exact API call you found in the Network tab
-    if (reqUrl.includes("itxrest") && reqUrl.includes("productsArray")) {
+    if (reqUrl.includes("itxrest") && reqUrl.includes(rawId)) {
       try {
         const json = await response.json();
 
-        // Recursive function to hunt down the .mp4 file anywhere in the JSON tree
-        const findMp4 = (obj: any): string | null => {
+        const findMp4 = (obj: any, depth = 0): string | null => {
+          if (depth > 8) return null; // Safety limit
           if (typeof obj === "string" && obj.includes(".mp4")) return obj;
+
           if (typeof obj === "object" && obj !== null) {
             for (const key of Object.keys(obj)) {
-              const found = findMp4(obj[key]);
+              const lowerKey = key.toLowerCase();
+
+              // 👇 THE ULTIMATE QUARANTINE (English & Spanish Inditex Keys)
+              if (
+                lowerKey.includes("related") ||
+                lowerKey.includes("cross") ||
+                lowerKey.includes("similar") ||
+                lowerKey.includes("bundle") ||
+                lowerKey.includes("relacionados") || // Spanish for related
+                lowerKey.includes("completar") // Spanish for 'complete the look'
+              ) {
+                continue; // Slam the door shut on this branch
+              }
+
+              const found = findMp4(obj[key], depth + 1);
               if (found) return found;
             }
           }
@@ -207,31 +232,24 @@ export async function scrapeMassimoProductData(
 
         const mp4Path = findMp4(json);
 
-        if (mp4Path) {
-          // Inditex JSON usually gives relative paths, so we prepend the Massimo Dutti CDN
+        if (mp4Path && !trueVideoUrl) {
           trueVideoUrl = mp4Path.startsWith("http")
             ? mp4Path
             : `https://static.massimodutti.net/3/photos${mp4Path}`;
-          console.log(`   --> 🎯 WIRETAP SUCCESS: Intercepted raw video JSON!`);
+          console.log(
+            `   --> 🎯 WIRETAP SUCCESS: Intercepted video for ${rawId}!`,
+          );
         }
       } catch (e) {
-        // Silently ignore if JSON fails to parse
+        // Silently ignore
       }
     }
   };
 
   // Turn on the wiretap
   page.on("response", responseHandler);
+
   try {
-    const cleanUrl = url.split("?")[0];
-    const match = cleanUrl.match(/-l([a-zA-Z0-9]{8})$/);
-
-    if (!match) {
-      console.log(`  --> ⚠️ URL format unexpected, skipping: ${url}`);
-      return null;
-    }
-    const productId = `md_${match[1]}`;
-
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await dismissModals(page);
 
@@ -576,5 +594,8 @@ export async function scrapeMassimoProductData(
     console.error(`   --> ❌ Massimo Dutti Scraper crashed on ${url}:`);
     console.error(error.message);
     return null;
+  } finally {
+    // 👇 THE ULTIMATE FIX: Destroy the wiretap so it doesn't leak into the next product!
+    page.off("response", responseHandler);
   }
 }
