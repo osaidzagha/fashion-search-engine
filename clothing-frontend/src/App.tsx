@@ -4,7 +4,6 @@ import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import SearchResults from "./pages/SearchResults";
 import Watchlist from "./pages/Watchlist";
 import { CompareProvider } from "./context/CompareContext";
 import { CompareBar } from "./components/CompareBar";
@@ -28,7 +27,9 @@ export default function App() {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/search" element={<SearchResults />} />
+
+          {/* 👇 THE FIX: Both routes now point to the Universal Grid! */}
+          <Route path="/search" element={<Collection />} />
           <Route path="/collection/:type" element={<Collection />} />
           <Route path="/watchlist" element={<Watchlist />} />
 

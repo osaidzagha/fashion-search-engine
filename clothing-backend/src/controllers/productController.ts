@@ -8,7 +8,7 @@ const synonymMap: Record<string, string> = {
   trousers: "trousers pant pants chino slacks",
   jeans: "denim jean jeans", // Removed "jogger" (joggers are usually sweatpants, not denim)
   joggers: "jogger sweatpant sweatpants track", // Added dedicated category
-  shorts: "bermuda short shorts trunks",
+  shorts: "bermuda shorts trunks",
   skirt: "skirt skort", // Removed midi/maxi to prevent bleeding into dresses
 
   // ── TOPS ──
@@ -410,5 +410,68 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Suggestions error:", error);
     res.status(200).json([]);
+  }
+};
+
+// ─── GET /api/categories ─────────────────────────────────────────────────────
+export const getCategories = async (req: Request, res: Response) => {
+  try {
+    const potentialCategories = [
+      "Jackets",
+      "Shirts",
+      "Trousers",
+      "Jeans",
+      "Shorts",
+      "Hoodies",
+      "Sweaters",
+      "Suits",
+      "Blazers",
+      "Shoes",
+      "Bags",
+      "Polos",
+    ];
+
+    // 👇 1. Build the department filter (Same logic you use in getProducts!)
+    const deptFilter: any = {};
+    if (req.query.departments) {
+      const depts = (req.query.departments as string).split(",");
+      const regexParts = depts.map((d) => {
+        const upper = d.trim().toUpperCase();
+        if (upper === "MAN" || upper === "MEN")
+          return "\\b(man|men|mens|men's)\\b";
+        if (upper === "WOMAN" || upper === "WOMEN")
+          return "\\b(woman|women|womens|women's)\\b";
+        return `^${d}$`;
+      });
+      deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
+    }
+
+    const activeCategories: string[] = [];
+
+    await Promise.all(
+      potentialCategories.map(async (cat) => {
+        const singular = cat.toLowerCase().endsWith("s")
+          ? cat.toLowerCase().slice(0, -1)
+          : cat.toLowerCase();
+
+        // 👇 2. Inject the deptFilter into the database check
+        const productExists = await ProductModel.exists({
+          ...deptFilter, // <--- Only look for categories IN THIS DEPARTMENT
+          $or: [
+            { name: { $regex: singular, $options: "i" } },
+            { category: { $regex: singular, $options: "i" } },
+          ],
+        });
+
+        if (productExists) {
+          activeCategories.push(cat);
+        }
+      }),
+    );
+
+    return res.status(200).json(activeCategories.sort());
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ message: "Server Error" });
   }
 };

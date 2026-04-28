@@ -8,6 +8,7 @@ import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import SaleCard from "../components/SaleCard";
 import { setBrands, setSearchTerm, clearFilters } from "../store/productSlice";
+import CategoryPills from "../components/CategoryPills";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -207,6 +208,7 @@ export default function Home() {
             to buy.
           </p>
 
+          {/* Search Bar Container */}
           <div
             style={{
               position: "relative",
@@ -217,61 +219,18 @@ export default function Home() {
             <SearchBar variant="hero" />
           </div>
 
+          {/* Dynamic Pills Container */}
           <div
             ref={stripRef}
             className="hide-scrollbar"
             style={{
               position: "relative",
               zIndex: 10,
-              display: "flex",
-              gap: "6px",
-              overflowX: "auto",
-              marginTop: "36px",
-              paddingBottom: "4px",
+              marginTop: "24px", // Just one margin is enough!
               animation: "fadeUp 0.6s ease 0.5s both",
             }}
           >
-            {CATEGORIES.map((cat) => {
-              const active = activeCategory === cat.query;
-              return (
-                <button
-                  key={cat.label}
-                  className="cat-pill"
-                  onClick={() => {
-                    setActiveCategory(cat.query);
-
-                    // 1. Wipe out any old filters (Brands, Sizes, Prices)
-                    dispatch(clearFilters());
-
-                    // 2. Set the search term in Redux (so your search bar stays in sync)
-                    dispatch(setSearchTerm(cat.query || ""));
-
-                    // 3. Navigate
-                    if (cat.query) {
-                      navigate(`/search?q=${encodeURIComponent(cat.query)}`);
-                    } else {
-                      navigate("/search");
-                    }
-                  }}
-                  style={{
-                    flexShrink: 0,
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "10px",
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    padding: "7px 14px",
-                    border: "1px solid",
-                    borderColor: active ? "#0f0f0d" : "#d4d0c8",
-                    background: active ? "#0f0f0d" : "transparent",
-                    color: active ? "#fff" : "#6b6560",
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {cat.label}
-                </button>
-              );
-            })}
+            <CategoryPills />
           </div>
 
           <div

@@ -383,19 +383,85 @@ export async function getProductLinksFromCategory(
   page: Page,
   url: string,
 ): Promise<string[]> {
-  console.log(`   --> Zara Scout visiting: ${url}`);
-  await page.goto(url, { waitUntil: "domcontentloaded" });
+  console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
+
   try {
-    await page.waitForSelector(".product-link", { timeout: 5000 });
-    const links = (await page.evaluate(`
-      (function() {
-        return Array.from(document.querySelectorAll('.product-link'))
-          .map(function(el) { return el.href; })
-          .filter(function(href) { return href !== ''; });
-      })()
-    `)) as string[];
-    return [...new Set(links)];
+    // Give Zara's heavy frontend time to load the initial grid
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
+    await new Promise((r) => setTimeout(r, 4000));
+
+    let productLinks: string[] = [];
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`  --> 🔄 Attempt ${attempt} to extract Zara links...`);
+
+      // 1. The Deep Auto-Scroller
+      console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
+      await page.evaluate(`
+        (function() {
+          return new Promise(function(resolve) {
+            var totalHeight = 0;
+            var distance = 600; // Jump about one row of clothes
+            var scrolls = 0;
+            var maxScrolls = 30; // Deep scroll to unearth the grid
+            
+            var timer = setInterval(function() {
+              var scrollHeight = document.body.scrollHeight;
+              window.scrollBy(0, distance);
+              totalHeight += distance;
+              scrolls++;
+
+              // Stop if we hit the actual bottom OR we reach our scroll limit
+              if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
+                clearInterval(timer);
+                resolve(undefined);
+              }
+            }, 800); 
+          });
+        })()
+      `);
+
+      // Let the network catch up and DOM hydrate
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // 2. Extract Links
+      productLinks = (await page.evaluate(`
+        (function() {
+          return Array.from(document.querySelectorAll('.product-link'))
+            .map(function(el) { return el.href; })
+            .filter(function(href) { return href && href !== ''; })
+            .map(function(href) { return href.split('?')[0]; }) // Clean tracking params
+            .filter(function(href, index, self) { return self.indexOf(href) === index; }); // Deduplicate
+        })()
+      `)) as string[];
+
+      // 3. Success Check
+      if (productLinks.length > 0) {
+        console.log(
+          `  --> ✅ Success! Found ${productLinks.length} product links.`,
+        );
+        break; // Escape the retry loop!
+      }
+
+      console.log(
+        `  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting before retry...`,
+      );
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    if (productLinks.length === 0) {
+      console.log(
+        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
+      );
+    }
+
+    return productLinks;
   } catch (error) {
+    console.log(
+      `  --> ⚠️ Error finding links on this Zara page. Timeout or crash.`,
+    );
     return [];
   }
 }

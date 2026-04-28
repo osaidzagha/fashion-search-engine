@@ -4,6 +4,7 @@ import {
   getProductById,
   getFeaturedProducts,
   getSearchSuggestions,
+  getCategories,
 } from "../controllers/productController";
 import { ProductModel } from "../models/Product";
 import { protect, admin } from "../middlewares/authMiddleware";
@@ -15,7 +16,7 @@ const router = express.Router();
 // ✅ These must come BEFORE /:id to avoid "featured" being treated as an id
 router.get("/featured", getFeaturedProducts);
 router.get("/suggestions", getSearchSuggestions);
-
+router.get("/categories", getCategories);
 router.get("/", getProducts);
 
 router.get("/:id/related", async (req, res) => {
@@ -23,20 +24,30 @@ router.get("/:id/related", async (req, res) => {
     const product = await ProductModel.findOne({ id: req.params.id });
     if (!product) return res.json([]);
 
-    const related = await ProductModel.find({
+    // We build a strict query based on the current product
+    const query: any = {
       department: product.department,
-      category: {
-        $regex: product.category?.split("-")[0] || "",
-        $options: "i",
-      },
-      price: { $gte: product.price * 0.5, $lte: product.price * 2.0 },
-      id: { $ne: product.id },
-    })
+      id: { $ne: product.id }, // Don't show the exact same product we are looking at
+    };
+
+    // If the product has a category, strictly match it!
+    if (product.category) {
+      query.category = product.category;
+    } else {
+      // Fallback: If for some reason the category is missing,
+      // match the brand so we at least show similar vibes, not random junk.
+      query.brand = product.brand;
+    }
+
+    const related = await ProductModel.find(query)
+      // I temporarily removed the strict 0.5x to 2.0x price limit.
+      // Sometimes that price limit causes 0 results if the jacket is uniquely expensive!
       .limit(4)
       .lean();
 
     res.json(related);
   } catch (error) {
+    console.error("Error fetching related products:", error);
     res.status(500).json([]);
   }
 });

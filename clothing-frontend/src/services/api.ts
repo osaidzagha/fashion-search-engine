@@ -63,6 +63,17 @@ export async function fetchProductById(id: string): Promise<Product | null> {
   }
 }
 
+export async function fetchRelatedProducts(id: string): Promise<Product[]> {
+  try {
+    const response = await fetch(`${BASE_URL}/api/products/${id}/related`);
+    if (!response.ok) throw new Error("Network response was not ok");
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch related products:", error);
+    return [];
+  }
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 const AUTH_URL = `${BASE_URL}/api/auth`;
@@ -146,5 +157,16 @@ export const checkIsTracked = async (productId: string): Promise<boolean> => {
     return watchlist.some((p) => p.id === productId);
   } catch {
     return false;
+  }
+};
+
+export const fetchCategories = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${BASE_URL}/api/categories`);
+    if (!response.ok) throw new Error("Failed to fetch categories");
+    return await response.json();
+  } catch (error) {
+    console.error("Categories API error:", error);
+    return [];
   }
 };

@@ -62,9 +62,11 @@ export const runScraperPipeline = async (
 
     // Make sure to change `categories` to `cleanCategories` here!
     const shuffledCategories = shuffleArray(cleanCategories);
+
+    // Pick 10 categories
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 3);
+      : shuffledCategories.slice(0, 10);
 
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
@@ -78,9 +80,10 @@ export const runScraperPipeline = async (
       }
 
       const shuffledLinks = shuffleArray(links);
+      // Grab up to 60 items per category
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 15);
+        : shuffledLinks.slice(0, 60);
 
       for (const link of toTest) {
         const category =

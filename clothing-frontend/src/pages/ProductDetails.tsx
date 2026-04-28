@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Product } from "../types";
+
 import {
   fetchProductById,
   addToWatchlist,
   removeFromWatchlist,
+  fetchRelatedProducts,
   checkIsTracked,
 } from "../services/api";
 import { Spinner } from "../components/Spinner";
@@ -104,6 +106,26 @@ export default function ProductDetails() {
   const [trackLoading, setTrackLoading] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(0);
+
+  const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveToWatchlist = async () => {
+    if (!product) return;
+    setIsSaving(true);
+    try {
+      const success = await addToWatchlist(product.id);
+      if (success) {
+        setIsSaved(true);
+      } else {
+        alert("Failed to save to Watchlist. Check your console!");
+      }
+    } catch (error) {
+      console.error("Failed to track item", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;

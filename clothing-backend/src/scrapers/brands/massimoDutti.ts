@@ -130,47 +130,85 @@ export async function getMassimoProductLinks(
   console.log(`📂 Visiting Massimo Dutti category: ${url}`);
 
   try {
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+    // Increased timeout to give the heavy category page time to breathe
+    await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
     await new Promise((r) => setTimeout(r, 4000));
 
-    await page.evaluate(`
-      (function() {
-        return new Promise(function(resolve) {
-          var totalHeight = 0;
-          var distance = 200;
-          var timer = setInterval(function() {
-            var scrollHeight = document.body.scrollHeight;
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-            if (totalHeight >= scrollHeight - window.innerHeight || totalHeight > 6000) {
-              clearInterval(timer);
-              resolve(undefined);
-            }
-          }, 200);
-        });
-      })()
-    `);
+    let productLinks: string[] = [];
+    const maxRetries = 3;
 
-    await new Promise((r) => setTimeout(r, 1000));
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`  --> 🔄 Attempt ${attempt} to extract links...`);
 
-    const productLinks = (await page.evaluate(`
-      (function() {
-        return Array.from(document.querySelectorAll('a'))
-          .map(function(a) { return a.href; })
-          .filter(function(href) {
-            var hasStrictIdFormat = /-l[a-zA-Z0-9]{8}(\\?|$)/.test(href);
-            var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
-            return hasStrictIdFormat && isNotBanner;
-          })
-          .map(function(href) { return href.split('?')[0]; })
-          .filter(function(href, index, self) { return self.indexOf(href) === index; });
-      })()
-    `)) as string[];
+      // 1. The Deep Auto-Scroller
+      console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
+      await page.evaluate(`
+        (function() {
+          return new Promise(function(resolve) {
+            var totalHeight = 0;
+            var distance = 600; // Bigger jumps
+            var scrolls = 0;
+            var maxScrolls = 30; // Scroll up to 30 times (massive scrape!)
+            
+            var timer = setInterval(function() {
+              var scrollHeight = document.body.scrollHeight;
+              window.scrollBy(0, distance);
+              totalHeight += distance;
+              scrolls++;
 
-    console.log(`  --> Found ${productLinks.length} real product links.`);
+              // Stop if we hit the actual bottom OR we reach our 30 scroll limit
+              if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
+                clearInterval(timer);
+                resolve(undefined);
+              }
+            }, 800); // 800ms gives React time to fetch the next page of JSON
+          });
+        })()
+      `);
+
+      // Let the network catch up after the massive scroll session
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // 2. Extract Links
+      productLinks = (await page.evaluate(`
+        (function() {
+          return Array.from(document.querySelectorAll('a'))
+            .map(function(a) { return a.href; })
+            .filter(function(href) {
+              var hasStrictIdFormat = /-l[a-zA-Z0-9]{8}(\\?|$)/.test(href);
+              var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
+              return hasStrictIdFormat && isNotBanner;
+            })
+            .map(function(href) { return href.split('?')[0]; })
+            .filter(function(href, index, self) { return self.indexOf(href) === index; });
+        })()
+      `)) as string[];
+
+      // 3. Success Check
+      if (productLinks.length > 0) {
+        console.log(
+          `  --> ✅ Success! Found ${productLinks.length} product links.`,
+        );
+        break; // Escape the retry loop!
+      }
+
+      console.log(
+        `  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting before retry...`,
+      );
+      // Scroll back to the top to force React to rethink its life choices before the next attempt
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
+    if (productLinks.length === 0) {
+      console.log(
+        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
+      );
+    }
+
     return productLinks;
   } catch (error) {
-    console.log(`  --> ⚠️ Error finding links on this page.`);
+    console.log(`  --> ⚠️ Error finding links on this page. Timeout or crash.`);
     return [];
   }
 }
@@ -199,49 +237,72 @@ export async function scrapeMassimoProductData(
   const responseHandler = async (response: any) => {
     const reqUrl = response.url();
 
+    // Only intercept the main product API call
     if (reqUrl.includes("itxrest") && reqUrl.includes(rawId)) {
       try {
         const json = await response.json();
+        let foundVideos: string[] = [];
 
-        const findMp4 = (obj: any, depth = 0): string | null => {
-          if (depth > 8) return null; // Safety limit
-          if (typeof obj === "string" && obj.includes(".mp4")) return obj;
+        const extractMp4s = (obj: any, depth = 0) => {
+          if (depth > 12) return; // Safety limit
+
+          if (typeof obj === "string" && obj.includes(".mp4")) {
+            foundVideos.push(obj);
+            return;
+          }
 
           if (typeof obj === "object" && obj !== null) {
             for (const key of Object.keys(obj)) {
               const lowerKey = key.toLowerCase();
 
-              // 👇 THE ULTIMATE QUARANTINE (English & Spanish Inditex Keys)
+              // 👇 THE IRON CURTAIN: Block cross-sells AND the "Total Look" trap
               if (
                 lowerKey.includes("related") ||
                 lowerKey.includes("cross") ||
                 lowerKey.includes("similar") ||
                 lowerKey.includes("bundle") ||
-                lowerKey.includes("relacionados") || // Spanish for related
-                lowerKey.includes("completar") // Spanish for 'complete the look'
+                lowerKey.includes("relacionados") ||
+                lowerKey.includes("completar") ||
+                lowerKey.includes("outfit") || // <-- Kills the "Total Look" pants/shirts
+                lowerKey.includes("totallook") || // <-- Kills the "Total Look" pants/shirts
+                lowerKey.includes("recommend")
               ) {
                 continue; // Slam the door shut on this branch
               }
 
-              const found = findMp4(obj[key], depth + 1);
-              if (found) return found;
+              extractMp4s(obj[key], depth + 1);
             }
           }
-          return null;
         };
 
-        const mp4Path = findMp4(json);
+        // 1. Gather every video in the clean branches
+        extractMp4s(json);
 
-        if (mp4Path && !trueVideoUrl) {
-          trueVideoUrl = mp4Path.startsWith("http")
-            ? mp4Path
-            : `https://static.massimodutti.net/3/photos${mp4Path}`;
+        if (foundVideos.length > 0 && !trueVideoUrl) {
+          // 2. VERIFICATION: Inditex URLs often contain the product ID or strip the leading zero
+          const noZeroId = rawId.replace(/^0+/, ""); // e.g., "06695508" -> "6695508"
+          const baseId = rawId.substring(0, 4); // First 4 digits are the style family
+
+          // Prioritize videos that actually contain this product's ID in the URL
+          let bestVideo = foundVideos.find(
+            (v) => v.includes(rawId) || v.includes(noZeroId),
+          );
+
+          // Fallback to style family, then fallback to just the first clean video we found
+          if (!bestVideo)
+            bestVideo = foundVideos.find((v) => v.includes(baseId));
+          if (!bestVideo) bestVideo = foundVideos[0];
+
+          trueVideoUrl = bestVideo.startsWith("http")
+            ? bestVideo
+            : `https://static.massimodutti.net/3/photos${bestVideo}`;
+
           console.log(
-            `   --> 🎯 WIRETAP SUCCESS: Intercepted video for ${rawId}!`,
+            `   --> 🎯 WIRETAP SUCCESS: Intercepted CORRECT video for ${rawId}!`,
           );
         }
       } catch (e) {
-        // Silently ignore
+        // Silently ignore parsing errors on background requests
       }
     }
   };

@@ -3,7 +3,7 @@ import { UserModel } from "../models/User";
 import { ProductModel } from "../models/Product";
 
 // GET /api/watchlist
-// Returns all products the logged-in user is tracking
+// Returns all products the logged-in user is tracking PLUS their custom trackedPrice
 export const getWatchlist = async (req: Request, res: Response) => {
   try {
     const user = await UserModel.findById((req as any).user._id).lean();
@@ -18,7 +18,20 @@ export const getWatchlist = async (req: Request, res: Response) => {
       id: { $in: productIds },
     }).lean();
 
-    return res.status(200).json(products);
+    // 👇 THE MERGE: We combine the global product data with the user's specific tracked price
+    const productsWithTrackedPrices = products.map((product) => {
+      // Find this specific product in the user's watchlist array
+      const userTrackData = user.watchlist.find(
+        (item) => item.productId === product.id,
+      );
+
+      return {
+        ...product,
+        trackedPrice: userTrackData?.trackedPrice || product.price, // Fallback safely
+      };
+    });
+
+    return res.status(200).json(productsWithTrackedPrices);
   } catch (error) {
     console.error("Error fetching watchlist:", error);
     res.status(500).json({ message: "Server error" });
@@ -37,7 +50,7 @@ export const addToWatchlist = async (req: Request, res: Response) => {
     }
     const userId = (req as any).user._id;
 
-    // Check product exists
+    // Check product exists AND get its current price
     const product = await ProductModel.findOne({ id: productId });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
@@ -52,7 +65,13 @@ export const addToWatchlist = async (req: Request, res: Response) => {
       return res.status(200).json({ message: "Already tracking this product" });
     }
 
-    user.watchlist.push({ productId, addedAt: new Date() });
+    // 👇 CAPTURE THE EVENT STATE: Save the price at this exact second
+    user.watchlist.push({
+      productId,
+      trackedPrice: product.price,
+      addedAt: new Date(),
+    });
+
     await user.save();
 
     return res.status(200).json({ message: "Added to watchlist", productId });
