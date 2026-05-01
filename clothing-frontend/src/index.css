@@ -56,3 +56,41 @@ button {
   -webkit-appearance: none;
   appearance: none;
 }
+/* in index.css or your tailwind config */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.animate-shimmer-premium {
+  background: linear-gradient(90deg, #f1f0ea 25%, #f7f6f2 50%, #f1f0ea 75%);
+  background-size: 200% 100%;
+  animation: shimmer 3.5s ease-in-out infinite;
+}
+.noise-texture {
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+}
+
+/* Custom Zara-style minimal slider */
+.slider-thumb-minimal::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  cursor: pointer;
+  margin-top: -4px; /* Centers it on the 1px track */
+}
+
+.slider-thumb-minimal::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  cursor: pointer;
+  border: none;
+}

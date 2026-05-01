@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { Product } from "../types";
 import { Link } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { toggleCompare } from "../store/productSlice";
-import { RootState } from "../store/store"; // Adjust path if needed
+import { useDispatch } from "react-redux";
 import { useCompare } from "../context/CompareContext";
 import { theme } from "../styles/theme";
+import { ProductSkeleton } from "./ProductSkeleton";
 
 interface ProductCardProps {
   product: Product;
@@ -18,6 +17,10 @@ function discountPercent(original: number, current: number): number {
 
 export const ProductCard = ({ product }: ProductCardProps) => {
   const [hovered, setHovered] = useState(false);
+
+  // 👇 NEW: Track when the heavy image finishes downloading
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+
   const dispatch = useDispatch();
   // 👇 Rip out Redux, use the new Context!
   const { compareList, addToCompare, removeFromCompare, isInCompare } =
@@ -27,9 +30,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const isQueueFull = compareList.length >= 2 && !isComparing;
 
   const hasHoverImage = product.images && product.images.length > 1;
-  const isNew = product.timestamp
-    ? Date.now() - new Date(product.timestamp).getTime() < 48 * 60 * 60 * 1000
-    : false;
 
   // ✅ Added Sale Logic
   const isOnSale =
@@ -48,28 +48,24 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       onMouseLeave={() => setHovered(false)}
     >
       {/* Image Container */}
-      <div
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          backgroundColor: "#f0ede8",
-        }}
-      >
-        {/* Primary image (From Layer 1) */}
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase">
+        {/* Skeleton as BASE layer */}
+        {!isImageLoaded && <ProductSkeleton isCardMode={true} />}
+
+        {/* Primary Image */}
         {product.images && product.images.length > 0 && (
           <img
             src={product.images[0]}
             alt={product.name}
-            style={{
-              position: "relative",
-              inset: 0,
-              width: "100%",
-              height: "auto ",
-              objectFit: "cover",
-              transition: "opacity 0.6s ease, transform 0.8s ease",
-              opacity: hovered && hasHoverImage ? 0 : 1,
-              transform: hovered ? "scale(1.04)" : "scale(1)",
-            }}
+            onLoad={() => setIsImageLoaded(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
+        ${
+          isImageLoaded
+            ? "opacity-100 scale-100 blur-0"
+            : "opacity-0 scale-[1.06] blur-md"
+        }
+        ${hovered && hasHoverImage ? "lg:opacity-0" : ""}
+      `}
           />
         )}
         {/* The Compare Button */}
@@ -77,7 +73,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
-            // 👇 Use the new Context functions
             if (isComparing) {
               removeFromCompare(product.id);
             } else if (!isQueueFull) {
@@ -105,7 +100,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           }}
           title={isComparing ? "Remove from Compare" : "Add to Compare"}
         >
-          {/* Subtle scale/balance icon */}
           <svg
             width="14"
             height="14"
@@ -123,15 +117,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <img
             src={product.images[1]}
             alt={`${product.name} alternate view`}
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
             style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              transition: "opacity 0.6s ease, transform 0.8s ease",
-              opacity: hovered ? 1 : 0,
-              transform: hovered ? "scale(1.04)" : "scale(1.08)",
+              opacity: hovered && isImageLoaded ? 1 : 0,
+              transform: hovered ? "scale(1.03)" : "scale(1.08)",
             }}
           />
         )}
@@ -144,7 +133,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               top: 12,
               left: 12,
               zIndex: 10,
-              background: "#b94040", // High-visibility red
+              background: "#b94040",
               color: "#fff",
               fontFamily: "'DM Sans', sans-serif",
               fontSize: "9px",
@@ -157,33 +146,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
 
-        {/* the NEW badge right here inside the container! */}
-        {isNew && (
-          <div
-            style={{
-              position: "absolute",
-              top: 12,
-              right: 12,
-              background: theme.colors.bgSecondary,
-              color: theme.colors.textPrimary,
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "8px",
-              letterSpacing: "0.16em",
-              padding: "3px 7px",
-              textTransform: "uppercase",
-              pointerEvents: "none",
-            }}
-          >
-            New
-          </div>
-        )}
-        {/* --- NEW LAYER 2 UI BELOW --- */}
-
-        {/* Brand badge (Top Left Overlay - Adjusted slightly so it doesn't overlap the Sale Badge) */}
+        {/* Brand badge */}
         <div
           style={{
             position: "absolute",
-            top: isOnSale ? 40 : 12, // ✅ Pushes it down if the sale badge is active
+            top: isOnSale ? 40 : 12,
             left: 12,
             background: "rgba(255,255,255,0.92)",
             backdropFilter: "blur(4px)",
@@ -202,12 +169,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               color: "#1a1a1a",
             }}
           >
-            {/* TODO 2: Output the product's brand name here */}
             {product.brand}
           </span>
         </div>
 
-        {/* Quick view hint (Bottom Gradient Overlay) */}
+        {/* Quick view hint */}
         <div
           style={{
             position: "absolute",
@@ -221,7 +187,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "space-between",
-            // TODO 3: Use a ternary. If hovered is true -> 1, else -> 0
             opacity: hovered ? 1 : 0,
           }}
         >
@@ -237,7 +202,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             View details →
           </span>
 
-          {/* TODO 4: Only render this span IF hasHoverImage is true. (Hint: Use the && operator like we did for the images) */}
           {hasHoverImage && (
             <span
               style={{
@@ -265,7 +229,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             marginBottom: "4px",
           }}
         >
-          {/* TODO 5: Output the product's brand name here again */}
           {product.brand}
         </p>
         <p
@@ -283,8 +246,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             whiteSpace: "nowrap",
           }}
         >
-          {/* TODO 6: Output the product's name here. 
-              (Bonus challenge: Your original code had some JS here to capitalize the first letter of each word! Give it a try, or just output the raw name for now.) */}
           {product.name
             .split(" ")
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -298,7 +259,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               fontFamily: "'Cormorant Garamond', serif",
               fontSize: "15px",
               fontWeight: 400,
-              color: isOnSale ? "#b94040" : "#666", // Red if on sale!
+              color: isOnSale ? "#b94040" : "#666",
               margin: 0,
             }}
           >
@@ -328,7 +289,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           transformOrigin: "left",
           transition: "transform 0.4s ease",
           marginTop: "8px",
-          // TODO 8: Use a ternary. If hovered is true -> "scaleX(1)", else -> "scaleX(0)"
           transform: hovered ? "scaleX(1)" : "scaleX(0)",
         }}
       />

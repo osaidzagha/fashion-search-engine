@@ -4,10 +4,9 @@ import mongoose from "mongoose";
 import * as dotenv from "dotenv";
 import { ProductModel } from "./models/Product";
 import productRoutes from "./routes/productRoutes";
-import { runAllScrapers } from "./scrapers/scraperManager";
-import cron from "node-cron";
 import authRoutes from "./routes/authRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
+import { startScraperCron } from "./scrapers/scheduler";
 
 dotenv.config();
 
@@ -17,28 +16,25 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Use the product routes for any requests to /api/products
+// Routes
 app.use("/api/products", productRoutes);
-
-// Use the auth routes for any requests to /api/auth
 app.use("/api/auth", authRoutes);
-
 app.use("/api/watchlist", watchlistRoutes);
 
-// Test schedule: Run every 1 minute
-cron.schedule("0 3 * * *", async () => {
-  console.log("⏰ Cron triggered! Waking up the Foreman...");
-  await runAllScrapers();
-});
+// Database Connection
 mongoose
   .connect(process.env.MONGO_URI as string)
   .then(async () => {
     console.log("🔌 Connected to MongoDB");
     await mongoose.model("Product").syncIndexes();
     console.log("✅ Database Indexes Synchronized!");
+
     app.listen(PORT, () => {
       console.log(`🚀 API Server is running on http://localhost:${PORT}`);
     });
+
+    // 👇 Only start the cron job AFTER we know the database is successfully connected
+    startScraperCron();
   })
   .catch((error) => {
     console.log("❌ Failed to connect to MongoDB.");

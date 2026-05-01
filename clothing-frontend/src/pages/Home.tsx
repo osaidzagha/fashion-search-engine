@@ -8,7 +8,6 @@ import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import SaleCard from "../components/SaleCard";
 import { setBrands, setSearchTerm, clearFilters } from "../store/productSlice";
-import CategoryPills from "../components/CategoryPills";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -229,9 +228,7 @@ export default function Home() {
               marginTop: "24px", // Just one margin is enough!
               animation: "fadeUp 0.6s ease 0.5s both",
             }}
-          >
-            <CategoryPills />
-          </div>
+          ></div>
 
           <div
             style={{

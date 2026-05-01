@@ -22,16 +22,16 @@ import {
 // Adding a new brand is now as simple as adding one object to this array.
 const SCRAPER_JOBS = [
   {
-    brandName: "Zara",
-    getCategories: getZaraCategories,
-    getLinks: getZaraProductLinks,
-    scrapeProduct: scrapeZaraProductData,
-  },
-  {
     brandName: "Massimo Dutti",
     getCategories: getMassimoCategories,
     getLinks: getMassimoProductLinks,
     scrapeProduct: scrapeMassimoProductData,
+  },
+  {
+    brandName: "Zara",
+    getCategories: getZaraCategories,
+    getLinks: getZaraProductLinks,
+    scrapeProduct: scrapeZaraProductData,
   },
 ];
 

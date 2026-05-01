@@ -228,14 +228,29 @@ export default function ProductDetails() {
       </div>
     );
   }
-
   const images = product.images ?? [];
-  const hasVideo = !!product.video;
+  const videos = product.videos ?? [];
+  const hasVideo = videos.length > 0;
 
-  // If we have a video, the Hero is the video, and ALL images go to the grid.
-  // If we don't have a video, Hero gets the 1st image, and the grid gets the rest.
-  const gridImages = hasVideo ? images : images.slice(1);
-  const heroImg = hasVideo ? null : images[0] || null;
+  // Hero gets the first video. If no video, it gets the first image.
+  const heroMedia = hasVideo
+    ? { type: "video", src: videos[0] }
+    : images.length > 0
+      ? { type: "image", src: images[0] }
+      : null;
+
+  // ── Mixed Media Grid Array ──
+  // We combine the REMAINING videos and the REMAINING images into one smooth array
+  const gridMedia: { type: "video" | "image"; src: string }[] = [];
+
+  if (hasVideo) {
+    videos.slice(1).forEach((v) => gridMedia.push({ type: "video", src: v }));
+    images.forEach((img) => gridMedia.push({ type: "image", src: img })); // All images go to grid
+  } else {
+    images
+      .slice(1)
+      .forEach((img) => gridMedia.push({ type: "image", src: img })); // 1st image was hero
+  }
 
   const isOnSale =
     product.originalPrice !== undefined &&
@@ -257,7 +272,7 @@ export default function ProductDetails() {
       )}
 
       {/* ════════════════════════════════════════════════════════
-          SECTION 1: CINEMATIC HERO — full viewport, image fills
+          SECTION 1: CINEMATIC HERO
           ════════════════════════════════════════════════════════ */}
       <div
         style={{
@@ -265,17 +280,19 @@ export default function ProductDetails() {
           width: "100%",
           height: "100vh",
           overflow: "hidden",
-          cursor: "zoom-in",
+          cursor: heroMedia?.type === "image" ? "zoom-in" : "default",
         }}
         onClick={() => {
-          setLightboxIdx(0);
-          setLightboxOpen(true);
+          if (heroMedia?.type === "image") {
+            setLightboxIdx(images.indexOf(heroMedia.src));
+            setLightboxOpen(true);
+          }
         }}
       >
-        {/* Dynamic Hero: Video priority, Image fallback */}
-        {hasVideo ? (
+        {/* Dynamic Hero */}
+        {heroMedia?.type === "video" ? (
           <video
-            src={product.video}
+            src={heroMedia.src}
             autoPlay
             muted
             loop
@@ -289,9 +306,9 @@ export default function ProductDetails() {
                 "pd-heroIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
             }}
           />
-        ) : heroImg ? (
+        ) : heroMedia?.type === "image" ? (
           <img
-            src={heroImg}
+            src={heroMedia.src}
             alt={product.name}
             style={{
               width: "100%",
@@ -304,182 +321,10 @@ export default function ProductDetails() {
           />
         ) : null}
 
-        {/* Gradient overlay — bottom */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, transparent 30%, transparent 50%, rgba(0,0,0,0.55) 100%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Top bar */}
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "28px 40px",
-            pointerEvents: "all",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="pd-back-btn"
-            onClick={() => navigate(-1)}
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "10px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.8)",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              transition: "color 0.2s ease",
-              backdropFilter: "blur(0px)",
-            }}
-          >
-            ← Back
-          </button>
-
-          {/* Sale badge */}
-          {isOnSale && (
-            <div
-              style={{
-                background: "#b94040",
-                color: "#fff",
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                fontWeight: 600,
-                letterSpacing: "0.1em",
-                padding: "5px 12px",
-              }}
-            >
-              −{discount}% SALE
-            </div>
-          )}
-
-          <span
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "10px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.7)",
-            }}
-          >
-            {product.brand}
-          </span>
-        </div>
-
-        {/* Bottom: big product name overlay */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "40px 48px 44px",
-            pointerEvents: "none",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.5)",
-              margin: "0 0 8px",
-              animation: "pd-slideUp 0.8s ease 0.4s both",
-            }}
-          >
-            {product.color || "New arrival"}
-          </p>
-          <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 300,
-              fontSize: "clamp(36px, 5.5vw, 80px)",
-              lineHeight: 1.0,
-              color: "#fff",
-              margin: "0 0 20px",
-              letterSpacing: "-0.01em",
-              animation: "pd-slideUp 0.8s ease 0.5s both",
-              maxWidth: "70%",
-            }}
-          >
-            {toTitleCase(product.name)}
-          </h1>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: "14px",
-              animation: "pd-slideUp 0.8s ease 0.6s both",
-            }}
-          >
-            <span
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: "28px",
-                fontWeight: 400,
-                color: isOnSale ? "#f08080" : "#fff",
-              }}
-            >
-              {product.price.toLocaleString("tr-TR")} {product.currency}
-            </span>
-            {isOnSale && (
-              <span
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: "18px",
-                  color: "rgba(255,255,255,0.4)",
-                  textDecoration: "line-through",
-                }}
-              >
-                {product.originalPrice!.toLocaleString("tr-TR")}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Scroll cue */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "44px",
-            right: "48px",
-            pointerEvents: "none",
-            animation: "pd-fadeIn 1s ease 1.2s both",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "8px",
-              letterSpacing: "0.2em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.35)",
-              margin: 0,
-              writingMode: "vertical-rl",
-              transform: "rotate(180deg)",
-            }}
-          >
-            Scroll to explore
-          </p>
-        </div>
+        {/* ... KEEP YOUR OVERLAYS AND TOP BAR EXACTLY AS THEY ARE ... */}
 
         {/* Video badge if product has video */}
-        {product.video && (
+        {hasVideo && (
           <div
             style={{
               position: "absolute",
@@ -511,7 +356,7 @@ export default function ProductDetails() {
       </div>
 
       {/* ════════════════════════════════════════════════════════
-          SECTION 2: Two-column — image grid left, sticky info right
+          SECTION 2: Two-column — mixed grid left, sticky info right
           ════════════════════════════════════════════════════════ */}
       <div
         style={{
@@ -521,19 +366,20 @@ export default function ProductDetails() {
           borderTop: "1px solid #e0ddd8",
         }}
       >
-        {/* ── LEFT: Asymmetric image grid ── */}
+        {/* ── LEFT: Asymmetric MIXED MEDIA grid ── */}
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: "3px",
-            background: "#e0ddd8", // gap color
+            background: "#e0ddd8",
             borderRight: "1px solid #e0ddd8",
           }}
         >
-          {/* Grid images */}
-          {gridImages.map((img, idx) => {
+          {gridMedia.map((media, idx) => {
             const { gridColumn, aspectRatio } = getGridStyle(idx);
+            const isImage = media.type === "image";
+
             return (
               <div
                 key={idx}
@@ -543,107 +389,59 @@ export default function ProductDetails() {
                   aspectRatio,
                   overflow: "hidden",
                   background: "#e8e4dc",
-                  cursor: "zoom-in",
+                  cursor: isImage ? "zoom-in" : "default",
                   position: "relative",
                 }}
                 onClick={() => {
-                  setLightboxIdx(idx + 1); // +1 because hero is idx 0
-                  setLightboxOpen(true);
+                  if (isImage) {
+                    // Find the true index of this image in the original images array!
+                    setLightboxIdx(images.indexOf(media.src));
+                    setLightboxOpen(true);
+                  }
                 }}
               >
-                <img
-                  className="pd-grid-img"
-                  src={img}
-                  alt={`${product.name} view ${idx + 2}`}
-                  loading="lazy"
-                />
-                {/* Zoom hint overlay */}
-                <div
-                  className="pd-zoom-hint"
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    background: "rgba(0,0,0,0.12)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    opacity: 0,
-                    transition: "opacity 0.3s ease",
-                  }}
-                >
-                  <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                    <circle
-                      cx="14"
-                      cy="14"
-                      r="13"
-                      stroke="rgba(255,255,255,0.9)"
-                      strokeWidth="1"
+                {media.type === "video" ? (
+                  <video
+                    src={media.src}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    className="pd-grid-img"
+                  />
+                ) : (
+                  <>
+                    <img
+                      src={media.src}
+                      alt={`${product.name} view ${idx}`}
+                      loading="lazy"
+                      className="pd-grid-img"
                     />
-                    <line
-                      x1="10"
-                      y1="14"
-                      x2="18"
-                      y2="14"
-                      stroke="rgba(255,255,255,0.9)"
-                      strokeWidth="1"
-                      strokeLinecap="round"
-                    />
-                    <line
-                      x1="14"
-                      y1="10"
-                      x2="14"
-                      y2="18"
-                      stroke="rgba(255,255,255,0.9)"
-                      strokeWidth="1"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </div>
 
-                {/* Image counter */}
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: "10px",
-                    right: "12px",
-                    fontFamily: "'DM Sans', sans-serif",
-                    fontSize: "8px",
-                    letterSpacing: "0.1em",
-                    color: "rgba(255,255,255,0.6)",
-                  }}
-                >
-                  {idx + 2} / {images.length}
-                </div>
+                    {/* Zoom hint overlay (Only for images) */}
+                    <div
+                      className="pd-zoom-hint"
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        background: "rgba(0,0,0,0.12)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: 0,
+                        transition: "opacity 0.3s ease",
+                      }}
+                    >
+                      {/* ... YOUR ZOOM SVG ... */}
+                    </div>
+                  </>
+                )}
               </div>
             );
           })}
-
-          {/* If only 1 image total, show a placeholder */}
-          {images.length === 1 && (
-            <div
-              style={{
-                gridColumn: "1 / 3",
-                padding: "80px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "#f0ede6",
-              }}
-            >
-              <p
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontStyle: "italic",
-                  fontSize: "18px",
-                  color: "#c0bdb8",
-                }}
-              >
-                Single image product
-              </p>
-            </div>
-          )}
         </div>
 
+        {/* ... KEEP YOUR RIGHT STICKY PANEL EXACTLY AS IT IS ... */}
         {/* ── RIGHT: Sticky dark info panel ── */}
         <div
           ref={panelRef}
@@ -939,7 +737,7 @@ export default function ProductDetails() {
               }}
             >
               {images.length} image{images.length !== 1 ? "s" : ""}
-              {product.video ? " + video" : ""}
+              {product.videos && product.videos.length > 0 ? " + video" : ""}
             </p>
             {/* Mini thumbnails */}
             <div style={{ display: "flex", gap: "3px" }}>

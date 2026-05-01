@@ -66,7 +66,7 @@ export const runScraperPipeline = async (
     // Pick 10 categories
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 10);
+      : shuffledCategories.slice(0, 6);
 
     for (const categoryUrl of toScrape) {
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
@@ -83,7 +83,7 @@ export const runScraperPipeline = async (
       // Grab up to 60 items per category
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 60);
+        : shuffledLinks.slice(0, 20);
 
       for (const link of toTest) {
         const category =
@@ -119,7 +119,7 @@ export const runScraperPipeline = async (
                 composition: product.composition,
                 images: product.images,
                 sizes: product.sizes,
-                video: product.video,
+                videos: product.videos,
               },
               $setOnInsert: {
                 timestamp: new Date(),

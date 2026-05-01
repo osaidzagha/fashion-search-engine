@@ -6,7 +6,7 @@ export interface Product {
   currency: string;
   brand: string;
   images: string[];
-  video?: string; // ← add
+  videos?: string[]; // ← add
   link: string;
   category: string;
   department?: string; // ← add

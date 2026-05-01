@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { fetchProductsFromAPI } from "../services/api";
 import { ProductGrid } from "../components/ProductGrid";
-import { Spinner } from "../components/Spinner";
-import { Sidebar } from "../components/Sidebar";
-import CategoryPills from "../components/CategoryPills";
-import { SearchBar } from "../components/SearchBar"; // Assuming you still want this accessible
+import { SearchBar } from "../components/SearchBar";
+import { clearFilters } from "../store/productSlice";
+import { FilterDrawer } from "../components/FilterDrawer"; // 👈 IMPORTED NEW DRAWER
 import {
   setProducts,
   setLoading,
@@ -35,8 +34,20 @@ export default function Collection() {
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useDispatch();
 
-  const qFromUrl = searchParams.get("q") || searchParams.get("category") || "";
+  // 👇 1. ADDED FILTER STATE
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    dispatch(clearFilters());
+  }, [location.search, dispatch]);
+  const qFromUrl =
+    searchParams.get("search") ||
+    searchParams.get("q") ||
+    searchParams.get("category") ||
+    "";
   const currentSort = searchParams.get("sort") || "";
+  const displayTitle = searchParams.get("title");
 
   const {
     items: products,
@@ -55,6 +66,15 @@ export default function Collection() {
 
   // ── HEADER DYNAMICS ──
   const getHeaderInfo = () => {
+    // 👇 1. If we came from the Mega-Menu, use the pretty title
+    if (displayTitle) {
+      return {
+        title: displayTitle,
+        desc: "Explore our curated catalog.",
+      };
+    }
+
+    // 👇 2. If the user typed manually in the Search Bar
     if (qFromUrl && !type) {
       return {
         title: `Results for "${qFromUrl}"`,
@@ -110,13 +130,17 @@ export default function Collection() {
   ]);
 
   useEffect(() => {
+    let ignore = false;
+
     const fetchData = async () => {
       dispatch(setLoading(true));
       try {
         const filters: any = {
           searchTerm,
           page: currentPage,
-          brands: selectBrands,
+          brands: searchParams.get("brands")
+            ? [searchParams.get("brands")]
+            : selectBrands,
           departments: selectDepartments,
           sizes: selectSizes,
           colors: selectColors,
@@ -124,26 +148,36 @@ export default function Collection() {
           sort: currentSort,
         };
 
-        if (type === "sale") filters.onSale = true;
+        if (type === "sale" || searchParams.get("onSale") === "true")
+          filters.onSale = true;
         if (type === "zara") filters.brands = ["Zara"];
         if (type === "massimo-dutti") filters.brands = ["Massimo Dutti"];
         if (type === "new-in") filters.sort = "newest";
 
         const data = await fetchProductsFromAPI(filters);
 
-        dispatch(setProducts(data.products));
-        dispatch(setAvailableSizes(data.availableSizes || []));
-        dispatch(setAvailableColors(data.availableColors || []));
-        setTotalPages(data.totalPages);
-        setTotalCount(data.totalCount);
+        if (!ignore) {
+          dispatch(setProducts(data.products));
+          dispatch(setAvailableSizes(data.availableSizes || []));
+          dispatch(setAvailableColors(data.availableColors || []));
+          setTotalPages(data.totalPages);
+          setTotalCount(data.totalCount);
+        }
       } catch (error) {
         console.error("Error fetching products:", error);
       } finally {
-        dispatch(setLoading(false));
+        if (!ignore) {
+          dispatch(setLoading(false));
+        }
       }
     };
+
     fetchData();
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    return () => {
+      ignore = true;
+    };
   }, [
     searchTerm,
     currentPage,
@@ -155,6 +189,7 @@ export default function Collection() {
     type,
     currentSort,
     dispatch,
+    searchParams,
   ]);
 
   return (
@@ -202,70 +237,74 @@ export default function Collection() {
           {header.title}
         </h1>
 
-        {/* Inline Search hidden elegantly unless it's a generic search page */}
+        {/* Inline Search */}
         <div style={{ width: "100%", maxWidth: "500px", marginTop: "24px" }}>
-          <SearchBar initialValue={qFromUrl} variant="compact" />
+          {/* 👇 If we have a pretty title (mega-menu), leave the search box empty! */}
+          <SearchBar
+            initialValue={displayTitle ? "" : qFromUrl}
+            variant="compact"
+          />
         </div>
       </div>
 
-      {/* ── 2. EDITORIAL SPLIT LAYOUT ── */}
+      {/* ── 2. EDITORIAL FULL-WIDTH LAYOUT ── */}
+      {/* 👇 Removed the Sidebar and flex-row. This is now a clean column. */}
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
           flex: 1,
           maxWidth: "1800px",
           margin: "0 auto",
           width: "100%",
+          padding: "48px 64px 120px",
         }}
       >
-        {/* LEFT: Sticky Sidebar (Fixed Width) */}
-        <aside
+        {/* Top Utility Bar */}
+        <div
           style={{
-            width: "320px",
-            borderRight: `1px solid ${theme.colors.borderDark}`,
-            padding: "48px 48px 48px 64px",
-            position: "sticky",
-            top: "80px", // Sticks below the navbar!
-            height: "calc(100vh - 80px)",
-            overflowY: "auto",
-            scrollbarWidth: "none", // Clean aesthetic
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "48px",
+            borderBottom: `1px solid ${theme.colors.borderDark}`,
+            paddingBottom: "16px",
           }}
         >
-          <style>{`aside::-webkit-scrollbar { display: none; }`}</style>
-
-          <div style={{ marginBottom: "40px" }}>
-            <h3
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: theme.colors.textPrimary,
-                marginBottom: "24px",
-              }}
-            >
-              Categories
-            </h3>
-            {/* The Dynamic Pills are now stacked cleanly in the sidebar */}
-            <div style={{ marginLeft: "-4px" }}>
-              <CategoryPills />
-            </div>
-          </div>
-
-          <Sidebar />
-        </aside>
-
-        {/* RIGHT: Expansive Grid Area */}
-        <main style={{ flex: 1, padding: "48px 64px 120px", minWidth: 0 }}>
-          {/* Top Utility Bar (Count & Sort) */}
-          <div
+          {/* LEFT: Zara-Style Filter Trigger */}
+          <button
+            onClick={() => setIsFilterOpen(true)}
             style={{
+              fontFamily: theme.fonts.sans,
+              fontSize: "11px",
+              letterSpacing: "0.14em",
+              textTransform: "uppercase",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: theme.colors.textPrimary,
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: "48px",
+              alignItems: "center",
+              gap: "8px",
             }}
           >
+            Filters
+            {/* ✅ FIX: Safely check lengths with optional chaining */}
+            {((selectBrands?.length || 0) > 0 ||
+              (selectColors?.length || 0) > 0 ||
+              (selectSizes?.length || 0) > 0) && (
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  background: "#1a1a1a",
+                  borderRadius: "50%",
+                }}
+              />
+            )}
+          </button>
+          {/* RIGHT: Count & Sort grouped together */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
             <span
               style={{
                 fontFamily: theme.fonts.sans,
@@ -293,14 +332,11 @@ export default function Collection() {
                 fontSize: "11px",
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
-                padding: "8px 0",
                 background: "transparent",
                 color: theme.colors.textPrimary,
                 border: "none",
-                borderBottom: `1px solid ${theme.colors.borderDark}`,
                 cursor: "pointer",
                 outline: "none",
-                minWidth: "160px",
                 textAlign: "right",
               }}
             >
@@ -309,130 +345,126 @@ export default function Collection() {
               <option value="highest">Price: Descending</option>
             </select>
           </div>
+        </div>
 
-          {/* The Grid / State Handling */}
-          {isLoading ? (
-            <div
+        {/* The Grid / State Handling */}
+        {products.length === 0 && !isLoading ? (
+          <div style={{ textAlign: "center", padding: "160px 0" }}>
+            <p
               style={{
-                display: "flex",
-                justifyContent: "center",
-                paddingTop: "120px",
+                fontFamily: theme.fonts.heading,
+                fontStyle: "italic",
+                fontSize: "32px",
+                color: theme.colors.textSecondary,
+                margin: "0 0 16px",
               }}
             >
-              <Spinner />
-            </div>
-          ) : products.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "160px 0" }}>
-              <p
-                style={{
-                  fontFamily: theme.fonts.heading,
-                  fontStyle: "italic",
-                  fontSize: "32px",
-                  color: theme.colors.textSecondary,
-                  margin: "0 0 16px",
-                }}
-              >
-                The archive is empty.
-              </p>
-              <p
-                style={{
-                  fontFamily: theme.fonts.sans,
-                  fontSize: "10px",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: theme.colors.textSecondary,
-                }}
-              >
-                Adjust your filters to discover more.
-              </p>
-            </div>
-          ) : (
-            <>
-              <ProductGrid products={products} />
+              The archive is empty.
+            </p>
+            <p
+              style={{
+                fontFamily: theme.fonts.sans,
+                fontSize: "10px",
+                letterSpacing: "0.14em",
+                textTransform: "uppercase",
+                color: theme.colors.textSecondary,
+              }}
+            >
+              Adjust your filters to discover more.
+            </p>
+          </div>
+        ) : (
+          <>
+            <ProductGrid products={products} isLoading={isLoading} />
 
-              {/* Premium Pagination */}
-              {totalPages > 1 && (
-                <div
+            {/* Premium Pagination */}
+            {totalPages > 1 && !isLoading && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "32px",
+                  marginTop: "80px",
+                  paddingTop: "40px",
+                  borderTop: `1px solid ${theme.colors.borderDark}`,
+                }}
+              >
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  disabled={currentPage <= 1}
                   style={{
-                    display: "flex",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    gap: "32px",
-                    marginTop: "80px",
-                    paddingTop: "40px",
-                    borderTop: `1px solid ${theme.colors.borderDark}`,
+                    fontFamily: theme.fonts.sans,
+                    fontSize: "10px",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    background: "none",
+                    border: "none",
+                    cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                    color:
+                      currentPage <= 1
+                        ? theme.colors.borderDark
+                        : theme.colors.textPrimary,
+                    transition: "color 0.2s",
                   }}
                 >
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                    disabled={currentPage <= 1}
-                    style={{
-                      fontFamily: theme.fonts.sans,
-                      fontSize: "10px",
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      background: "none",
-                      border: "none",
-                      cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-                      color:
-                        currentPage <= 1
-                          ? theme.colors.borderDark
-                          : theme.colors.textPrimary,
-                      transition: "color 0.2s",
-                    }}
-                  >
-                    Previous
-                  </button>
+                  Previous
+                </button>
 
+                <span
+                  style={{
+                    fontFamily: theme.fonts.sans,
+                    fontSize: "11px",
+                    letterSpacing: "0.2em",
+                    color: theme.colors.textSecondary,
+                  }}
+                >
+                  {currentPage}{" "}
                   <span
                     style={{
-                      fontFamily: theme.fonts.sans,
-                      fontSize: "11px",
-                      letterSpacing: "0.2em",
-                      color: theme.colors.textSecondary,
+                      color: theme.colors.borderDark,
+                      margin: "0 8px",
                     }}
                   >
-                    {currentPage}{" "}
-                    <span
-                      style={{
-                        color: theme.colors.borderDark,
-                        margin: "0 8px",
-                      }}
-                    >
-                      /
-                    </span>{" "}
-                    {totalPages}
-                  </span>
+                    /
+                  </span>{" "}
+                  {totalPages}
+                </span>
 
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.min(p + 1, totalPages))
-                    }
-                    disabled={currentPage >= totalPages}
-                    style={{
-                      fontFamily: theme.fonts.sans,
-                      fontSize: "10px",
-                      letterSpacing: "0.14em",
-                      textTransform: "uppercase",
-                      background: "none",
-                      border: "none",
-                      cursor:
-                        currentPage >= totalPages ? "not-allowed" : "pointer",
-                      color:
-                        currentPage >= totalPages
-                          ? theme.colors.borderDark
-                          : theme.colors.textPrimary,
-                      transition: "color 0.2s",
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </main>
+                <button
+                  onClick={() =>
+                    setCurrentPage((p) => Math.min(p + 1, totalPages))
+                  }
+                  disabled={currentPage >= totalPages}
+                  style={{
+                    fontFamily: theme.fonts.sans,
+                    fontSize: "10px",
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    background: "none",
+                    border: "none",
+                    cursor:
+                      currentPage >= totalPages ? "not-allowed" : "pointer",
+                    color:
+                      currentPage >= totalPages
+                        ? theme.colors.borderDark
+                        : theme.colors.textPrimary,
+                    transition: "color 0.2s",
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* 👇 3. INJECT THE DRAWER COMPONENT */}
+      <FilterDrawer
+        isOpen={isFilterOpen}
+        onClose={() => setIsFilterOpen(false)}
+      />
     </div>
   );
 }

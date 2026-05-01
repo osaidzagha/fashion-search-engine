@@ -205,7 +205,7 @@ export async function scrapeZaraProductData(
       .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
       .catch(() => {});
 
-    // ─── STEP 4: Read images after scroll ────────────────────────────────────
+    // ─── STEP 4: Read images after scroll & GHOST FRAME DEFENSE ──────────────
     const rawImages = (await page.evaluate(`
       (function() {
         function sanitizeAndUpscale(url) {
@@ -213,11 +213,8 @@ export async function scrapeZaraProductData(
           var lowerUrl = url.toLowerCase();
           
           if (lowerUrl.startsWith('data:') || lowerUrl.endsWith('.svg') || lowerUrl.includes('placeholder')) return null;
-          
-          // 👇 DEFENSE 1: Block Zara-specific swatch/texture keywords
           if (lowerUrl.includes('swatch') || lowerUrl.includes('texture') || lowerUrl.includes('color-selector')) return null;
 
-          // Upscale the image if it matches the Zara pattern
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
         }
 
@@ -247,7 +244,14 @@ export async function scrapeZaraProductData(
         if (!gallery) return [];
         var clone = gallery.cloneNode(true);
 
-        // 👇 DEFENSE 2: Delete Zara's color selectors and thumbs before searching!
+        // 👇 THE GHOST FRAME DEFENSE: Log video posters, then nuke the videos!
+        var badPosters = [];
+        clone.querySelectorAll('video').forEach(function(v) {
+          var posterUrl = v.getAttribute('poster');
+          if (posterUrl) badPosters.push(sanitizeAndUpscale(posterUrl));
+          v.remove(); 
+        });
+
         ['[class*="complete-the-look"]','[class*="cross-sell"]',
          '[class*="recommendations"]','[class*="carousel"]','footer',
          '[class*="color-selector"]', '[class*="product-detail-color"]',
@@ -264,36 +268,46 @@ export async function scrapeZaraProductData(
           if (sources.length === 0) return;
           var rawUrl = pickHighestResFromSources(sources);
           var cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+          
+          // 👇 Check against the badPosters array!
+          if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
+            seen.add(cleanUrl); 
+            images.push(cleanUrl); 
+          }
         });
 
         if (images.length === 0) {
           clone.querySelectorAll('img').forEach(function(img) {
             var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
             var cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl && !seen.has(cleanUrl)) { seen.add(cleanUrl); images.push(cleanUrl); }
+            
+            // 👇 Check against the badPosters array!
+            if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
+              seen.add(cleanUrl); 
+              images.push(cleanUrl); 
+            }
           });
         }
         return images;
       })()
     `)) as string[];
 
-    // ─── STEP 5: Video ────────────────────────────────────────────────────────
-    const cleanVideo = (await page
+    // ─── STEP 5: Videos (Extract ALL valid videos) ────────────────────────────
+    const cleanVideos = (await page
       .evaluate(
         `
       (function() {
         var videos = Array.from(document.querySelectorAll('video'));
+        var validVideos = [];
 
         for (var i = 0; i < videos.length; i++) {
           var v = videos[i];
 
-          // 👇 DEFENSE 1: Ignore Zara's specific cross-sell and footer sections
+          // Ignore Zara's specific cross-sell and footer sections
           if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) {
             continue;
           }
 
-          // Extract the URL from the video or its <source> tag
           var src = v.getAttribute('src') || v.getAttribute('data-src');
           if (!src) {
             var source = v.querySelector('source[type="video/mp4"], source');
@@ -302,16 +316,29 @@ export async function scrapeZaraProductData(
             }
           }
 
-          // 👇 DEFENSE 2: Reject blobs and campaign URLs
-          if (src && !src.startsWith('blob:') && !src.includes('campaign') && !src.includes('banner')) {
-            return src; // We found the true product video!
+          // 👇 STRICT DEFENSE: Reject blobs and all known non-product video types
+          if (src && !src.startsWith('blob:')) {
+            var lowerSrc = src.toLowerCase();
+            
+            // 👇 ADDED 'editorial' and 'background' to the Zara armor!
+            if (
+              !lowerSrc.includes('campaign') && 
+              !lowerSrc.includes('banner') && 
+              !lowerSrc.includes('promo') &&
+              !lowerSrc.includes('editorial') &&
+              !lowerSrc.includes('background')
+            ) {
+              if (validVideos.indexOf(src) === -1) {
+                validVideos.push(src);
+              }
+            }
           }
         }
-        return null;
+        return validVideos;
       })()
     `,
       )
-      .catch(() => null)) as string | null;
+      .catch(() => [])) as string[];
 
     // ─── STEP 6: Sizes — click add-to-cart to reveal selector ─────────────────
     try {
@@ -362,7 +389,7 @@ export async function scrapeZaraProductData(
       brand: "Zara",
       // @ts-ignore
       images: rawImages,
-      video: cleanVideo || undefined,
+      videos: cleanVideos.length > 0 ? cleanVideos : undefined,
       link: url,
       timestamp: new Date(),
       color: cleanColor,
@@ -386,9 +413,20 @@ export async function getProductLinksFromCategory(
   console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
 
   try {
-    // Give Zara's heavy frontend time to load the initial grid
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 45000 });
+    // 👇 FIX 1: Reverted to domcontentloaded so tracking pixels don't cause a timeout
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+
+    // Give Zara's React frontend a few seconds to hydrate the DOM
     await new Promise((r) => setTimeout(r, 4000));
+
+    // 👇 FIX 2: Wait for at least one product link to appear before scrolling
+    try {
+      await page.waitForSelector(".product-link", { timeout: 10000 });
+    } catch (e) {
+      console.log(
+        "  --> ⚠️ Initial grid didn't load immediately. Forcing scroll...",
+      );
+    }
 
     let productLinks: string[] = [];
     const maxRetries = 3;
@@ -396,15 +434,14 @@ export async function getProductLinksFromCategory(
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract Zara links...`);
 
-      // 1. The Deep Auto-Scroller
       console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
       await page.evaluate(`
         (function() {
           return new Promise(function(resolve) {
             var totalHeight = 0;
-            var distance = 600; // Jump about one row of clothes
+            var distance = 600; 
             var scrolls = 0;
-            var maxScrolls = 30; // Deep scroll to unearth the grid
+            var maxScrolls = 30; 
             
             var timer = setInterval(function() {
               var scrollHeight = document.body.scrollHeight;
@@ -412,7 +449,6 @@ export async function getProductLinksFromCategory(
               totalHeight += distance;
               scrolls++;
 
-              // Stop if we hit the actual bottom OR we reach our scroll limit
               if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
                 clearInterval(timer);
                 resolve(undefined);
@@ -422,26 +458,23 @@ export async function getProductLinksFromCategory(
         })()
       `);
 
-      // Let the network catch up and DOM hydrate
       await new Promise((r) => setTimeout(r, 2000));
 
-      // 2. Extract Links
       productLinks = (await page.evaluate(`
         (function() {
           return Array.from(document.querySelectorAll('.product-link'))
             .map(function(el) { return el.href; })
             .filter(function(href) { return href && href !== ''; })
-            .map(function(href) { return href.split('?')[0]; }) // Clean tracking params
-            .filter(function(href, index, self) { return self.indexOf(href) === index; }); // Deduplicate
+            .map(function(href) { return href.split('?')[0]; }) 
+            .filter(function(href, index, self) { return self.indexOf(href) === index; }); 
         })()
       `)) as string[];
 
-      // 3. Success Check
       if (productLinks.length > 0) {
         console.log(
           `  --> ✅ Success! Found ${productLinks.length} product links.`,
         );
-        break; // Escape the retry loop!
+        break;
       }
 
       console.log(
@@ -458,9 +491,10 @@ export async function getProductLinksFromCategory(
     }
 
     return productLinks;
-  } catch (error) {
+  } catch (error: any) {
+    // 👇 FIX 3: Added the actual error message so we can see if anything else is breaking!
     console.log(
-      `  --> ⚠️ Error finding links on this Zara page. Timeout or crash.`,
+      `  --> ⚠️ Error finding links on this Zara page: ${error.message}`,
     );
     return [];
   }

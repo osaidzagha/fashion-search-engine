@@ -6,49 +6,88 @@ const synonymMap: Record<string, string> = {
   // ── BOTTOMS ──
   pants: "trousers chino cargo pant slacks pants",
   trousers: "trousers pant pants chino slacks",
-  jeans: "denim jean jeans", // Removed "jogger" (joggers are usually sweatpants, not denim)
-  joggers: "jogger sweatpant sweatpants track", // Added dedicated category
+  jeans: "denim jean jeans",
+  joggers: "jogger sweatpant sweatpants track",
   shorts: "bermuda shorts trunks",
-  skirt: "skirt skort", // Removed midi/maxi to prevent bleeding into dresses
+  skirt: "skirt skort",
 
   // ── TOPS ──
-  tshirt: "tee t-shirt tshirt graphic basic", // Removed "top" and "shirt" to prevent button-down bleed
+  top: "shirt blouse tee tshirt crop tank corset",
+  tops: "shirt blouse tee tshirt crop tank corset",
+  tshirt: "tee t-shirt tshirt graphic basic",
   "t-shirt": "tee t-shirt tshirt graphic basic",
-  shirt: "button-down button-up overshirt shirt blouse", // Added specific shirt terms
-  polo: "polo pique", // Removed "knit" and "shirt" to keep it strictly polos
+  shirt: "button-down button-up overshirt shirt blouse",
+  polo: "polo pique",
 
   // ── LAYERS & OUTERWEAR ──
   hoodie: "sweatshirt hooded zip hoodie",
   sweater: "knitwear pullover knit jumper sweater cardigan",
   jumper: "knitwear pullover knit jumper sweater cardigan",
-  jacket: "jacket bomber windbreaker puffer anorak", // Removed "coat" (coats are longer)
-  coat: "coat overcoat trench parka peacoat outerwear", // Removed "jacket"
-  suit: "suit tuxedo tailoring", // Stripped out 'blazer' & 'trousers' to stop the grid bug!
-  blazer: "blazer sportcoat", // Gave blazer its own strict entry
+  jacket: "jacket bomber windbreaker puffer anorak",
+  coat: "coat overcoat trench parka peacoat outerwear",
+  suit: "suit tuxedo tailoring",
+  blazer: "blazer sportcoat",
 
   // ── ONE-PIECES ──
-  dress: "dress gown", // Removed midi/maxi to prevent bleeding into skirts
+  dress: "dress gown",
 
   // ── FOOTWEAR & ACCESSORIES ──
   shoes: "sneaker boot trainer loafer shoe sandal",
   bag: "bag purse tote clutch crossbody backpack",
 
   // ── MATERIALS (Keep these extremely strict) ──
-  linen: "linen flax", // Removed "summer light" (too broad)
+  linen: "linen flax",
   denim: "denim jean jeans",
   leather: "leather faux nappa suede",
 };
 
-// ─── Exclusion map (Anti-Pollution) ──────────────────────────────────────────
-// 👇 NEW: If they search the key, BAN these words from the results
+// ─── The Master Exclusion Map (Enterprise Grade) ─────────────────────────
 const excludeMap: Record<string, string> = {
+  // --- BOTTOMS ---
   trousers: "short shorts suit blazer dress skirt",
   pant: "short shorts suit blazer dress skirt",
   pants: "short shorts suit blazer dress skirt",
-  jeans: "short shorts skirt dress",
-  shirt: "jacket coat blazer overshirt",
-  jacket: "shirt",
-  coat: "shirt",
+  jeans: "short shorts skirt dress jacket shirt",
+  short: "sleeve dress jacket coat boot boots skirt", // Blocks "short sleeve", "short dress"
+  shorts: "sleeve dress jacket coat boot boots skirt",
+
+  // --- TOPS & OUTERWEAR ---
+  shirt: "jacket coat blazer overshirt dress skirt pant trousers", // Blocks "shirt dress"
+  top: "jacket coat bag handle stitched shoe sneakers skirt pants",
+  tops: "jacket coat bag handle stitched shoe sneakers skirt pants",
+  jacket: "shirt dress skirt pants",
+  coat: "shirt dress skirt pants",
+  sweater: "sweatpant sweatpants jogger joggers", // Blocks sweatpants when searching sweaters
+  sweatpant: "sweater cardigan",
+  sweatpants: "sweater cardigan",
+
+  // --- THE DRESS & SUIT TRAPS ---
+  dress: "shirt pant pants trouser trousers shoe shoes boot boots sneaker", // Blocks "dress shirt", "dress shoes"
+  suit: "swimsuit tracksuit bodysuit jumpsuit playsuit romper", // Blocks "swimsuit", "tracksuit"
+
+  // --- SHOES ---
+  boot: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+  boots: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+  shoe: "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree", // Blocks "shoe horn"
+  shoes:
+    "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
+  sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+  sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+
+  // --- BAGS ---
+  bag: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
+  bags: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
+  trunk: "swimsuit swim boardshort", // Blocks "swim trunks" when looking for luggage trunks
+  trunks: "luggage suitcase bag", // Blocks "luggage trunk" when looking for swim trunks
+
+  // --- ACCESSORIES & JEWELRY ---
+  belt: "jeans pant pants trousers trouser skirt dress shirt jacket coat", // Blocks "belted coat"
+  belts: "jeans pant pants trousers trouser skirt dress shirt jacket coat",
+  tie: "dye waist front dress shirt blouse pant pants", // Blocks "tie-dye", "tie-waist"
+  ties: "dye waist front dress shirt blouse pant pants",
+  chain: "bag handbag shoe shoes boot boots loafer loafers", // Blocks "chain-strap bag"
+  ring: "zip zipper detail bag shoe neck", // Blocks "O-ring zipper", "ring-neck tee"
+  watch: "cap beanie hat", // Blocks "watch cap"
 };
 
 function expandSearch(raw: string): string {
@@ -116,13 +155,12 @@ export const getProducts = async (req: Request, res: Response) => {
 
     let filter: any = { ...baseFilter };
 
-    // Catch both 'search' and 'q' so the backend never ignores the frontend
+    // Catch both 'search' and 'q'
     const rawSearch = (
       (req.query.search as string) || (req.query.q as string)
     )?.trim();
 
     if (rawSearch) {
-      // Clean the input (remove hyphens so they don't break the strict AND logic)
       const cleanSearch = rawSearch.replace(/[-&|©]/g, " ");
       const userWords = cleanSearch
         .toLowerCase()
@@ -130,63 +168,70 @@ export const getProducts = async (req: Request, res: Response) => {
         .filter((w) => w.length > 0);
 
       if (userWords.length > 0) {
-        // 1. Build a strict AND array for the user's words
-        const andConditions = userWords.map((word) => {
-          const isPlural =
-            word.endsWith("s") &&
-            !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
-          const singular = isPlural ? word.slice(0, -1) : word;
+        let textSearchTerms: string[] = [];
+        let excludeTerms: string[] = [];
 
-          const mappedSynonyms = synonymMap[word] || synonymMap[singular];
-          const synonymsString = mappedSynonyms
-            ? `${word} ${mappedSynonyms}`
-            : word;
-
-          const searchTerms = Array.from(
-            new Set(synonymsString.split(/\s+/).filter((w) => w.length > 0)),
-          );
-
-          const orArray = searchTerms.flatMap((term) => {
-            const safeTerm = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const regex = new RegExp(safeTerm, "i");
-            return [{ name: regex }, { category: regex }, { color: regex }];
-          });
-
-          return { $or: orArray };
-        });
-
-        // 👇 2. NEW: Build an exclusion list based on the user's words
-        const excludeTerms: string[] = [];
         userWords.forEach((word) => {
           const isPlural =
             word.endsWith("s") &&
             !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
           const singular = isPlural ? word.slice(0, -1) : word;
 
+          // Add the base word
+          textSearchTerms.push(word);
+
+          // Add synonyms
+          const mappedSynonyms = synonymMap[word] || synonymMap[singular];
+          if (mappedSynonyms) {
+            textSearchTerms.push(...mappedSynonyms.split(/\s+/));
+          }
+
+          // Gather exclusions
           const mappedExcludes = excludeMap[word] || excludeMap[singular];
           if (mappedExcludes) {
-            excludeTerms.push(...mappedExcludes.split(" "));
+            excludeTerms.push(...mappedExcludes.split(/\s+/));
           }
         });
 
-        // 3. Attach the AND conditions to the base filter
-        filter = {
-          ...baseFilter,
-          $and: andConditions,
-        };
+        const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
+        const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
 
-        // 👇 4. NEW: If we found words to exclude, ban them from the name and category!
-        if (excludeTerms.length > 0) {
-          const excludePattern = excludeTerms.join("|");
+        // 👇 THE FIX: Build the MongoDB $text string!
+        // MongoDB uses a minus sign to exclude words: -word
+        let finalMongoSearchString = uniqueSearchTerms.join(" ");
+
+        if (uniqueExcludeTerms.length > 0) {
+          finalMongoSearchString +=
+            " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
+        }
+
+        // Apply the powerful native $text search!
+        filter.$text = { $search: finalMongoSearchString };
+
+        // Keep the manual exclusion regex as a backup safety net
+        if (uniqueExcludeTerms.length > 0) {
+          const excludePattern = uniqueExcludeTerms.join("|");
           const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
 
+          filter.$and = filter.$and || [];
           filter.$and.push({ name: { $not: excludeRegex } });
           filter.$and.push({ category: { $not: excludeRegex } });
         }
       }
     }
+
+    // 👇 THE RELEVANCE UPGRADE
+    let projection: any = {};
+    // If doing a text search AND the user hasn't explicitly sorted by Price,
+    // we MUST sort by MongoDB's internal text relevance score so the best matches appear first!
+    if (filter.$text && Object.keys(sortOption).length === 0) {
+      projection = { score: { $meta: "textScore" } };
+      sortOption = { score: { $meta: "textScore" } };
+    }
+
     const [allProducts, total] = await Promise.all([
-      ProductModel.find(filter)
+      // Pass the projection into the .find() method
+      ProductModel.find(filter, projection)
         .sort(Object.keys(sortOption).length ? sortOption : { timestamp: -1 })
         .skip(skip)
         .limit(limit),
@@ -252,7 +297,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
           : "\\b(woman|women|womens|women's)\\b";
       deptFilter.department = { $regex: regexStr, $options: "i" };
     }
-    // 👇 2. Add ...deptFilter to every single query inside Promise.allSettled
     const [
       onSaleRaw,
       newInZara,
@@ -358,7 +402,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching featured:", error);
-    // ✅ Always return a valid shape so the frontend doesn't crash
     res.status(200).json({
       onSale: [],
       newIn: { zara: [], massimo: [] },
@@ -388,15 +431,12 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
 
     const suggestions = new Set<string>();
 
-    // Suggest the exact phrase they are typing
     suggestions.add(q.toLowerCase());
 
-    // Suggest exact product names that match
     products.forEach((p) => {
       suggestions.add(p.name.toLowerCase());
     });
 
-    // Clean up, convert to Title Case, and limit to 6 clean results
     const finalList = Array.from(suggestions)
       .slice(0, 6)
       .map((str) =>
@@ -431,7 +471,6 @@ export const getCategories = async (req: Request, res: Response) => {
       "Polos",
     ];
 
-    // 👇 1. Build the department filter (Same logic you use in getProducts!)
     const deptFilter: any = {};
     if (req.query.departments) {
       const depts = (req.query.departments as string).split(",");
@@ -454,9 +493,8 @@ export const getCategories = async (req: Request, res: Response) => {
           ? cat.toLowerCase().slice(0, -1)
           : cat.toLowerCase();
 
-        // 👇 2. Inject the deptFilter into the database check
         const productExists = await ProductModel.exists({
-          ...deptFilter, // <--- Only look for categories IN THIS DEPARTMENT
+          ...deptFilter,
           $or: [
             { name: { $regex: singular, $options: "i" } },
             { category: { $regex: singular, $options: "i" } },

@@ -5,6 +5,7 @@ export interface IProduct extends Document {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number;
   currency: string;
   brand: string;
   images: string[];
@@ -18,7 +19,7 @@ export interface IProduct extends Document {
   sizes?: string[];
 
   // FIX 1: Pure TypeScript types!
-  video?: string;
+  videos?: string[];
   priceHistory?: { price: number; date: Date }[];
 }
 
@@ -41,7 +42,7 @@ const ProductSchema: Schema = new Schema({
   sizes: { type: [String], default: [] },
 
   // FIX 2: Added the Mongoose configurations here!
-  video: { type: String, required: false },
+  videos: { type: [String], required: false },
   priceHistory: [
     {
       price: { type: Number },
