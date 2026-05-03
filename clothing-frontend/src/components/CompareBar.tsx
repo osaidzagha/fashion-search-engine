@@ -1,94 +1,44 @@
+// src/components/CompareBar.tsx
 import { useCompare } from "../context/CompareContext";
-import { theme } from "../styles/theme";
 
-// Inject animation styles once
-if (
-  typeof document !== "undefined" &&
-  !document.getElementById("cbar-styles")
-) {
-  const s = document.createElement("style");
-  s.id = "cbar-styles";
-  s.textContent = `
-    @keyframes cbar-slideUp {
-      from { transform: translateY(100%); opacity: 0; }
-      to   { transform: translateY(0);   opacity: 1; }
-    }
-    @keyframes cbar-itemIn {
-      from { transform: scale(0.85); opacity: 0; }
-      to   { transform: scale(1);    opacity: 1; }
-    }
-    .cbar-compare-btn:hover { background: ${theme.colors.textPrimary} !important; color: ${theme.colors.bgPrimary} !important; }
-    .cbar-clear-btn:hover   { color: ${theme.colors.textPrimary} !important; }
-    .cbar-remove-btn:hover  { background: ${theme.colors.bgHover} !important; }
-  `;
-  document.head.appendChild(s);
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// The entire document.createElement('style') block has been deleted.
+// All hover effects are now handled by Tailwind's hover: variants directly
+// on the elements — zero runtime JS, zero specificity wars.
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function CompareBar() {
   const { compareList, removeFromCompare, openOverlay, clearCompare } =
     useCompare();
 
-  // Don't render if nothing selected
   if (compareList.length === 0) return null;
 
   const canCompare = compareList.length === 2;
 
   return (
     <div
-      style={{
-        position: "fixed",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 800,
-        background: theme.colors.bgPrimary,
-        borderTop: `1px solid ${theme.colors.borderDark}`,
-        padding: "14px 40px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: "24px",
-        animation: "cbar-slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
-      }}
+      className="
+        fixed bottom-0 left-0 right-0 z-[800]
+        bg-bgPrimary dark:bg-bgPrimary-dark
+        border-t border-borderDark dark:border-borderDark-dark
+        py-3.5 px-10
+        flex items-center justify-between gap-6
+        animate-slide-up
+        transition-colors duration-500 ease-smooth
+      "
     >
-      {/* Left: label */}
-      <div style={{ flexShrink: 0 }}>
-        <p
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "8px",
-            letterSpacing: "0.28em",
-            textTransform: "uppercase",
-            color: theme.colors.textMuted,
-            margin: "0 0 2px",
-          }}
-        >
+      {/* ── Left: Label ── */}
+      <div className="flex-shrink-0">
+        <p className="font-sans text-[8px] tracking-[0.28em] uppercase text-textMuted dark:text-textMuted-dark mb-0.5">
           Comparing
         </p>
-        <p
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontStyle: "italic",
-            fontSize: "14px",
-            color: theme.colors.textSecondary,
-            margin: 0,
-          }}
-        >
+        <p className="font-heading italic text-sm text-textSecondary dark:text-textSecondary-dark">
           {compareList.length} / 2 selected
         </p>
       </div>
 
-      {/* Center: product slots */}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        {/* Slot 1 */}
+      {/* ── Center: Product Slots ── */}
+      <div className="flex gap-2.5 flex-1 justify-center items-center">
         {compareList[0] ? (
           <ProductSlot
             product={compareList[0]}
@@ -98,20 +48,10 @@ export function CompareBar() {
           <EmptySlot label="Add first item" />
         )}
 
-        {/* VS divider */}
-        <div
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontStyle: "italic",
-            fontSize: "16px",
-            color: theme.colors.borderLight,
-            flexShrink: 0,
-          }}
-        >
+        <span className="font-heading italic text-base text-borderLight dark:text-borderLight-dark flex-shrink-0 select-none">
           vs
-        </div>
+        </span>
 
-        {/* Slot 2 */}
         {compareList[1] ? (
           <ProductSlot
             product={compareList[1]}
@@ -122,53 +62,43 @@ export function CompareBar() {
         )}
       </div>
 
-      {/* Right: actions */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          flexShrink: 0,
-        }}
-      >
+      {/* ── Right: Actions ── */}
+      <div className="flex items-center gap-3 flex-shrink-0">
         <button
-          className="cbar-clear-btn"
           onClick={clearCompare}
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "9px",
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: theme.colors.textMuted,
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            padding: 0,
-            transition: "color 0.2s ease",
-          }}
+          aria-label="Clear all comparisons"
+          className="
+            font-sans text-[9px] tracking-[0.18em] uppercase
+            text-textMuted dark:text-textMuted-dark
+            bg-transparent border-none p-0 cursor-pointer
+            transition-colors duration-200 ease-smooth
+            hover:text-textPrimary dark:hover:text-textPrimary-dark
+          "
         >
           Clear
         </button>
 
         <button
-          className="cbar-compare-btn"
           onClick={openOverlay}
           disabled={!canCompare}
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "10px",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: canCompare ? theme.colors.bgPrimary : theme.colors.textMuted,
-            background: canCompare
-              ? theme.colors.textPrimary
-              : theme.colors.borderDark,
-            border: "none",
-            cursor: canCompare ? "pointer" : "not-allowed",
-            padding: "10px 24px",
-            transition: "all 0.2s ease",
-            fontWeight: 500,
-          }}
+          aria-disabled={!canCompare}
+          aria-label={
+            canCompare ? "Open comparison overlay" : "Select 2 items to compare"
+          }
+          className={`
+            font-sans text-[10px] tracking-[0.22em] uppercase font-medium
+            border-none px-6 py-2.5
+            transition-all duration-200 ease-smooth
+            ${
+              canCompare
+                ? `bg-textPrimary dark:bg-textPrimary-dark
+                   text-bgPrimary dark:text-bgPrimary-dark
+                   cursor-pointer hover:opacity-90`
+                : `bg-bgHover dark:bg-bgHover-dark
+                   text-textMuted dark:text-textMuted-dark
+                   cursor-not-allowed`
+            }
+          `}
         >
           Compare →
         </button>
@@ -177,7 +107,7 @@ export function CompareBar() {
   );
 }
 
-// ── Product slot ──────────────────────────────────────────────────────────────
+// ── Product Slot ──────────────────────────────────────────────────────────────
 function ProductSlot({
   product,
   onRemove,
@@ -187,50 +117,41 @@ function ProductSlot({
 }) {
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "10px",
-        background: theme.colors.bgSecondary,
-        border: `1px solid ${theme.colors.borderDark}`,
-        padding: "6px 10px 6px 6px",
-        animation: "cbar-itemIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both",
-        maxWidth: "220px",
-      }}
+      className="
+        flex items-center gap-2.5 max-w-[220px]
+        bg-bgSecondary dark:bg-bgSecondary-dark
+        border border-borderDark dark:border-borderDark-dark
+        py-1.5 pr-2.5 pl-1.5
+        animate-item-in
+        transition-colors duration-300 ease-smooth
+      "
     >
       {/* Thumbnail */}
       <div
-        style={{
-          width: "36px",
-          height: "46px",
-          flexShrink: 0,
-          overflow: "hidden",
-          background: theme.colors.bgHover,
-        }}
+        className="
+          w-9 h-[46px] flex-shrink-0 overflow-hidden
+          bg-bgHover dark:bg-bgHover-dark
+          transition-colors duration-300 ease-smooth
+        "
       >
         {product.images?.[0] && (
           <img
             src={product.images[0]}
             alt={product.name}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            className="w-full h-full object-cover"
           />
         )}
       </div>
 
       {/* Info */}
-      <div style={{ minWidth: 0, flex: 1 }}>
+      <div className="min-w-0 flex-1">
         <p
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "9px",
-            letterSpacing: "0.06em",
-            color: theme.colors.textPrimary,
-            margin: "0 0 2px",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            maxWidth: "120px",
-          }}
+          className="
+            font-sans text-[9px] tracking-[0.06em]
+            text-textPrimary dark:text-textPrimary-dark
+            mb-0.5 truncate max-w-[120px]
+            transition-colors duration-300 ease-smooth
+          "
         >
           {product.name
             .split(" ")
@@ -241,12 +162,11 @@ function ProductSlot({
             .join(" ")}
         </p>
         <p
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontSize: "13px",
-            color: theme.colors.textMuted,
-            margin: 0,
-          }}
+          className="
+            font-heading text-[13px]
+            text-textMuted dark:text-textMuted-dark
+            transition-colors duration-300 ease-smooth
+          "
         >
           {product.price.toLocaleString("tr-TR")} {product.currency}
         </p>
@@ -254,23 +174,17 @@ function ProductSlot({
 
       {/* Remove */}
       <button
-        className="cbar-remove-btn"
         onClick={onRemove}
-        style={{
-          flexShrink: 0,
-          width: "20px",
-          height: "20px",
-          background: theme.colors.borderDark,
-          border: "none",
-          cursor: "pointer",
-          color: theme.colors.textMuted,
-          fontSize: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background 0.15s ease",
-          borderRadius: "0",
-        }}
+        aria-label={`Remove ${product.name} from comparison`}
+        className="
+          flex-shrink-0 w-5 h-5
+          flex items-center justify-center
+          bg-borderDark dark:bg-borderLight-dark
+          border-none cursor-pointer
+          text-textMuted dark:text-textMuted-dark text-[10px] leading-none
+          transition-colors duration-150 ease-smooth
+          hover:bg-bgHover dark:hover:bg-bgHover-dark
+        "
       >
         ×
       </button>
@@ -278,29 +192,22 @@ function ProductSlot({
   );
 }
 
-// ── Empty slot ────────────────────────────────────────────────────────────────
+// ── Empty Slot ────────────────────────────────────────────────────────────────
 function EmptySlot({ label }: { label: string }) {
   return (
     <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: "200px",
-        height: "58px",
-        border: `1px dashed ${theme.colors.borderLight}`,
-        background: "transparent",
-      }}
+      className="
+        flex items-center justify-center
+        w-[200px] h-[58px]
+        border border-dashed border-borderLight dark:border-borderLight-dark
+        transition-colors duration-300 ease-smooth
+      "
     >
       <p
-        style={{
-          fontFamily: theme.fonts.sans,
-          fontSize: "8px",
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          color: theme.colors.borderLight,
-          margin: 0,
-        }}
+        className="
+          font-sans text-[8px] tracking-[0.2em] uppercase
+          text-borderLight dark:text-borderLight-dark
+        "
       >
         {label}
       </p>

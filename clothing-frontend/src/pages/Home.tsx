@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
@@ -6,8 +6,7 @@ import { Product } from "../types";
 import { SearchBar } from "../components/SearchBar";
 import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
-import SaleCard from "../components/SaleCard";
-import { setBrands, setSearchTerm, clearFilters } from "../store/productSlice";
+import { setSearchTerm, clearFilters } from "../store/productSlice";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -15,6 +14,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 interface FeaturedData {
   onSale: Product[];
   newIn: { zara: Product[]; massimo: Product[] };
+  withVideo: Product[];
   categoryTiles: {
     jackets: Product | null;
     shirts: Product | null;
@@ -32,60 +32,21 @@ function getMosaicImages(featured: FeaturedData): Product[] {
   return pool.sort(() => 0.5 - Math.random()).slice(0, 6);
 }
 
-// ─── Category pills config ────────────────────────────────────────────────────
-const CATEGORIES = [
-  { label: "All", query: "" },
-  { label: "Jackets", query: "jacket" },
-  { label: "Shirts", query: "shirt" },
-  { label: "Trousers", query: "trousers" },
-  { label: "Knitwear", query: "knitwear" },
-  { label: "Suits", query: "suit" },
-  { label: "Denim", query: "jeans" },
-  { label: "Sweatshirts", query: "sweatshirt" },
-  { label: "Outerwear", query: "coat" },
-  { label: "Polo", query: "polo" },
-];
+// ── Exact regex per spec — allows shoes, bags, hats; blocks hair/fragrance/jewellery ──
+const NON_CLOTHING_RE =
+  /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
 
-// ─── CSS injection ────────────────────────────────────────────────────────────
-if (
-  typeof document !== "undefined" &&
-  !document.getElementById("home-keyframes")
-) {
-  const style = document.createElement("style");
-  style.id = "home-keyframes";
-  style.textContent = `
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(18px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    @keyframes imgReveal {
-      from { opacity: 0; transform: scale(1.04); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    .mosaic-img { transition: transform 0.6s ease; }
-    .mosaic-img:hover { transform: scale(1.03) !important; }
-    .sale-card { transition: transform 0.3s ease; cursor: pointer; }
-    .sale-card:hover { transform: translateY(-4px); }
-    .cat-pill { transition: all 0.2s ease; }
-    .cat-pill:hover { background: #1a1a1a !important; color: #fff !important; border-color: #1a1a1a !important; }
-    .view-all-btn { transition: opacity 0.2s ease; }
-    .view-all-btn:hover { opacity: 0.6 !important; }
-    
-    /* Cross-browser scrollbar hiding for our carousels */
-    .hide-scrollbar {
-      -ms-overflow-style: none;  /* IE and Edge */
-      scrollbar-width: none;  /* Firefox */
-    }
-    .hide-scrollbar::-webkit-scrollbar {
-      display: none; /* Chrome, Safari and Opera */
-    }
-  `;
-  document.head.appendChild(style);
+function isClothing(p: Product): boolean {
+  const text = `${p.name || ""} ${(p as any).category || ""} ${(p as any).subcategory || ""}`;
+  return !NON_CLOTHING_RE.test(text);
 }
+
+// ─── Shared carousel classes ──────────────────────────────────────────────────
+const CAROUSEL =
+  "flex gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
+
+const CARD_WRAPPER =
+  "min-w-[260px] max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
@@ -97,15 +58,13 @@ export default function Home() {
 
   const [featured, setFeatured] = useState<FeaturedData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState("");
-  const stripRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchFeatured = async () => {
       setLoading(true);
       try {
         const queryParams = new URLSearchParams();
-        if (selectDepartments && selectDepartments.length > 0) {
+        if (selectDepartments?.length) {
           queryParams.set("departments", selectDepartments.join(","));
         }
         const res = await fetch(
@@ -122,179 +81,84 @@ export default function Home() {
     fetchFeatured();
   }, [selectDepartments]);
 
+  // ── Derived data ──────────────────────────────────────────────────────────
+
   const mosaicProducts = featured ? getMosaicImages(featured) : [];
-  const newInAll = featured
-    ? [...(featured.newIn.zara || []), ...(featured.newIn.massimo || [])]
-        .sort(
-          (a, b) =>
-            new Date(b.timestamp || 0).getTime() -
-            new Date(a.timestamp || 0).getTime(),
-        )
-        .slice(0, 12) // Show up to 12 in the carousel
+
+  // New In: zara + massimo sorted by recency, capped at 12
+  const allNewIn: Product[] = featured
+    ? [...(featured.newIn.zara || []), ...(featured.newIn.massimo || [])].sort(
+        (a, b) =>
+          new Date((b as any).timestamp || 0).getTime() -
+          new Date((a as any).timestamp || 0).getTime(),
+      )
     : [];
+  const newInAll = allNewIn.slice(0, 12);
+
+  // Editor's Choice: dedicated withVideo array from backend,
+  // with a final isClothing pass as a safety net.
+  // Fallback uses newInAll without sale items to keep it clean.
+  const videoProducts = (featured?.withVideo || []).filter(isClothing);
+  const fallbackProducts = newInAll.filter((p) => !p.originalPrice).slice(0, 4);
+  const editorChoiceProducts =
+    videoProducts.length > 0 ? videoProducts : fallbackProducts;
+
+  // Department overline label
+  const deptLabel =
+    selectDepartments?.[0] === "Men" || selectDepartments?.[0] === "MAN"
+      ? "Men's Collection"
+      : selectDepartments?.[0] === "Women" || selectDepartments?.[0] === "WOMAN"
+        ? "Women's Collection"
+        : "Zara · Massimo Dutti";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#f5f2ed" }}>
+    <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
       {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-      <section
-        style={{
-          display: "grid",
-          gridTemplateColumns: "42% 58%",
-          height: "calc(100vh - 57px)",
-          borderBottom: "1px solid #e0ddd8",
-        }}
-      >
+      <section className="grid grid-cols-[42%_58%] h-[calc(100vh-57px)] border-b border-borderLight dark:border-borderLight-dark">
         {/* LEFT — editorial text + search */}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            padding: "64px 56px 64px 64px",
-            borderRight: "1px solid #e0ddd8",
-            position: "relative",
-          }}
-        >
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.28em",
-              textTransform: "uppercase",
-              color: "#b0aca4",
-              margin: "0 0 32px",
-              animation: "fadeUp 0.6s ease 0.1s both",
-            }}
-          >
-            {selectDepartments?.[0] === "Men" ||
-            selectDepartments?.[0] === "MAN"
-              ? "Men's Collection"
-              : selectDepartments?.[0] === "Women" ||
-                  selectDepartments?.[0] === "WOMAN"
-                ? "Women's Collection"
-                : "Zara · Massimo Dutti"}
+        <div className="relative flex flex-col justify-center px-16 py-16 border-r border-borderLight dark:border-borderLight-dark">
+          <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
+            {deptLabel}
           </p>
 
-          <h1
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 300,
-              fontSize: "clamp(48px, 5.5vw, 80px)",
-              lineHeight: 1.0,
-              color: "#0f0f0d",
-              margin: "0 0 24px",
-              letterSpacing: "-0.01em",
-              animation: "fadeUp 0.6s ease 0.2s both",
-            }}
-          >
+          <h1 className="font-heading font-light text-[clamp(48px,5.5vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
             Fashion,
             <br />
-            <em style={{ fontStyle: "italic", color: "#6b6560" }}>tracked.</em>
+            <em className="italic text-textSecondary dark:text-textSecondary-dark">
+              tracked.
+            </em>
           </h1>
 
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "13px",
-              lineHeight: 1.65,
-              color: "#8a8580",
-              margin: "0 0 44px",
-              maxWidth: "320px",
-              animation: "fadeUp 0.6s ease 0.3s both",
-            }}
-          >
+          <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
             Compare prices across every brand. Track drops. Find the best time
             to buy.
           </p>
 
-          {/* Search Bar Container */}
-          <div
-            style={{
-              position: "relative",
-              zIndex: 20,
-              animation: "fadeUp 0.6s ease 0.4s both",
-            }}
-          >
+          <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both]">
             <SearchBar variant="hero" />
           </div>
 
-          {/* Dynamic Pills Container */}
-          <div
-            ref={stripRef}
-            className="hide-scrollbar"
-            style={{
-              position: "relative",
-              zIndex: 10,
-              marginTop: "24px", // Just one margin is enough!
-              animation: "fadeUp 0.6s ease 0.5s both",
-            }}
-          ></div>
-
-          <div
-            style={{
-              position: "absolute",
-              bottom: "32px",
-              left: "64px",
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "12px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: "#d4d0c8",
-              animation: "fadeIn 1s ease 0.8s both",
-            }}
-          >
+          {/* Wordmark watermark */}
+          <span className="absolute bottom-8 left-16 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
             Dope
-          </div>
+          </span>
         </div>
 
-        {/* RIGHT — product mosaic */}
-        <div
-          style={{
-            background: "#ede9e3",
-            padding: "12px",
-            overflow: "hidden",
-            animation: "fadeIn 0.8s ease 0.3s both",
-          }}
-        >
+        {/* RIGHT — product mosaic
+            bg-bgPrimary keeps it visually unified with the page —
+            the mosaic images themselves provide the visual contrast */}
+        <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-3 overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
           {loading ? (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <p
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontStyle: "italic",
-                  fontSize: "18px",
-                  color: "#c0bdb8",
-                }}
-              >
+            <div className="h-full flex items-center justify-center">
+              <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
                 Loading…
               </p>
             </div>
           ) : mosaicProducts.length >= 4 ? (
             <ProductMosaic products={mosaicProducts} />
           ) : (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <p
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontStyle: "italic",
-                  fontSize: "18px",
-                  color: "#c0bdb8",
-                }}
-              >
+            <div className="h-full flex items-center justify-center">
+              <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
                 Start scraping to see products here
               </p>
             </div>
@@ -302,161 +166,80 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══ SALE STRIP CAROUSEL ══════════════════════════════════════════════ */}
-      {!loading && featured?.onSale && featured.onSale.length > 0 && (
-        <section style={{ background: "#0f0f0d", padding: "48px 64px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: "32px",
-            }}
-          >
-            <div>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "9px",
-                  letterSpacing: "0.28em",
-                  textTransform: "uppercase",
-                  color: "#b94040",
-                  margin: "0 0 8px",
-                }}
-              >
-                Limited Time
-              </p>
-              <h2
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontWeight: 300,
-                  fontSize: "32px",
-                  color: "#f0ede8",
-                  margin: 0,
-                  letterSpacing: "0.02em",
-                }}
-              >
-                Price drops, right now.
+      {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════════ */}
+      {!loading && editorChoiceProducts.length > 0 && (
+        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-b border-borderLight dark:border-borderLight-dark">
+          <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
+            <div className="flex items-baseline gap-4">
+              <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                Editor's Choice
               </h2>
+              <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                {videoProducts.length > 0 ? "Hover to play" : "Curated picks"}
+              </span>
             </div>
-            <button
-              className="view-all-btn"
-              onClick={() => navigate("/collection/sale")}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                color: "#6b6560",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                opacity: 0.8,
-              }}
-            >
-              View all
-            </button>
           </div>
-
-          <div
-            className="hide-scrollbar"
-            style={{
-              display: "flex",
-              gap: "20px",
-              overflowX: "auto",
-              paddingBottom: "8px",
-              scrollSnapType: "x mandatory",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
-            {featured.onSale.map((p) => (
-              <SaleCard key={p.id} product={p} />
+          <div className={CAROUSEL}>
+            {editorChoiceProducts.map((p) => (
+              <div key={p.id} className={CARD_WRAPPER}>
+                <ProductCard product={p} />
+              </div>
             ))}
           </div>
         </section>
       )}
 
-      {/* ══ NEW IN CAROUSEL ══════════════════════════════════════════════════ */}
-      {!loading && newInAll.length > 0 && (
-        <section style={{ padding: "80px 64px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: "40px",
-              borderBottom: "1px solid #e0ddd8",
-              paddingBottom: "20px",
-            }}
-          >
-            <div
-              style={{ display: "flex", alignItems: "baseline", gap: "16px" }}
+      {/* ══ SALE STRIP ═══════════════════════════════════════════════════════ */}
+      {!loading && featured?.onSale && featured.onSale.length > 0 && (
+        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-12 border-b border-borderLight dark:border-borderLight-dark">
+          <div className="flex justify-between items-baseline mb-8">
+            <div>
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-2">
+                Limited Time
+              </p>
+              <h2 className="font-heading font-light text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
+                Price drops, right now.
+              </h2>
+            </div>
+            <button
+              onClick={() => navigate("/collection/sale")}
+              className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
             >
-              <h2
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontWeight: 300,
-                  fontSize: "28px",
-                  color: "#0f0f0d",
-                  margin: 0,
-                }}
-              >
+              View all
+            </button>
+          </div>
+          <div className={CAROUSEL}>
+            {featured.onSale.map((p) => (
+              <div key={p.id} className={CARD_WRAPPER}>
+                <ProductCard product={p} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
+      {!loading && newInAll.length > 0 && (
+        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20">
+          <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
+            <div className="flex items-baseline gap-4">
+              <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
                 New in
               </h2>
-              <span
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "9px",
-                  letterSpacing: "0.2em",
-                  textTransform: "uppercase",
-                  color: "#b0aca4",
-                }}
-              >
+              <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
                 Latest arrivals
               </span>
             </div>
             <button
-              className="view-all-btn"
               onClick={() => navigate("/collection/new-in")}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.16em",
-                textTransform: "uppercase",
-                color: "#8a8580",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-              }}
+              className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
             >
               See all →
             </button>
           </div>
-
-          {/* Replaced 4-column grid with horizontal snapping carousel */}
-          <div
-            className="hide-scrollbar"
-            style={{
-              display: "flex",
-              gap: "24px",
-              overflowX: "auto",
-              paddingBottom: "24px",
-              scrollSnapType: "x mandatory",
-              WebkitOverflowScrolling: "touch",
-            }}
-          >
+          <div className={CAROUSEL}>
             {newInAll.map((p) => (
-              <div
-                key={p.id}
-                style={{
-                  minWidth: "300px",
-                  maxWidth: "300px",
-                  flexShrink: 0,
-                  scrollSnapAlign: "start",
-                }}
-              >
+              <div key={p.id} className={CARD_WRAPPER}>
                 <ProductCard product={p} />
               </div>
             ))}
@@ -466,68 +249,25 @@ export default function Home() {
 
       {/* ══ BRAND SPLIT ══════════════════════════════════════════════════════ */}
       {!loading && featured && (
-        <section
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            borderTop: "1px solid #e0ddd8",
-          }}
-        >
+        <section className="grid grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
           {/* Zara */}
           <div
             onClick={() => {
-              dispatch(clearFilters()); // Wipe old filters (sizes, colors, prices)
-              dispatch(setSearchTerm("")); // Wipe the search bar
-              navigate("/collection/zara"); // Route to the new cinematic page
+              dispatch(clearFilters());
+              dispatch(setSearchTerm(""));
+              navigate("/collection/zara");
             }}
-            style={{
-              padding: "48px 64px",
-              borderRight: "1px solid #e0ddd8",
-              cursor: "pointer",
-              transition: "background 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#ede9e3")}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
+            className="flex items-center justify-between px-16 py-12 border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
           >
             <div>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "9px",
-                  letterSpacing: "0.24em",
-                  textTransform: "uppercase",
-                  color: "#b0aca4",
-                  margin: "0 0 8px",
-                }}
-              >
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
                 Brand
               </p>
-              <h3
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontWeight: 300,
-                  fontSize: "36px",
-                  color: "#0f0f0d",
-                  margin: 0,
-                  letterSpacing: "0.04em",
-                }}
-              >
+              <h3 className="font-heading font-light text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
                 Zara
               </h3>
             </div>
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.12em",
-                color: "#b0aca4",
-              }}
-            >
+            <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
               →
             </span>
           </div>
@@ -535,57 +275,21 @@ export default function Home() {
           {/* Massimo Dutti */}
           <div
             onClick={() => {
-              dispatch(clearFilters()); // Wipe old filters
-              dispatch(setSearchTerm("")); // Wipe the search bar
-              navigate("/collection/massimo-dutti"); // Route to the new cinematic page
+              dispatch(clearFilters());
+              dispatch(setSearchTerm(""));
+              navigate("/collection/massimo-dutti");
             }}
-            style={{
-              padding: "48px 64px",
-              cursor: "pointer",
-              transition: "background 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#ede9e3")}
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
+            className="flex items-center justify-between px-16 py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
           >
             <div>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "9px",
-                  letterSpacing: "0.24em",
-                  textTransform: "uppercase",
-                  color: "#b0aca4",
-                  margin: "0 0 8px",
-                }}
-              >
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
                 Brand
               </p>
-              <h3
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontWeight: 300,
-                  fontSize: "36px",
-                  color: "#0f0f0d",
-                  margin: 0,
-                  letterSpacing: "0.02em",
-                }}
-              >
+              <h3 className="font-heading font-light text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
                 Massimo Dutti
               </h3>
             </div>
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.12em",
-                color: "#b0aca4",
-              }}
-            >
+            <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
               →
             </span>
           </div>
@@ -593,36 +297,11 @@ export default function Home() {
       )}
 
       {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-      <footer
-        style={{
-          background: "#0f0f0d",
-          padding: "32px 64px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontWeight: 300,
-            fontSize: "15px",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: "#4a4744",
-          }}
-        >
+      <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-8 flex justify-between items-center border-t border-borderLight dark:border-borderLight-dark">
+        <span className="font-heading font-light text-[15px] tracking-editorial uppercase text-textSecondary dark:text-textSecondary-dark">
           Dope
         </span>
-        <span
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "9px",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "#3a3734",
-          }}
-        >
+        <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
           Price tracking · Zara & Massimo Dutti · Turkey
         </span>
       </footer>

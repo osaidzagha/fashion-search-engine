@@ -7,14 +7,14 @@ import {
   toggleColor,
   setMaxPrice,
 } from "../store/productSlice";
-import { X } from "lucide-react"; // Make sure you have lucide-react installed for the close icon
+import { X } from "lucide-react";
 
 interface FilterDrawerProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// ─── Helpers ───
+// ─── Helpers (Logic Intact) ───
 const LETTER_SIZE_ORDER = [
   "XXS",
   "XS",
@@ -43,12 +43,10 @@ function sortNumericSizes(sizes: string[]) {
   return sizes.sort((a, b) => parseInt(a) - parseInt(b));
 }
 
-// ─── Color mapper (Normalized) ───
+// ─── Color mapper ───
 const getColorHex = (colorName: string) => {
   if (!colorName) return "#E0E0E0";
-
   const safeColor = colorName.toLowerCase().trim();
-
   const map: Record<string, string> = {
     black: "#000000",
     white: "#ffffff",
@@ -67,17 +65,17 @@ const getColorHex = (colorName: string) => {
     anthracite: "#383e42",
     burgundy: "#800020",
   };
-
   return map[safeColor] || "#E0E0E0";
 };
-// ─── Minimalist Components ───
+
+// ─── Sub-Components ───
 function SectionHeader({ index, title }: { index: string; title: string }) {
   return (
-    <div className="flex gap-4 mb-6">
-      <span className="font-sans text-[10px] tracking-widest text-textSecondary uppercase">
+    <div className="flex gap-4 mb-6 transition-colors duration-500">
+      <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark uppercase">
         |{index}|
       </span>
-      <h3 className="font-sans text-[10px] tracking-widest text-textPrimary uppercase">
+      <h3 className="font-sans text-[10px] tracking-widest text-textPrimary dark:text-textPrimary-dark uppercase">
         {title}
       </h3>
     </div>
@@ -98,22 +96,30 @@ function FilterOption({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-4 w-full text-left group py-1"
+      className="flex items-center gap-4 w-full text-left group py-1 bg-transparent border-none cursor-pointer"
     >
       {colorSwatch ? (
         <div
-          className="w-3 h-3 border border-borderDark flex-shrink-0"
+          className="w-3 h-3 border border-borderLight dark:border-borderLight-dark flex-shrink-0 transition-colors"
           style={{ backgroundColor: colorSwatch }}
         />
       ) : (
         <span
-          className={`font-sans text-[10px] tracking-widest transition-colors ${active ? "text-textPrimary" : "text-transparent group-hover:text-borderDark"}`}
+          className={`font-sans text-[10px] tracking-widest transition-all duration-300 ${
+            active
+              ? "text-textPrimary dark:text-textPrimary-dark"
+              : "text-transparent group-hover:text-borderLight dark:group-hover:text-borderLight-dark"
+          }`}
         >
           ■
         </span>
       )}
       <span
-        className={`font-sans text-[10px] tracking-widest uppercase transition-colors ${active ? "text-textPrimary font-medium" : "text-textSecondary group-hover:text-textPrimary"}`}
+        className={`font-sans text-[10px] tracking-widest uppercase transition-all duration-300 ${
+          active
+            ? "text-textPrimary dark:text-textPrimary-dark font-medium"
+            : "text-textSecondary dark:text-textSecondary-dark group-hover:text-textPrimary dark:group-hover:text-textPrimary-dark"
+        }`}
       >
         {label}
       </span>
@@ -140,24 +146,28 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
 
   return (
     <>
-      {/* 1. The Dark Overlay Background */}
+      {/* 1. Backdrop Overlay */}
       <div
-        className={`fixed inset-0 bg-black/20 backdrop-blur-sm z-40 transition-opacity duration-500 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+        className={`fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-[150] transition-opacity duration-500 ${
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
         onClick={onClose}
       />
 
-      {/* 2. The Sliding Drawer */}
+      {/* 2. Sliding Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-[400px] bg-bgPrimary z-50 transform transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed top-0 right-0 h-full w-full max-w-[400px] bg-bgPrimary dark:bg-bgPrimary-dark z-[200] transform transition-transform duration-500 ease-elegant flex flex-col shadow-premium dark:shadow-premium-dark ${
+          isOpen ? "translate-x-0" : "translate-x-full"
+        }`}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-8 border-b border-borderDark/50">
-          <h2 className="font-sans text-[11px] tracking-[0.2em] uppercase text-textPrimary">
+        <div className="flex justify-between items-center p-8 border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500">
+          <h2 className="font-sans text-[11px] tracking-[0.2em] uppercase text-textPrimary dark:text-textPrimary-dark">
             Filters
           </h2>
           <button
             onClick={onClose}
-            className="p-2 hover:opacity-50 transition-opacity"
+            className="p-2 text-textPrimary dark:text-textPrimary-dark hover:opacity-50 transition-opacity bg-transparent border-none cursor-pointer"
           >
             <X size={18} strokeWidth={1} />
           </button>
@@ -165,7 +175,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-12 space-y-16 scrollbar-hide">
-          {/* ── 01 Curators ── */}
+          {/* Curator Section */}
           <div>
             <SectionHeader index="01" title="Curator" />
             <div className="flex flex-col gap-2 pl-10">
@@ -180,9 +190,9 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           </div>
 
-          {/* ── 02 Colours ── */}
+          {/* Colours Section */}
           {availableColors.length > 0 && (
-            <div>
+            <div className="animate-fade-in">
               <SectionHeader index="02" title="Colour" />
               <div className="flex flex-col gap-3 pl-10">
                 {availableColors.slice(0, 8).map((color) => (
@@ -195,7 +205,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
                   />
                 ))}
                 {availableColors.length > 8 && (
-                  <button className="text-left font-sans text-[9px] tracking-widest uppercase text-textSecondary hover:text-textPrimary mt-4 pl-7 transition-colors">
+                  <button className="text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark mt-4 pl-7 transition-colors bg-transparent border-none cursor-pointer">
                     View More
                   </button>
                 )}
@@ -203,7 +213,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           )}
 
-          {/* ── 03 Price (Minimal Slider) ── */}
+          {/* Price Section */}
           <div>
             <SectionHeader index="03" title="Price" />
             <div className="pl-10 pr-4">
@@ -222,13 +232,13 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
                     ),
                   )
                 }
-                className="w-full h-[1px] bg-textPrimary appearance-none cursor-pointer slider-thumb-minimal"
+                className="w-full h-[1px] bg-borderLight dark:bg-borderLight-dark appearance-none cursor-pointer slider-thumb-minimal accent-textPrimary dark:accent-textPrimary-dark"
               />
               <div className="flex justify-between mt-4">
-                <span className="font-sans text-[9px] tracking-widest text-textSecondary uppercase">
+                <span className="font-sans text-[9px] tracking-widest text-textMuted dark:text-textMuted-dark uppercase">
                   0 TL
                 </span>
-                <span className="font-sans text-[9px] tracking-widest text-textPrimary uppercase">
+                <span className="font-sans text-[9px] tracking-widest text-textPrimary dark:text-textPrimary-dark uppercase">
                   {maxPrice
                     ? `${maxPrice.toLocaleString("tr-TR")} TL`
                     : "15,000+ TL"}
@@ -237,9 +247,9 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           </div>
 
-          {/* ── 04 Sizes ── */}
+          {/* Sizes Section */}
           {availableSizes.length > 0 && (
-            <div>
+            <div className="animate-fade-in">
               <SectionHeader index="04" title="Size" />
               <div className="flex flex-col gap-2 pl-10">
                 {[...letterSizes, ...numericSizes, ...otherSizes].map(
@@ -258,16 +268,16 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
         </div>
 
         {/* Sticky Footer */}
-        <div className="p-8 border-t border-borderDark/50 bg-bgPrimary flex gap-4">
+        <div className="p-8 border-t border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark flex gap-4 transition-colors duration-500">
           <button
             onClick={() => dispatch(clearFilters())}
-            className="w-1/3 py-4 border border-borderDark text-textSecondary font-sans text-[10px] tracking-[0.2em] uppercase hover:text-textPrimary transition-colors duration-300"
+            className="flex-1 py-4 border border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:text-textPrimary dark:hover:text-textPrimary-dark transition-all duration-300 bg-transparent cursor-pointer"
           >
             Clear
           </button>
           <button
             onClick={onClose}
-            className="w-2/3 py-4 border border-textPrimary text-textPrimary font-sans text-[10px] tracking-[0.2em] uppercase hover:bg-textPrimary hover:text-bgPrimary transition-colors duration-300"
+            className="flex-[2] py-4 border border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:bg-bgHover dark:hover:bg-bgHover-dark hover:border-bgHover transition-all duration-300 cursor-pointer"
           >
             View Results
           </button>

@@ -62,7 +62,7 @@ export async function getMassimoCategories(
   const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
-    await page.goto(baseUrl, { waitUntil: "networkidle2", timeout: 90000 });
+    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 90000 });
     await dismissModals(page);
 
     console.log(`  --> Opening Mega Menu...`);

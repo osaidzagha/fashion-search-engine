@@ -1,28 +1,41 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Product } from "../types";
 import { Link } from "react-router-dom";
-import { useDispatch } from "react-redux";
 import { useCompare } from "../context/CompareContext";
-import { theme } from "../styles/theme";
 import { ProductSkeleton } from "./ProductSkeleton";
 
 interface ProductCardProps {
   product: Product;
 }
 
-// ✅ Added helper for the badge calculation
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function discountPercent(original: number, current: number): number {
   return Math.round(((original - current) / original) * 100);
 }
 
+/** Resolves a video URL from any of the four possible field shapes. */
+function resolveVideoSrc(p: any): string | undefined {
+  if (p.video) return p.video;
+  if (p.videoUrl) return p.videoUrl;
+  if (p.videos?.length) return p.videos[0];
+  if (p.media?.length) {
+    const hit = p.media.find(
+      (m: any) => m.type === "video" || m.url?.includes("mp4"),
+    );
+    if (hit) return hit.url;
+  }
+  return undefined;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export const ProductCard = ({ product }: ProductCardProps) => {
-  const [hovered, setHovered] = useState(false);
-
-  // 👇 NEW: Track when the heavy image finishes downloading
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const dispatch = useDispatch();
-  // 👇 Rip out Redux, use the new Context!
   const { compareList, addToCompare, removeFromCompare, isInCompare } =
     useCompare();
 
@@ -30,8 +43,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const isQueueFull = compareList.length >= 2 && !isComparing;
 
   const hasHoverImage = product.images && product.images.length > 1;
+  const videoSrc = resolveVideoSrc(product);
 
-  // ✅ Added Sale Logic
+  // Sale logic
   const isOnSale =
     product.originalPrice !== undefined &&
     product.originalPrice > product.price;
@@ -39,36 +53,89 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
+  const handleMouseEnter = () => {
+    setHovered(true);
+    if (videoRef.current) videoRef.current.play().catch(() => {});
+  };
+
+  const handleMouseLeave = () => {
+    setHovered(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
+
+  // When a video exists, suppress the static hover-image crossfade
+  const showHoverImage = hasHoverImage && !videoSrc;
+
   return (
     <Link
       to={`/product/${product.id}`}
-      className="block"
-      style={{ textDecoration: "none" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="group block no-underline cursor-pointer"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
-      {/* Image Container */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase">
-        {/* Skeleton as BASE layer */}
+      {/* ── Image / Video Container ───────────────────────────────────────── */}
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase dark:bg-bgHover-dark transition-colors duration-500 ease-smooth">
+        {/* Skeleton base layer */}
         {!isImageLoaded && <ProductSkeleton isCardMode={true} />}
 
-        {/* Primary Image */}
+        {/* Primary image */}
         {product.images && product.images.length > 0 && (
           <img
             src={product.images[0]}
             alt={product.name}
             onLoad={() => setIsImageLoaded(true)}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]
-        ${
-          isImageLoaded
-            ? "opacity-100 scale-100 blur-0"
-            : "opacity-0 scale-[1.06] blur-md"
-        }
-        ${hovered && hasHoverImage ? "lg:opacity-0" : ""}
-      `}
+            className={[
+              "absolute inset-0 w-full h-full object-cover",
+              "transition-all duration-700 ease-elegant",
+              isImageLoaded
+                ? "opacity-100 scale-100 blur-0"
+                : "opacity-0 scale-[1.06] blur-md",
+              // Fade out on hover — hand off to video if available, else hover image
+              (videoSrc && videoReady && hovered) || (showHoverImage && hovered)
+                ? "opacity-0"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
           />
         )}
-        {/* The Compare Button */}
+
+        {/* ── Video layer — crossfades over primary image on hover ── */}
+        {videoSrc && (
+          <video
+            ref={videoRef}
+            src={videoSrc}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onLoadedData={() => setVideoReady(true)}
+            className={[
+              "absolute inset-0 w-full h-full object-cover",
+              "transition-opacity duration-700 ease-elegant",
+              videoReady && hovered ? "opacity-100" : "opacity-0",
+            ].join(" ")}
+          />
+        )}
+
+        {/* Static hover image (only when no video) */}
+        {showHoverImage && (
+          <img
+            src={product.images[1]}
+            alt={`${product.name} alternate view`}
+            className="
+              absolute inset-0 w-full h-full object-cover
+              transition-all duration-700 ease-elegant
+              opacity-0 scale-[1.08]
+              group-hover:opacity-100 group-hover:scale-[1.03]
+            "
+          />
+        )}
+
+        {/* Compare button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -79,26 +146,19 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               addToCompare(product);
             }
           }}
-          style={{
-            position: "absolute",
-            top: "12px",
-            right: "12px",
-            zIndex: 10,
-            background: isComparing ? "#1a1a1a" : "rgba(255,255,255,0.9)",
-            color: isComparing ? "#fff" : "#1a1a1a",
-            border: "none",
-            borderRadius: "50%",
-            width: "32px",
-            height: "32px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: isQueueFull ? "not-allowed" : "pointer",
-            opacity: isQueueFull ? 0.4 : 1,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-            transition: "all 0.2s ease",
-          }}
+          disabled={isQueueFull && !isComparing}
           title={isComparing ? "Remove from Compare" : "Add to Compare"}
+          className={[
+            "absolute top-3 right-3 z-20 w-8 h-8 rounded-full border-none",
+            "flex items-center justify-center shadow-premium dark:shadow-premium-dark",
+            "transition-all duration-300 ease-smooth",
+            isComparing
+              ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark cursor-pointer"
+              : "bg-bgPrimary/90 dark:bg-bgPrimary-dark/90 text-textPrimary dark:text-textPrimary-dark hover:bg-bgHover dark:hover:bg-bgSecondary-dark",
+            isQueueFull && !isComparing
+              ? "opacity-40 cursor-not-allowed"
+              : "cursor-pointer opacity-100",
+          ].join(" ")}
         >
           <svg
             width="14"
@@ -112,169 +172,79 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </svg>
         </button>
 
-        {/* Hover image (From Layer 1) */}
-        {hasHoverImage && (
-          <img
-            src={product.images[1]}
-            alt={`${product.name} alternate view`}
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
-            style={{
-              opacity: hovered && isImageLoaded ? 1 : 0,
-              transform: hovered ? "scale(1.03)" : "scale(1.08)",
-            }}
-          />
-        )}
-
-        {/* ✅ THE NEW SALE BADGE (Top Left) */}
+        {/* Sale badge — top left */}
         {isOnSale && (
-          <div
-            style={{
-              position: "absolute",
-              top: 12,
-              left: 12,
-              zIndex: 10,
-              background: "#b94040",
-              color: "#fff",
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.12em",
-              padding: "4px 8px",
-              borderRadius: "2px",
-            }}
-          >
+          <div className="absolute top-3 left-3 z-10 bg-accentRed text-white font-sans text-[9px] tracking-widest px-2 py-1 rounded-[2px]">
             −{discount}%
           </div>
         )}
 
-        {/* Brand badge */}
+        {/* Video indicator badge — visible on hover when playing */}
+        {videoSrc && hovered && (
+          <span className="absolute bottom-10 left-3 z-20 flex items-center gap-1.5 px-2 py-1 bg-black/50 backdrop-blur-sm font-sans text-[8px] tracking-widest uppercase text-white transition-opacity duration-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-accentRed animate-pulse" />
+            Video
+          </span>
+        )}
+
+        {/* Brand badge — appears on hover */}
         <div
-          style={{
-            position: "absolute",
-            top: isOnSale ? 40 : 12,
-            left: 12,
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(4px)",
-            padding: "3px 8px",
-            transition: "opacity 0.3s ease, top 0.3s ease",
-            opacity: hovered ? 1 : 0,
-            zIndex: 5,
-          }}
+          className={[
+            "absolute left-3 z-[5] bg-bgPrimary/90 dark:bg-bgPrimary-dark/90 backdrop-blur-sm",
+            "px-2 py-1 transition-all duration-300 ease-smooth",
+            "opacity-0 group-hover:opacity-100",
+            isOnSale ? "top-10" : "top-3",
+          ].join(" ")}
         >
-          <span
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: "#1a1a1a",
-            }}
-          >
+          <span className="font-sans text-[9px] tracking-[0.14em] uppercase text-textPrimary dark:text-textPrimary-dark">
             {product.brand}
           </span>
         </div>
 
-        {/* Quick view hint */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            padding: "20px 14px 14px",
-            background:
-              "linear-gradient(to top, rgba(0,0,0,0.18), transparent)",
-            transition: "opacity 0.4s ease",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            opacity: hovered ? 1 : 0,
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: "rgba(255,255,255,0.9)",
-            }}
-          >
+        {/* Quick view hint — bottom gradient on hover */}
+        <div className="absolute bottom-0 left-0 right-0 pt-8 pb-3.5 px-3.5 bg-gradient-to-t from-black/30 dark:from-black/50 to-transparent flex items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-400 ease-smooth">
+          <span className="font-sans text-[9px] tracking-[0.12em] uppercase text-white/95">
             View details →
           </span>
-
-          {hasHoverImage && (
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                color: "rgba(255,255,255,0.7)",
-              }}
-            >
+          {showHoverImage && (
+            <span className="font-sans text-[9px] text-white/70">
+              {product.images.length} photos
+            </span>
+          )}
+          {videoSrc && (
+            <span className="font-sans text-[9px] text-white/70">
               {product.images.length} photos
             </span>
           )}
         </div>
       </div>
 
-      {/* Info below card */}
-      <div style={{ paddingTop: "12px", paddingBottom: "4px" }}>
-        <p
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "9px",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "#999",
-            margin: 0,
-            marginBottom: "4px",
-          }}
-        >
+      {/* ── Info below card ───────────────────────────────────────────────── */}
+      <div className="pt-3 pb-1">
+        <p className="font-sans text-[9px] tracking-[0.14em] uppercase text-textSecondary dark:text-textSecondary-dark m-0 mb-1 transition-colors duration-500 ease-smooth">
           {product.brand}
         </p>
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "17px",
-            fontWeight: 300,
-            fontStyle: "italic",
-            color: "#1a1a1a",
-            margin: 0,
-            marginBottom: "6px",
-            lineHeight: 1.25,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
+
+        <p className="font-heading text-[17px] font-light italic text-textPrimary dark:text-textPrimary-dark m-0 mb-1.5 leading-tight truncate transition-colors duration-500 ease-smooth">
           {product.name
             .split(" ")
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
             .join(" ")}
         </p>
 
-        {/* ✅ UPDATED PRICE DISPLAY */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+        <div className="flex items-baseline gap-2">
           <p
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "15px",
-              fontWeight: 400,
-              color: isOnSale ? "#b94040" : "#666",
-              margin: 0,
-            }}
+            className={[
+              "font-heading text-[15px] font-normal m-0 transition-colors duration-500 ease-smooth",
+              isOnSale
+                ? "text-accentRed"
+                : "text-textTertiary dark:text-textTertiary-dark",
+            ].join(" ")}
           >
             {product.price.toLocaleString("tr-TR")} {product.currency}
           </p>
           {isOnSale && (
-            <p
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: "13px",
-                color: "#bbb",
-                textDecoration: "line-through",
-                margin: 0,
-              }}
-            >
+            <p className="font-heading text-[13px] text-textMuted dark:text-textMuted-dark line-through m-0 transition-colors duration-500 ease-smooth">
               {product.originalPrice!.toLocaleString("tr-TR")}
             </p>
           )}
@@ -282,17 +252,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       </div>
 
       {/* Hover underline accent */}
-      <div
-        style={{
-          height: "1px",
-          background: "#1a1a1a",
-          transformOrigin: "left",
-          transition: "transform 0.4s ease",
-          marginTop: "8px",
-          transform: hovered ? "scaleX(1)" : "scaleX(0)",
-        }}
-      />
+      <div className="h-[1px] w-full bg-textPrimary dark:bg-textPrimary-dark origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-smooth mt-2" />
     </Link>
   );
 };
+
 export default ProductCard;

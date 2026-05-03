@@ -23,49 +23,74 @@ export interface PriceHistoryChartProps {
   theme?: "light" | "dark";
 }
 
-// ─── TOOLTIP AESTHETIC MATCHED TO PRODUCT DETAILS ──────────────────────────
+// ─── Token map — exact hex values from tailwind.config.js ─────────────────────
+// Recharts renders outside normal React flow so it can't use Tailwind classes.
+// We use the raw token values directly to stay consistent with the design system.
+const TOKENS = {
+  light: {
+    tooltipBg: "#ffffff", // bgSecondary.DEFAULT
+    tooltipBorder: "#e8e4dc", // borderLight.DEFAULT
+    tooltipPrice: "#1a1a1a", // textPrimary.DEFAULT
+    tooltipDate: "#a0a0a0", // textMuted.DEFAULT
+    line: "#1a1a1a", // textPrimary.DEFAULT
+    grid: "#e8e4dc", // borderLight.DEFAULT
+    axis: "#a0a0a0", // textMuted.DEFAULT
+    label: "#a0a0a0", // textMuted.DEFAULT
+  },
+  dark: {
+    tooltipBg: "#1a1a18", // bgSecondary.dark
+    tooltipBorder: "#5a5754", // borderLight.dark
+    tooltipPrice: "#f0ede6", // textPrimary.dark
+    tooltipDate: "#8a8784", // textMuted.dark
+    line: "#f0ede6", // textPrimary.dark
+    grid: "#5a5754", // borderLight.dark
+    axis: "#8a8784", // textMuted.dark
+    label: "#8a8784", // textMuted.dark
+  },
+} as const;
+
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
 const PriceTooltip = ({ active, payload, label, currency, theme }: any) => {
-  if (active && payload && payload.length) {
-    const isDark = theme === "dark";
-    return (
-      <div
+  if (!active || !payload?.length) return null;
+  const t = TOKENS[theme as "light" | "dark"] ?? TOKENS.light;
+
+  return (
+    <div
+      style={{
+        background: t.tooltipBg,
+        border: `1px solid ${t.tooltipBorder}`,
+        padding: "10px 14px",
+        boxShadow: theme === "dark" ? "none" : "0 4px 12px rgba(0,0,0,0.05)",
+      }}
+    >
+      <p
         style={{
-          background: isDark ? "#0f0f0d" : "#fff",
-          border: `1px solid ${isDark ? "#2e2e2c" : "#e8e4dc"}`,
-          padding: "10px 14px",
-          boxShadow: isDark ? "none" : "0 4px 12px rgba(0,0,0,0.05)",
+          fontFamily: "'Cormorant Garamond', serif",
+          fontSize: "18px",
+          color: t.tooltipPrice,
+          margin: 0,
+          lineHeight: 1,
         }}
       >
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "18px",
-            color: isDark ? "#f0ede6" : "#1a1a1a",
-            margin: 0,
-            lineHeight: 1,
-          }}
-        >
-          {payload[0].value.toLocaleString("tr-TR")} {currency}
-        </p>
-        <p
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "8px",
-            letterSpacing: "0.15em",
-            textTransform: "uppercase",
-            color: isDark ? "#5a5754" : "#aaa",
-            margin: "6px 0 0",
-          }}
-        >
-          {label}
-        </p>
-      </div>
-    );
-  }
-  return null;
+        {payload[0].value.toLocaleString("tr-TR")} {currency}
+      </p>
+      <p
+        style={{
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: "8px",
+          letterSpacing: "0.15em",
+          textTransform: "uppercase",
+          color: t.tooltipDate,
+          margin: "6px 0 0",
+        }}
+      >
+        {label}
+      </p>
+    </div>
+  );
 };
 
-// ─── MAIN COMPONENT ────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────────
 export default function PriceHistoryChart({
   history = [],
   currentPrice,
@@ -73,6 +98,8 @@ export default function PriceHistoryChart({
   currency,
   theme = "light",
 }: PriceHistoryChartProps) {
+  const t = TOKENS[theme] ?? TOKENS.light;
+
   // 1. Map existing database history
   let chartData = history.map((p) => ({
     price: p.price,
@@ -82,61 +109,49 @@ export default function PriceHistoryChart({
     }),
   }));
 
-  // 2. "Day 1 Illusion" for brand new scraped items
+  // 2. "Day 1 Illusion" for brand-new scraped items
   if (chartData.length <= 1) {
     const today = new Date();
     const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const dateTodayStr = today.toLocaleDateString("tr-TR", {
+    const todayStr = today.toLocaleDateString("tr-TR", {
       day: "numeric",
       month: "short",
     });
-    const dateLastWeekStr = lastWeek.toLocaleDateString("tr-TR", {
+    const lastWeekStr = lastWeek.toLocaleDateString("tr-TR", {
       day: "numeric",
       month: "short",
     });
 
     if (originalPrice && originalPrice > currentPrice) {
-      // Scenario A: New item, ON SALE (Draws downward slope)
+      // On sale — draw a downward slope
       chartData = [
-        { price: originalPrice, date: dateLastWeekStr },
-        { price: currentPrice, date: dateTodayStr },
+        { price: originalPrice, date: lastWeekStr },
+        { price: currentPrice, date: todayStr },
       ];
     } else {
-      // Scenario B: New item, NO SALE (Draws flat stable line)
+      // Stable — flat line
       chartData = [
-        { price: currentPrice, date: dateLastWeekStr },
-        { price: currentPrice, date: dateTodayStr },
+        { price: currentPrice, date: lastWeekStr },
+        { price: currentPrice, date: todayStr },
       ];
     }
   }
 
-  // 3. Scaling Math
+  // 3. Scaling
   const dataMax = Math.max(...chartData.map((d) => d.price));
   const dataMin = Math.min(...chartData.map((d) => d.price));
   const absoluteMax = originalPrice
     ? Math.max(dataMax, originalPrice)
     : dataMax;
 
-  // 4. Dynamic Theme Variables
-  const lineColor = theme === "dark" ? "#f0ede6" : "#1a1a1a";
-  const gridColor = theme === "dark" ? "#1e1e1c" : "#e8e4dc";
-  const textColor = theme === "dark" ? "#5a5754" : "#aaa";
-
   return (
+    // Outer wrapper uses Tailwind — this IS in normal React flow
     <div>
-      <p
-        style={{
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: "8px",
-          letterSpacing: "0.22em",
-          textTransform: "uppercase",
-          color: theme === "dark" ? "#3a3734" : "#aaa",
-          margin: "0 0 16px",
-        }}
-      >
+      <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4">
         Price History
       </p>
 
+      {/* Chart container — inline style required: Recharts needs explicit px height */}
       <div style={{ width: "100%", height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -146,26 +161,28 @@ export default function PriceHistoryChart({
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
-              stroke={gridColor}
+              stroke={t.grid}
             />
+
             <XAxis
               dataKey="date"
               tick={{
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 9,
-                fill: textColor,
+                fill: t.axis,
               }}
               axisLine={false}
               tickLine={false}
               dy={10}
             />
+
             <YAxis hide domain={[dataMin * 0.95, absoluteMax * 1.05]} />
 
-            {/* The Red "Retail" Ceiling Line */}
+            {/* Red "Retail" ceiling line */}
             {originalPrice && originalPrice > currentPrice && (
               <ReferenceLine
                 y={originalPrice}
-                stroke="#b94040"
+                stroke="#b94040" // accentRed — same token, no dark variant
                 strokeDasharray="3 3"
                 strokeWidth={1}
                 label={{
@@ -182,15 +199,16 @@ export default function PriceHistoryChart({
             <Line
               type="monotone"
               dataKey="price"
-              stroke={lineColor}
+              stroke={t.line}
               strokeWidth={1.5}
               dot={false}
-              activeDot={{ r: 4, fill: lineColor, strokeWidth: 0 }}
+              activeDot={{ r: 4, fill: t.line, strokeWidth: 0 }}
               isAnimationActive={false}
             />
+
             <Tooltip
               content={<PriceTooltip currency={currency} theme={theme} />}
-              cursor={{ stroke: gridColor, strokeWidth: 1 }}
+              cursor={{ stroke: t.grid, strokeWidth: 1 }}
             />
           </LineChart>
         </ResponsiveContainer>

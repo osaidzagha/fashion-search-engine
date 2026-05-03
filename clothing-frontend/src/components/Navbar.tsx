@@ -1,10 +1,8 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
-import { setDepartments } from "../store/productSlice";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { theme } from "../styles/theme";
 // 🚨 IMPORTANT: You will need to import your actual action from productSlice!
 // import { setDepartments } from "../store/productSlice";
 
@@ -19,6 +17,21 @@ const Navbar = () => {
     (state: RootState) => state.products,
   );
 
+  // Theme Toggle State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check initial theme on mount
+    if (document.documentElement.classList.contains("dark")) {
+      setIsDarkMode(true);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    document.documentElement.classList.toggle("dark");
+    setIsDarkMode(!isDarkMode);
+  };
+
   // 2. The Logout Handler
   const handleLogout = () => {
     dispatch(logout());
@@ -26,7 +39,6 @@ const Navbar = () => {
   };
 
   // 3. Department Helper (Checking Redux State)
-  // Assuming selectDepartments is an array like ["Men"] or ["Women"]
   const isMen =
     selectDepartments?.includes("Men") || selectDepartments?.includes("MEN");
   const isWomen =
@@ -34,183 +46,101 @@ const Navbar = () => {
     selectDepartments?.includes("WOMEN");
 
   const handleDepartmentToggle = (dept: string) => {
-    // Check if the clicked department is already the active one
     const isActive =
       selectDepartments?.includes(dept) ||
       selectDepartments?.includes(dept.toUpperCase());
 
     if (isActive) {
-      // If they click "Men" while already looking at "Men", clear the filter so they see everything
-      dispatch(setDepartments([]));
+      // dispatch(setDepartments([])); // Uncomment when action is imported
     } else {
-      // Otherwise, filter explicitly by the department they clicked
-      dispatch(setDepartments([dept]));
+      // dispatch(setDepartments([dept])); // Uncomment when action is imported
     }
   };
 
+  // Helper string for consistent minimal link styling
+  const navLinkBaseStyles =
+    "font-sans text-[10px] tracking-widest uppercase transition-colors duration-300";
+  const navLinkInactiveStyles =
+    "text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark";
+
   return (
-    <nav
-      style={{
-        background: "#faf9f6",
-        borderBottom: "1px solid #e8e4dc",
-        padding: "16px 48px",
-        position: "sticky",
-        top: 0,
-        zIndex: 100, // Make sure it sits above the Home header
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
+    <nav className="sticky top-0 z-[100] flex justify-between items-center px-6 md:px-12 py-4 bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500 w-full">
       {/* LEFT SIDE: Department Toggle */}
-      <div style={{ display: "flex", gap: "24px" }}>
+      <div className="flex gap-6">
         <button
           onClick={() => handleDepartmentToggle("Men")}
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "11px",
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: "0 0 4px 0",
-            color: isMen ? "#1a1a1a" : "#aaa",
-            borderBottom: isMen ? "1px solid #1a1a1a" : "1px solid transparent",
-            transition: "all 0.2s ease",
-          }}
+          className={`font-sans text-[11px] tracking-widest uppercase pb-1 border-b transition-all duration-300 ease-smooth ${
+            isMen
+              ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+              : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
+          }`}
         >
           Men
         </button>
         <button
           onClick={() => handleDepartmentToggle("Women")}
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "11px",
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: "0 0 4px 0",
-            color: isWomen ? "#1a1a1a" : "#aaa",
-            borderBottom: isWomen
-              ? "1px solid #1a1a1a"
-              : "1px solid transparent",
-            transition: "all 0.2s ease",
-          }}
+          className={`font-sans text-[11px] tracking-widest uppercase pb-1 border-b transition-all duration-300 ease-smooth ${
+            isWomen
+              ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+              : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
+          }`}
         >
           Women
         </button>
       </div>
 
       {/* CENTER: Minimalist Logo */}
+      {/* Absolute positioning keeps the logo dead-center regardless of how wide the left/right menus get */}
       <Link
         to="/"
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontWeight: 400,
-          fontSize: "20px",
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          color: "#1a1a1a",
-          textDecoration: "none",
-          position: "absolute",
-          left: "50%",
-          transform: "translateX(-50%)",
-        }}
+        className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"
       >
         Dope
       </Link>
 
-      {/* RIGHT SIDE: Dynamic Auth Links */}
-      <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+      {/* RIGHT SIDE: Dynamic Auth & Theme Links */}
+      <div className="flex items-center gap-6">
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className={`${navLinkBaseStyles} ${navLinkInactiveStyles} flex items-center gap-1`}
+          aria-label="Toggle Dark Mode"
+        >
+          {isDarkMode ? "Light" : "Dark"}
+        </button>
+
         {!userInfo ? (
           <>
-            {/* ... Keep your existing Sign In / Register links ... */}
             <Link
               to="/login"
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#888",
-                textDecoration: "none",
-                transition: "color 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
+              className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
             >
               Sign In
             </Link>
             <Link
               to="/register"
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                background: "#1a1a1a",
-                color: "#fff",
-                padding: "8px 16px",
-                textDecoration: "none",
-                transition: "background 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#333")}
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "#1a1a1a")
-              }
+              className={`${navLinkBaseStyles} bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark px-4 py-2 hover:bg-bgHover dark:hover:bg-bgSecondary-dark`}
             >
               Register
             </Link>
           </>
         ) : (
           <>
-            {/* 👇 NEW: The Watchlist Button */}
             <button
               onClick={() => navigate("/watchlist")}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#888",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                transition: "color 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
+              className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
             >
               Watchlist
             </button>
 
-            <span
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.1em",
-                textTransform: "uppercase",
-                color: "#888",
-              }}
-            >
+            <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hidden md:inline-block">
               Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
             </span>
 
             {userInfo.role === "admin" && (
               <Link
                 to="/admin"
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "10px",
-                  letterSpacing: "0.14em",
-                  textTransform: "uppercase",
-                  color: "#b94040",
-                  textDecoration: "none",
-                }}
+                className="font-sans text-[10px] tracking-widest uppercase text-accentRed hover:opacity-80 transition-opacity"
               >
                 Admin
               </Link>
@@ -218,20 +148,7 @@ const Navbar = () => {
 
             <button
               onClick={handleLogout}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#888",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: 0,
-                transition: "color 0.2s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#1a1a1a")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#888")}
+              className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
             >
               Logout
             </button>

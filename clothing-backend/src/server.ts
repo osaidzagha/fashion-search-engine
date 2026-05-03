@@ -7,7 +7,8 @@ import productRoutes from "./routes/productRoutes";
 import authRoutes from "./routes/authRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
 import { startScraperCron } from "./scrapers/scheduler";
-
+import adminRoutes from "./routes/admin";
+import { cleanupStaleRuns } from "./scrapers/scraperService"; // NEW
 dotenv.config();
 
 const app = express();
@@ -20,12 +21,14 @@ app.use(express.json());
 app.use("/api/products", productRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Database Connection
 mongoose
   .connect(process.env.MONGO_URI as string)
   .then(async () => {
     console.log("🔌 Connected to MongoDB");
+    await cleanupStaleRuns();
     await mongoose.model("Product").syncIndexes();
     console.log("✅ Database Indexes Synchronized!");
 

@@ -414,7 +414,7 @@ export async function getProductLinksFromCategory(
 
   try {
     // 👇 FIX 1: Reverted to domcontentloaded so tracking pixels don't cause a timeout
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
 
     // Give Zara's React frontend a few seconds to hydrate the DOM
     await new Promise((r) => setTimeout(r, 4000));

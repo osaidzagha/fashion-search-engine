@@ -19,7 +19,6 @@ import {
 } from "./brands/massimoDutti";
 
 // 1. THE JOB QUEUE
-// Adding a new brand is now as simple as adding one object to this array.
 const SCRAPER_JOBS = [
   {
     brandName: "Massimo Dutti",
@@ -56,14 +55,16 @@ export const runAllScrapers = async () => {
 
   const departments = ["MAN", "WOMAN"];
   const isTestMode = false;
-  let totalSaved = 0;
+
+  // ── Counters (updated for PipelineResult shape) ───────────────────────────
+  let totalNew = 0;
+  let totalUpdated = 0;
+  let totalErrors = 0;
 
   console.log("🧪 STARTING FACTORY PIPELINE...");
 
-  // 2. THE ORCHESTRATOR
-  // It doesn't care what brand it is, it just runs the jobs it's given.
   for (const job of SCRAPER_JOBS) {
-    const savedCount = await runScraperPipeline(
+    const result = await runScraperPipeline(
       page,
       job.brandName,
       departments,
@@ -72,11 +73,13 @@ export const runAllScrapers = async () => {
       job.scrapeProduct,
       isTestMode,
     );
-    totalSaved += savedCount;
+    totalNew += result.newItems;
+    totalUpdated += result.updatedItems;
+    totalErrors += result.errorCount;
   }
 
   console.log(
-    `\n🎉 PIPELINE COMPLETE! Total items saved/updated: ${totalSaved}`,
+    `\n🎉 PIPELINE COMPLETE! New: ${totalNew} · Updated: ${totalUpdated} · Errors: ${totalErrors}`,
   );
 
   await browser.close();

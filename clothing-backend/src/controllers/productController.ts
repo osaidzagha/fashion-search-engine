@@ -35,65 +35,49 @@ const synonymMap: Record<string, string> = {
   shoes: "sneaker boot trainer loafer shoe sandal",
   bag: "bag purse tote clutch crossbody backpack",
 
-  // ── MATERIALS (Keep these extremely strict) ──
+  // ── MATERIALS ──
   linen: "linen flax",
   denim: "denim jean jeans",
   leather: "leather faux nappa suede",
 };
 
-// ─── The Master Exclusion Map (Enterprise Grade) ─────────────────────────
+// ─── The Master Exclusion Map ─────────────────────────────────────────────────
 const excludeMap: Record<string, string> = {
-  // --- BOTTOMS ---
   trousers: "short shorts suit blazer dress skirt",
   pant: "short shorts suit blazer dress skirt",
   pants: "short shorts suit blazer dress skirt",
   jeans: "short shorts skirt dress jacket shirt",
-  short: "sleeve dress jacket coat boot boots skirt", // Blocks "short sleeve", "short dress"
+  short: "sleeve dress jacket coat boot boots skirt",
   shorts: "sleeve dress jacket coat boot boots skirt",
-
-  // --- TOPS & OUTERWEAR ---
-  shirt: "jacket coat blazer overshirt dress skirt pant trousers", // Blocks "shirt dress"
+  shirt: "jacket coat blazer overshirt dress skirt pant trousers",
   top: "jacket coat bag handle stitched shoe sneakers skirt pants",
   tops: "jacket coat bag handle stitched shoe sneakers skirt pants",
   jacket: "shirt dress skirt pants",
   coat: "shirt dress skirt pants",
-  sweater: "sweatpant sweatpants jogger joggers", // Blocks sweatpants when searching sweaters
+  sweater: "sweatpant sweatpants jogger joggers",
   sweatpant: "sweater cardigan",
   sweatpants: "sweater cardigan",
-
-  // --- THE DRESS & SUIT TRAPS ---
-  dress: "shirt pant pants trouser trousers shoe shoes boot boots sneaker", // Blocks "dress shirt", "dress shoes"
-  suit: "swimsuit tracksuit bodysuit jumpsuit playsuit romper", // Blocks "swimsuit", "tracksuit"
-
-  // --- SHOES ---
+  dress: "shirt pant pants trouser trousers shoe shoes boot boots sneaker",
+  suit: "swimsuit tracksuit bodysuit jumpsuit playsuit romper",
   boot: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   boots: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
-  shoe: "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree", // Blocks "shoe horn"
+  shoe: "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   shoes:
     "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
-
-  // --- BAGS ---
   bag: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
   bags: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
-  trunk: "swimsuit swim boardshort", // Blocks "swim trunks" when looking for luggage trunks
-  trunks: "luggage suitcase bag", // Blocks "luggage trunk" when looking for swim trunks
-
-  // --- ACCESSORIES & JEWELRY ---
-  belt: "jeans pant pants trousers trouser skirt dress shirt jacket coat", // Blocks "belted coat"
+  trunk: "swimsuit swim boardshort",
+  trunks: "luggage suitcase bag",
+  belt: "jeans pant pants trousers trouser skirt dress shirt jacket coat",
   belts: "jeans pant pants trousers trouser skirt dress shirt jacket coat",
-  tie: "dye waist front dress shirt blouse pant pants", // Blocks "tie-dye", "tie-waist"
+  tie: "dye waist front dress shirt blouse pant pants",
   ties: "dye waist front dress shirt blouse pant pants",
-  chain: "bag handbag shoe shoes boot boots loafer loafers", // Blocks "chain-strap bag"
-  ring: "zip zipper detail bag shoe neck", // Blocks "O-ring zipper", "ring-neck tee"
-  watch: "cap beanie hat", // Blocks "watch cap"
+  chain: "bag handbag shoe shoes boot boots loafer loafers",
+  ring: "zip zipper detail bag shoe neck",
+  watch: "cap beanie hat",
 };
-
-function expandSearch(raw: string): string {
-  const key = raw.toLowerCase().trim();
-  return synonymMap[key] ? `${raw} ${synonymMap[key]}` : raw;
-}
 
 // ─── Build a filter from query params ────────────────────────────────────────
 function buildBaseFilter(query: any): any {
@@ -155,7 +139,6 @@ export const getProducts = async (req: Request, res: Response) => {
 
     let filter: any = { ...baseFilter };
 
-    // Catch both 'search' and 'q'
     const rawSearch = (
       (req.query.search as string) || (req.query.q as string)
     )?.trim();
@@ -177,16 +160,13 @@ export const getProducts = async (req: Request, res: Response) => {
             !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
           const singular = isPlural ? word.slice(0, -1) : word;
 
-          // Add the base word
           textSearchTerms.push(word);
 
-          // Add synonyms
           const mappedSynonyms = synonymMap[word] || synonymMap[singular];
           if (mappedSynonyms) {
             textSearchTerms.push(...mappedSynonyms.split(/\s+/));
           }
 
-          // Gather exclusions
           const mappedExcludes = excludeMap[word] || excludeMap[singular];
           if (mappedExcludes) {
             excludeTerms.push(...mappedExcludes.split(/\s+/));
@@ -196,23 +176,17 @@ export const getProducts = async (req: Request, res: Response) => {
         const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
         const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
 
-        // 👇 THE FIX: Build the MongoDB $text string!
-        // MongoDB uses a minus sign to exclude words: -word
         let finalMongoSearchString = uniqueSearchTerms.join(" ");
-
         if (uniqueExcludeTerms.length > 0) {
           finalMongoSearchString +=
             " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
         }
 
-        // Apply the powerful native $text search!
         filter.$text = { $search: finalMongoSearchString };
 
-        // Keep the manual exclusion regex as a backup safety net
         if (uniqueExcludeTerms.length > 0) {
           const excludePattern = uniqueExcludeTerms.join("|");
           const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
-
           filter.$and = filter.$and || [];
           filter.$and.push({ name: { $not: excludeRegex } });
           filter.$and.push({ category: { $not: excludeRegex } });
@@ -220,17 +194,13 @@ export const getProducts = async (req: Request, res: Response) => {
       }
     }
 
-    // 👇 THE RELEVANCE UPGRADE
     let projection: any = {};
-    // If doing a text search AND the user hasn't explicitly sorted by Price,
-    // we MUST sort by MongoDB's internal text relevance score so the best matches appear first!
     if (filter.$text && Object.keys(sortOption).length === 0) {
       projection = { score: { $meta: "textScore" } };
       sortOption = { score: { $meta: "textScore" } };
     }
 
     const [allProducts, total] = await Promise.all([
-      // Pass the projection into the .find() method
       ProductModel.find(filter, projection)
         .sort(Object.keys(sortOption).length ? sortOption : { timestamp: -1 })
         .skip(skip)
@@ -238,7 +208,6 @@ export const getProducts = async (req: Request, res: Response) => {
       ProductModel.countDocuments(filter),
     ]);
 
-    // ── Dynamic facets ──
     const [facetResult] = await ProductModel.aggregate([
       { $match: filter },
       {
@@ -290,23 +259,29 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const deptFilter: any = {};
     if (req.query.department || req.query.departments) {
       const dept = (req.query.department || req.query.departments) as string;
-      const d = dept.toUpperCase();
-      const regexStr =
-        d === "MAN" || d === "MEN"
-          ? "\\b(man|men|mens|men's)\\b"
-          : "\\b(woman|women|womens|women's)\\b";
-      deptFilter.department = { $regex: regexStr, $options: "i" };
+      const deptList = dept.split(",").map((d) => d.trim().toUpperCase());
+      const regexParts = deptList.map((d) => {
+        if (d === "MAN" || d === "MEN") return "\\b(man|men|mens|men's)\\b";
+        return "\\b(woman|women|womens|women's)\\b";
+      });
+      deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
+
+    // ── Exact regex per spec — allows shoes, bags, hats; blocks hair/fragrance/jewellery ──
+    const NON_CLOTHING_CATEGORY_RE =
+      /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
+
     const [
       onSaleRaw,
       newInZara,
       newInMassimo,
+      withVideoRaw,
       jackets,
       shirts,
       trousers,
       knitwear,
     ] = await Promise.allSettled([
-      // On sale
+      // ── On sale — sorted by highest discount % ──
       ProductModel.aggregate([
         {
           $match: {
@@ -333,7 +308,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         { $limit: 12 },
       ]),
 
-      // New in Zara
+      // ── New in Zara ──
       ProductModel.find({
         brand: "Zara",
         images: { $exists: true, $not: { $size: 0 } },
@@ -343,7 +318,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .limit(8)
         .lean(),
 
-      // New in Massimo
+      // ── New in Massimo ──
       ProductModel.find({
         brand: "Massimo Dutti",
         images: { $exists: true, $not: { $size: 0 } },
@@ -353,7 +328,23 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .limit(8)
         .lean(),
 
-      // Category hero products
+      // ── Editor's Choice: Omni-Query across all video field schemas ──
+      ProductModel.find({
+        $or: [
+          { video: { $exists: true, $nin: [null, ""] } },
+          { videoUrl: { $exists: true, $nin: [null, ""] } },
+          { videos: { $exists: true, $not: { $size: 0 } } },
+          { "media.type": "video" },
+          { "media.url": { $regex: "mp4", $options: "i" } },
+        ],
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .lean(),
+
+      // ── Category hero tiles ──
       ProductModel.findOne({
         category: { $regex: "jacket", $options: "i" },
         images: { $exists: true, $not: { $size: 0 } },
@@ -387,12 +378,22 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const getValue = (result: PromiseSettledResult<any>) =>
       result.status === "fulfilled" ? result.value : null;
 
+    // Apply the exact NON_CLOTHING_CATEGORY_RE filter on the backend
+    // before sending — keeps the payload clean
+    const rawVideoProducts: any[] = getValue(withVideoRaw) || [];
+    const withVideo = rawVideoProducts.filter(
+      (p) =>
+        !NON_CLOTHING_CATEGORY_RE.test(p.category || "") &&
+        !NON_CLOTHING_CATEGORY_RE.test(p.name || ""),
+    );
+
     return res.status(200).json({
       onSale: getValue(onSaleRaw) || [],
       newIn: {
         zara: getValue(newInZara) || [],
         massimo: getValue(newInMassimo) || [],
       },
+      withVideo,
       categoryTiles: {
         jackets: getValue(jackets),
         shirts: getValue(shirts),
@@ -402,9 +403,10 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching featured:", error);
-    res.status(200).json({
+    return res.status(200).json({
       onSale: [],
       newIn: { zara: [], massimo: [] },
+      withVideo: [],
       categoryTiles: {
         jackets: null,
         shirts: null,
@@ -430,12 +432,8 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
       .lean();
 
     const suggestions = new Set<string>();
-
     suggestions.add(q.toLowerCase());
-
-    products.forEach((p) => {
-      suggestions.add(p.name.toLowerCase());
-    });
+    products.forEach((p) => suggestions.add(p.name.toLowerCase()));
 
     const finalList = Array.from(suggestions)
       .slice(0, 6)
@@ -486,13 +484,11 @@ export const getCategories = async (req: Request, res: Response) => {
     }
 
     const activeCategories: string[] = [];
-
     await Promise.all(
       potentialCategories.map(async (cat) => {
         const singular = cat.toLowerCase().endsWith("s")
           ? cat.toLowerCase().slice(0, -1)
           : cat.toLowerCase();
-
         const productExists = await ProductModel.exists({
           ...deptFilter,
           $or: [
@@ -500,10 +496,7 @@ export const getCategories = async (req: Request, res: Response) => {
             { category: { $regex: singular, $options: "i" } },
           ],
         });
-
-        if (productExists) {
-          activeCategories.push(cat);
-        }
+        if (productExists) activeCategories.push(cat);
       }),
     );
 

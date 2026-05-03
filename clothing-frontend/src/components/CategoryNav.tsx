@@ -50,7 +50,7 @@ export const CategoryNav: React.FC = () => {
     // The main wrapper is relatively positioned so the dropdown anchors to it.
     // z-50 ensures the navigation sits above all page content.
     <div
-      className="relative z-50 border-b border-borderDark bg-bgPrimary"
+      className="relative z-50 border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
       onMouseLeave={() => setActiveMenu(null)}
     >
       {/* ─── TOP LEVEL TABS ─── */}
@@ -62,11 +62,11 @@ export const CategoryNav: React.FC = () => {
               key={category.key}
               onMouseEnter={() => setActiveMenu(category.key)}
               className={`
-                py-6 font-sans text-xs tracking-[0.14em] uppercase transition-all duration-300 border-b-2
+                py-6 font-sans text-xs tracking-[0.14em] uppercase transition-all duration-300 ease-smooth border-b-2
                 ${
                   isActive
-                    ? "text-textPrimary border-textPrimary"
-                    : "text-textSecondary border-transparent hover:text-textPrimary"
+                    ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+                    : "text-textSecondary dark:text-textSecondary-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
                 }
               `}
             >
@@ -80,7 +80,7 @@ export const CategoryNav: React.FC = () => {
       {/* This renders UNDER the dropdown but OVER the rest of the website */}
       <div
         className={`
-          absolute top-full left-0 w-screen h-[100vh] bg-black/20 backdrop-blur-sm transition-opacity duration-300 pointer-events-none
+          absolute top-full left-0 w-screen h-[100vh] bg-black/20 dark:bg-black/40 backdrop-blur-sm transition-opacity duration-400 ease-elegant pointer-events-none
           ${activeMenu ? "opacity-100" : "opacity-0"}
         `}
       />
@@ -88,8 +88,8 @@ export const CategoryNav: React.FC = () => {
       {/* ─── EXPANDED MEGA-MENU ─── */}
       <div
         className={`
-          absolute top-full left-0 w-full bg-bgPrimary border-b border-borderDark shadow-[0_20px_40px_rgba(0,0,0,0.08)]
-          transition-all duration-300 origin-top overflow-hidden
+          absolute top-full left-0 w-full bg-bgPrimary dark:bg-bgPrimary-dark border-b border-borderDark dark:border-borderDark-dark shadow-premium dark:shadow-premium-dark
+          transition-all duration-400 ease-elegant origin-top overflow-hidden
           ${activeMenu ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0 pointer-events-none"}
         `}
       >
@@ -107,10 +107,10 @@ export const CategoryNav: React.FC = () => {
                   <button
                     onClick={() => handleNavClick(item)}
                     className={`
-                      text-left font-sans text-[13px] capitalize transition-colors duration-200 py-1 w-full
-                      ${isSale ? "text-[#b94040] hover:text-[#8a2f2f] font-medium" : ""}
-                      ${isNew ? "text-textPrimary font-medium hover:opacity-70" : ""}
-                      ${!isFeatured ? "text-textSecondary hover:text-textPrimary" : ""}
+                      text-left font-sans text-[13px] capitalize transition-colors duration-200 ease-smooth py-1 w-full
+                      ${isSale ? "text-accentRed hover:opacity-70 font-medium" : ""}
+                      ${isNew ? "text-textPrimary dark:text-textPrimary-dark font-medium hover:opacity-70" : ""}
+                      ${!isFeatured ? "text-textSecondary dark:text-textSecondary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark" : ""}
                     `}
                   >
                     {item.label}

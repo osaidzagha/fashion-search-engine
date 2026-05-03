@@ -2,55 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { Product } from "../types";
-
 import {
   fetchProductById,
   addToWatchlist,
   removeFromWatchlist,
-  fetchRelatedProducts,
   checkIsTracked,
 } from "../services/api";
 import { Spinner } from "../components/Spinner";
 import ProductCard from "../components/ProductCard";
 import PriceHistoryChart from "../components/PriceHistoryChart";
 import { ImageLightbox } from "../components/ImageLightbox";
-
-// ─── CSS ──────────────────────────────────────────────────────────────────────
-if (typeof document !== "undefined" && !document.getElementById("pd-styles")) {
-  const s = document.createElement("style");
-  s.id = "pd-styles";
-  s.textContent = `
-    @keyframes pd-heroIn {
-      from { opacity: 0; transform: scale(1.04); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    @keyframes pd-slideUp {
-      from { opacity: 0; transform: translateY(24px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes pd-fadeIn {
-      from { opacity: 0; }
-      to   { opacity: 1; }
-    }
-    .pd-grid-img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-    }
-    .pd-grid-cell:hover .pd-grid-img { transform: scale(1.03); }
-    .pd-grid-cell:hover .pd-zoom-hint { opacity: 1 !important; }
-    .pd-track-btn:hover { background: #1a1a1a !important; color: #fff !important; border-color: #1a1a1a !important; }
-    .pd-size-btn:hover { background: #1a1a1a !important; color: #fff !important; border-color: #1a1a1a !important; }
-    .pd-back-btn:hover { color: #1a1a1a !important; }
-    .pd-view-btn:hover { background: #333 !important; }
-    /* Hide scrollbar in panel */
-    .pd-panel::-webkit-scrollbar { display: none; }
-    .pd-panel { -ms-overflow-style: none; scrollbar-width: none; }
-  `;
-  document.head.appendChild(s);
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toTitleCase(str: string) {
@@ -59,34 +20,38 @@ function toTitleCase(str: string) {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
 }
+
 function discountPercent(original: number, current: number) {
   return Math.round(((original - current) / original) * 100);
 }
 
 // ─── Image grid layout engine ─────────────────────────────────────────────────
-// Repeating 6-cell pattern that creates a magazine-quality rhythm
-function getGridStyle(idx: number): {
-  gridColumn: string;
-  aspectRatio: string;
-} {
+// Repeating 6-cell pattern — magazine-quality rhythm
+function getGridClasses(idx: number): { colSpan: string; aspect: string } {
   const pattern = idx % 6;
   switch (pattern) {
     case 0:
-      return { gridColumn: "1 / 3", aspectRatio: "16 / 9" }; // wide landscape
+      return { colSpan: "col-span-2", aspect: "aspect-video" }; // wide landscape
     case 1:
-      return { gridColumn: "1 / 2", aspectRatio: "3 / 4" }; // tall left
+      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" }; // tall left
     case 2:
-      return { gridColumn: "2 / 3", aspectRatio: "3 / 4" }; // tall right
+      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" }; // tall right
     case 3:
-      return { gridColumn: "1 / 2", aspectRatio: "1 / 1" }; // square left
+      return { colSpan: "col-span-1", aspect: "aspect-square" }; // square left
     case 4:
-      return { gridColumn: "2 / 3", aspectRatio: "1 / 1" }; // square right
+      return { colSpan: "col-span-1", aspect: "aspect-square" }; // square right
     case 5:
-      return { gridColumn: "1 / 3", aspectRatio: "21 / 9" }; // ultra-wide cinematic
+      return { colSpan: "col-span-2", aspect: "aspect-[21/9]" }; // ultra-wide cinematic
     default:
-      return { gridColumn: "auto", aspectRatio: "3 / 4" };
+      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" };
   }
 }
+
+// ─── Shared carousel classes (mirrors Home.tsx) ───────────────────────────────
+const CAROUSEL =
+  "flex gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
+const CARD_WRAPPER =
+  "min-w-[260px] max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ProductDetails() {
@@ -98,6 +63,21 @@ export default function ProductDetails() {
     (state: any) => state.auth.isAuthenticated,
   );
 
+  // Reactively track Tailwind's `dark` class on <html> so chart re-renders on toggle
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains("dark"));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const [product, setProduct] = useState<Product | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -106,31 +86,13 @@ export default function ProductDetails() {
   const [trackLoading, setTrackLoading] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(0);
-
-  const [isSaved, setIsSaved] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSaveToWatchlist = async () => {
-    if (!product) return;
-    setIsSaving(true);
-    try {
-      const success = await addToWatchlist(product.id);
-      if (success) {
-        setIsSaved(true);
-      } else {
-        alert("Failed to save to Watchlist. Check your console!");
-      }
-    } catch (error) {
-      console.error("Failed to track item", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const [heroLoaded, setHeroLoaded] = useState(false);
 
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
     setSelectedSize(null);
+    setHeroLoaded(false);
     fetchProductById(id)
       .then((data) => setProduct(data))
       .catch(console.error)
@@ -144,7 +106,9 @@ export default function ProductDetails() {
 
   useEffect(() => {
     if (!id) return;
-    fetch(`http://localhost:5000/api/products/${id}/related`)
+    fetch(
+      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/products/${id}/related`,
+    )
       .then((r) => r.json())
       .then(setRelatedProducts)
       .catch(console.error);
@@ -171,15 +135,7 @@ export default function ProductDetails() {
   // ── Loading ──
   if (isLoading) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "100vh",
-          background: "#f0ede6",
-        }}
-      >
+      <div className="flex items-center justify-center h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
         <Spinner />
       </div>
     );
@@ -188,68 +144,54 @@ export default function ProductDetails() {
   // ── Not found ──
   if (!product) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          background: "#f0ede6",
-          gap: "16px",
-        }}
-      >
-        <p
-          style={{
-            fontFamily: "'Cormorant Garamond', serif",
-            fontSize: "32px",
-            fontWeight: 300,
-            fontStyle: "italic",
-            color: "#1a1a1a",
-          }}
-        >
+      <div className="flex flex-col items-center justify-center h-screen bg-bgPrimary dark:bg-bgPrimary-dark gap-4">
+        <p className="font-heading text-3xl font-light italic text-textPrimary dark:text-textPrimary-dark">
           Product not found
         </p>
         <button
           onClick={() => navigate(-1)}
-          style={{
-            fontFamily: "'DM Sans', sans-serif",
-            fontSize: "11px",
-            letterSpacing: "0.14em",
-            textTransform: "uppercase",
-            color: "#888",
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-          }}
+          className="font-sans text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark bg-transparent border-none cursor-pointer hover:opacity-60 transition-opacity duration-200"
         >
           ← Go back
         </button>
       </div>
     );
   }
-  const images = product.images ?? [];
-  const videos = product.videos ?? [];
-  const hasVideo = videos.length > 0;
 
-  // Hero gets the first video. If no video, it gets the first image.
+  const images = product.images ?? [];
+
+  // Safely extract ALL possible video sources from Zara and Massimo schemas
+  const videos: string[] = [];
+  if (product.video) videos.push(product.video);
+  if (product.videoUrl) videos.push(product.videoUrl);
+  if (product.videos && product.videos.length > 0)
+    videos.push(...product.videos);
+  if (product.media && product.media.length > 0) {
+    const mediaVideos = product.media
+      .filter((m: any) => m.type === "video" || m.url?.includes("mp4"))
+      .map((m: any) => m.url);
+    videos.push(...mediaVideos);
+  }
+
+  const hasVideo = videos.length > 0;
+  // Hero: first video if available, else first image
   const heroMedia = hasVideo
-    ? { type: "video", src: videos[0] }
+    ? { type: "video" as const, src: videos[0] }
     : images.length > 0
-      ? { type: "image", src: images[0] }
+      ? { type: "image" as const, src: images[0] }
       : null;
 
-  // ── Mixed Media Grid Array ──
-  // We combine the REMAINING videos and the REMAINING images into one smooth array
+  // Mixed media grid — remaining videos then all/remaining images
   const gridMedia: { type: "video" | "image"; src: string }[] = [];
-
   if (hasVideo) {
-    videos.slice(1).forEach((v) => gridMedia.push({ type: "video", src: v }));
-    images.forEach((img) => gridMedia.push({ type: "image", src: img })); // All images go to grid
+    videos
+      .slice(1)
+      .forEach((v: string) => gridMedia.push({ type: "video", src: v }));
+    images.forEach((img) => gridMedia.push({ type: "image", src: img }));
   } else {
     images
       .slice(1)
-      .forEach((img) => gridMedia.push({ type: "image", src: img })); // 1st image was hero
+      .forEach((img) => gridMedia.push({ type: "image", src: img }));
   }
 
   const isOnSale =
@@ -260,7 +202,7 @@ export default function ProductDetails() {
     : 0;
 
   return (
-    <div style={{ background: "#f0ede6", minHeight: "100vh" }}>
+    <div className="bg-bgPrimary dark:bg-bgPrimary-dark min-h-screen">
       {/* ── Lightbox ── */}
       {lightboxOpen && (
         <ImageLightbox
@@ -271,17 +213,14 @@ export default function ProductDetails() {
         />
       )}
 
-      {/* ════════════════════════════════════════════════════════
-          SECTION 1: CINEMATIC HERO
-          ════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 1 — CINEMATIC HERO
+          ══════════════════════════════════════════════════════════ */}
       <div
-        style={{
-          position: "relative",
-          width: "100%",
-          height: "100vh",
-          overflow: "hidden",
-          cursor: heroMedia?.type === "image" ? "zoom-in" : "default",
-        }}
+        className={[
+          "relative w-full h-screen overflow-hidden",
+          heroMedia?.type === "image" ? "cursor-zoom-in" : "cursor-default",
+        ].join(" ")}
         onClick={() => {
           if (heroMedia?.type === "image") {
             setLightboxIdx(images.indexOf(heroMedia.src));
@@ -289,7 +228,7 @@ export default function ProductDetails() {
           }
         }}
       >
-        {/* Dynamic Hero */}
+        {/* Hero media */}
         {heroMedia?.type === "video" ? (
           <video
             src={heroMedia.src}
@@ -297,104 +236,129 @@ export default function ProductDetails() {
             muted
             loop
             playsInline
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-              animation:
-                "pd-heroIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
-            }}
+            onCanPlay={() => setHeroLoaded(true)}
+            className={[
+              "w-full h-full object-cover block",
+              "transition-all duration-[1200ms] ease-elegant",
+              heroLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.04]",
+            ].join(" ")}
           />
         ) : heroMedia?.type === "image" ? (
           <img
             src={heroMedia.src}
             alt={product.name}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-              display: "block",
-              animation:
-                "pd-heroIn 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
-            }}
+            onLoad={() => setHeroLoaded(true)}
+            className={[
+              "w-full h-full object-cover block",
+              "transition-all duration-[1200ms] ease-elegant",
+              heroLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.04]",
+            ].join(" ")}
           />
         ) : null}
 
-        {/* ... KEEP YOUR OVERLAYS AND TOP BAR EXACTLY AS THEY ARE ... */}
+        {/* Bottom gradient for text legibility */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
 
-        {/* Video badge if product has video */}
+        {/* Top-left: back button */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(-1);
+          }}
+          className="absolute top-8 left-8 z-20 font-sans text-[9px] tracking-editorial uppercase text-white/60 hover:text-white/100 transition-colors duration-200 bg-transparent border-none cursor-pointer"
+        >
+          ← Back
+        </button>
+
+        {/* Top-right: sale badge */}
+        {isOnSale && (
+          <div className="absolute top-8 right-8 z-20 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-3 py-1.5">
+            −{discount}%
+          </div>
+        )}
+
+        {/* Video indicator */}
         {hasVideo && (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              right: "48px",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
-            }}
-          >
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "50%",
-                border: "1px solid rgba(255,255,255,0.4)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span
-                style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px" }}
-              >
-                ▶
-              </span>
+          <div className="absolute top-1/2 right-12 -translate-y-1/2 z-20 pointer-events-none">
+            <div className="w-12 h-12 rounded-full border border-white/30 flex items-center justify-center">
+              <span className="text-white/60 text-xs">▶</span>
             </div>
           </div>
         )}
+
+        {/* ── Hero name overlay — bottom-left, slides up on load ── */}
+        <div
+          className={[
+            "absolute bottom-12 left-12 z-20 pointer-events-none",
+            "transition-all duration-700 ease-elegant",
+            heroLoaded
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-6",
+          ].join(" ")}
+        >
+          {/* Brand overline */}
+          <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-3">
+            {product.brand}
+            {product.color && <span className="ml-3">· {product.color}</span>}
+          </p>
+          {/* Product name — large Cormorant italic */}
+          <h1 className="font-heading font-light italic text-[clamp(32px,4vw,64px)] leading-none text-white max-w-2xl">
+            {toTitleCase(product.name)}
+          </h1>
+          {/* Price beneath name */}
+          <div className="flex items-baseline gap-3 mt-4">
+            <span
+              className={[
+                "font-heading text-2xl",
+                isOnSale ? "text-red-300" : "text-white/90",
+              ].join(" ")}
+            >
+              {product.price.toLocaleString("tr-TR")} {product.currency}
+            </span>
+            {isOnSale && (
+              <span className="font-heading text-lg text-white/30 line-through">
+                {product.originalPrice!.toLocaleString("tr-TR")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Scroll hint */}
+        <div
+          className={[
+            "absolute bottom-8 right-12 z-20 pointer-events-none",
+            "transition-all duration-700 delay-500 ease-elegant",
+            heroLoaded
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-4",
+          ].join(" ")}
+        >
+          <p className="font-sans text-[8px] tracking-editorial uppercase text-white/30">
+            Scroll to explore
+          </p>
+        </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════
-          SECTION 2: Two-column — mixed grid left, sticky info right
-          ════════════════════════════════════════════════════════ */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "55% 45%",
-          alignItems: "start",
-          borderTop: "1px solid #e0ddd8",
-        }}
-      >
-        {/* ── LEFT: Asymmetric MIXED MEDIA grid ── */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "3px",
-            background: "#e0ddd8",
-            borderRight: "1px solid #e0ddd8",
-          }}
-        >
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 2 — Two-column: mixed grid left + sticky info right
+          ══════════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-[55%_45%] items-start border-t border-borderLight dark:border-borderLight-dark">
+        {/* ── LEFT: Asymmetric mixed media grid ── */}
+        <div className="grid grid-cols-2 gap-[3px] bg-borderLight dark:bg-borderLight-dark border-r border-borderLight dark:border-borderLight-dark">
           {gridMedia.map((media, idx) => {
-            const { gridColumn, aspectRatio } = getGridStyle(idx);
+            const { colSpan, aspect } = getGridClasses(idx);
             const isImage = media.type === "image";
-
             return (
               <div
                 key={idx}
-                className="pd-grid-cell"
-                style={{
-                  gridColumn,
-                  aspectRatio,
-                  overflow: "hidden",
-                  background: "#e8e4dc",
-                  cursor: isImage ? "zoom-in" : "default",
-                  position: "relative",
-                }}
+                className={[
+                  "group relative overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark",
+                  colSpan,
+                  aspect,
+                  isImage ? "cursor-zoom-in" : "cursor-default",
+                ].join(" ")}
                 onClick={() => {
                   if (isImage) {
-                    // Find the true index of this image in the original images array!
                     setLightboxIdx(images.indexOf(media.src));
                     setLightboxOpen(true);
                   }
@@ -407,32 +371,30 @@ export default function ProductDetails() {
                     muted
                     loop
                     playsInline
-                    className="pd-grid-img"
+                    className="w-full h-full object-cover block transition-transform duration-700 ease-elegant"
                   />
                 ) : (
                   <>
                     <img
                       src={media.src}
-                      alt={`${product.name} view ${idx}`}
+                      alt={`${product.name} view ${idx + 1}`}
                       loading="lazy"
-                      className="pd-grid-img"
+                      className="w-full h-full object-cover block transition-transform duration-700 ease-elegant group-hover:scale-[1.03]"
                     />
-
-                    {/* Zoom hint overlay (Only for images) */}
-                    <div
-                      className="pd-zoom-hint"
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.12)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        opacity: 0,
-                        transition: "opacity 0.3s ease",
-                      }}
-                    >
-                      {/* ... YOUR ZOOM SVG ... */}
+                    {/* Zoom hint */}
+                    <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
+                      <svg
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="1.5"
+                        className="opacity-70"
+                      >
+                        <circle cx="11" cy="11" r="8" />
+                        <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+                      </svg>
                     </div>
                   </>
                 )}
@@ -441,134 +403,69 @@ export default function ProductDetails() {
           })}
         </div>
 
-        {/* ... KEEP YOUR RIGHT STICKY PANEL EXACTLY AS IT IS ... */}
-        {/* ── RIGHT: Sticky dark info panel ── */}
+        {/* ── RIGHT: Sticky info panel — follows theme tokens ── */}
         <div
           ref={panelRef}
-          className="pd-panel"
-          style={{
-            position: "sticky",
-            top: 0,
-            height: "100vh",
-            overflowY: "auto",
-            background: "#0f0f0d",
-            color: "#f0ede6",
-            padding: "52px 48px 52px 52px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 0,
-            animation: "pd-fadeIn 0.6s ease 0.8s both",
-          }}
+          className="sticky top-0 h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ padding: "52px 48px 52px 52px" }}
         >
           {/* Brand + color */}
-          <p
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "9px",
-              letterSpacing: "0.28em",
-              textTransform: "uppercase",
-              color: "#5a5754",
-              margin: "0 0 16px",
-            }}
-          >
+          <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4">
             {product.brand}
-            {product.color && (
-              <span style={{ marginLeft: "12px" }}>· {product.color}</span>
-            )}
+            {product.color && <span className="ml-3">· {product.color}</span>}
           </p>
 
           {/* Name */}
-          <h2
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontWeight: 300,
-              fontSize: "clamp(24px, 2.8vw, 36px)",
-              lineHeight: 1.1,
-              color: "#f0ede6",
-              margin: "0 0 20px",
-              letterSpacing: "-0.01em",
-            }}
-          >
+          <h2 className="font-heading font-light text-[clamp(24px,2.8vw,36px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark tracking-[-0.01em] mb-5">
             {toTitleCase(product.name)}
           </h2>
 
           {/* Price */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: "12px",
-              marginBottom: "28px",
-            }}
-          >
+          <div className="flex items-baseline gap-3 mb-7">
             <span
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: "26px",
-                fontWeight: 400,
-                color: isOnSale ? "#f08080" : "#f0ede6",
-              }}
+              className={[
+                "font-heading text-[26px] font-normal",
+                isOnSale
+                  ? "text-accentRed"
+                  : "text-textPrimary dark:text-textPrimary-dark",
+              ].join(" ")}
             >
               {product.price.toLocaleString("tr-TR")} {product.currency}
             </span>
             {isOnSale && (
-              <span
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: "17px",
-                  color: "#3a3734",
-                  textDecoration: "line-through",
-                }}
-              >
+              <span className="font-heading text-[17px] text-textMuted dark:text-textMuted-dark line-through">
                 {product.originalPrice!.toLocaleString("tr-TR")}
               </span>
             )}
           </div>
 
-          <div
-            style={{
-              height: "1px",
-              background: "#1e1e1c",
-              marginBottom: "24px",
-            }}
-          />
+          {/* Divider */}
+          <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-6" />
 
           {/* Price history chart */}
-          <div style={{ marginBottom: "24px" }}>
+          <div className="mb-6">
             <PriceHistoryChart
               history={product.priceHistory}
               currentPrice={product.price}
-              originalPrice={product.originalPrice} // 👈 Feeds the red "Retail" line
+              originalPrice={product.originalPrice}
               currency={product.currency}
-              theme="dark" // 👈 Triggers the dark-mode colors
+              theme={isDarkMode ? "dark" : "light"}
             />
           </div>
 
-          {/* Track price */}
+          {/* Track price button */}
           <button
-            className="pd-track-btn"
             onClick={handleTrackPrice}
             disabled={trackLoading}
-            style={{
-              width: "100%",
-              padding: "13px",
-              marginBottom: "10px",
-              background: tracked ? "#f0ede6" : "transparent",
-              border: "1px solid",
-              borderColor: tracked ? "#f0ede6" : "#2e2e2c",
-              cursor: trackLoading ? "wait" : "pointer",
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "10px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: tracked ? "#0f0f0d" : "#5a5754",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              opacity: trackLoading ? 0.5 : 1,
-            }}
+            className={[
+              "w-full py-3.5 mb-2.5 border font-sans text-[10px] tracking-[0.18em] uppercase",
+              "flex items-center justify-center gap-2 cursor-pointer",
+              "transition-all duration-200 ease-smooth",
+              trackLoading ? "opacity-50 cursor-wait" : "",
+              tracked
+                ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+                : "bg-transparent text-textTertiary dark:text-textTertiary-dark border-borderLight dark:border-borderLight-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark",
+            ].join(" ")}
           >
             <span>{tracked ? "✓" : "♡"}</span>
             {trackLoading
@@ -580,68 +477,36 @@ export default function ProductDetails() {
                   : "Sign in to track"}
           </button>
 
-          {/* View on brand */}
+          {/* View on brand button */}
           <a
             href={product.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="pd-view-btn"
-            style={{
-              display: "block",
-              width: "100%",
-              padding: "14px",
-              background: "#f0ede6",
-              color: "#0f0f0d",
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: "10px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              textAlign: "center",
-              textDecoration: "none",
-              marginBottom: "32px",
-              transition: "background 0.2s ease",
-              fontWeight: 500,
-            }}
+            className="block w-full py-3.5 mb-8 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-[0.22em] uppercase text-center no-underline font-medium transition-opacity duration-200 hover:opacity-80"
           >
             View on {product.brand} →
           </a>
 
           {/* Sizes */}
           {product.sizes && product.sizes.length > 0 && (
-            <div style={{ marginBottom: "28px" }}>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "8px",
-                  letterSpacing: "0.22em",
-                  textTransform: "uppercase",
-                  color: "#3a3734",
-                  margin: "0 0 10px",
-                }}
-              >
+            <div className="mb-7">
+              <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
                 Available sizes
               </p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              <div className="flex flex-wrap gap-1.5">
                 {product.sizes.map((size, i) => (
                   <button
                     key={i}
-                    className="pd-size-btn"
                     onClick={() =>
                       setSelectedSize(size === selectedSize ? null : size)
                     }
-                    style={{
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "11px",
-                      padding: "7px 13px",
-                      border: "1px solid",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                      borderColor:
-                        selectedSize === size ? "#f0ede6" : "#2e2e2c",
-                      background:
-                        selectedSize === size ? "#f0ede6" : "transparent",
-                      color: selectedSize === size ? "#0f0f0d" : "#5a5754",
-                    }}
+                    className={[
+                      "font-sans text-[11px] px-3.5 py-2 border cursor-pointer",
+                      "transition-all duration-150 ease-smooth",
+                      selectedSize === size
+                        ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+                        : "bg-transparent text-textTertiary dark:text-textTertiary-dark border-borderLight dark:border-borderLight-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark",
+                    ].join(" ")}
                   >
                     {size}
                   </button>
@@ -650,40 +515,16 @@ export default function ProductDetails() {
             </div>
           )}
 
-          <div
-            style={{
-              height: "1px",
-              background: "#1e1e1c",
-              marginBottom: "24px",
-            }}
-          />
+          {/* Divider */}
+          <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-6" />
 
           {/* Description */}
           {product.description && (
-            <div style={{ marginBottom: "20px" }}>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "8px",
-                  letterSpacing: "0.22em",
-                  textTransform: "uppercase",
-                  color: "#3a3734",
-                  margin: "0 0 10px",
-                }}
-              >
+            <div className="mb-5">
+              <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
                 About this piece
               </p>
-              <p
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: "15px",
-                  fontWeight: 300,
-                  lineHeight: 1.75,
-                  color: "#8a8784",
-                  margin: 0,
-                  fontStyle: "italic",
-                }}
-              >
+              <p className="font-heading text-[15px] font-light italic leading-[1.75] text-textTertiary dark:text-textTertiary-dark m-0">
                 {product.description}
               </p>
             </div>
@@ -691,56 +532,23 @@ export default function ProductDetails() {
 
           {/* Composition */}
           {product.composition && (
-            <div style={{ marginBottom: "20px" }}>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "8px",
-                  letterSpacing: "0.22em",
-                  textTransform: "uppercase",
-                  color: "#3a3734",
-                  margin: "0 0 10px",
-                }}
-              >
+            <div className="mb-5">
+              <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
                 Composition
               </p>
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: "11px",
-                  lineHeight: 1.8,
-                  color: "#5a5754",
-                  margin: 0,
-                }}
-              >
+              <p className="font-sans text-[11px] leading-[1.8] text-textTertiary dark:text-textTertiary-dark m-0">
                 {product.composition}
               </p>
             </div>
           )}
 
-          {/* Image count at bottom */}
-          <div
-            style={{
-              marginTop: "auto",
-              paddingTop: "24px",
-              borderTop: "1px solid #1e1e1c",
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "8px",
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                color: "#2e2e2c",
-                margin: "0 0 12px",
-              }}
-            >
+          {/* ── Mini thumbnails footer ── */}
+          <div className="mt-auto pt-6 border-t border-borderLight dark:border-borderLight-dark">
+            <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-3">
               {images.length} image{images.length !== 1 ? "s" : ""}
-              {product.videos && product.videos.length > 0 ? " + video" : ""}
+              {(product as any).videos?.length > 0 ? " + video" : ""}
             </p>
-            {/* Mini thumbnails */}
-            <div style={{ display: "flex", gap: "3px" }}>
+            <div className="flex gap-[3px]">
               {images.slice(0, 6).map((img, idx) => (
                 <button
                   key={idx}
@@ -748,54 +556,18 @@ export default function ProductDetails() {
                     setLightboxIdx(idx);
                     setLightboxOpen(true);
                   }}
-                  style={{
-                    flexShrink: 0,
-                    width: "40px",
-                    height: "52px",
-                    overflow: "hidden",
-                    background: "#1e1e1c",
-                    border: "1px solid #2e2e2c",
-                    padding: 0,
-                    cursor: "zoom-in",
-                    transition: "border-color 0.2s ease",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.borderColor = "#5a5754")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.borderColor = "#2e2e2c")
-                  }
+                  className="flex-shrink-0 w-10 h-[52px] overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark p-0 cursor-zoom-in transition-all duration-200 hover:border-borderDark dark:hover:border-borderDark-dark"
                 >
                   <img
                     src={img}
                     alt=""
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
+                    className="w-full h-full object-cover"
                   />
                 </button>
               ))}
               {images.length > 6 && (
-                <div
-                  style={{
-                    width: "40px",
-                    height: "52px",
-                    background: "#1e1e1c",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontFamily: "'DM Sans', sans-serif",
-                      fontSize: "9px",
-                      color: "#3a3734",
-                    }}
-                  >
+                <div className="flex-shrink-0 w-10 h-[52px] bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark flex items-center justify-center">
+                  <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
                     +{images.length - 6}
                   </span>
                 </div>
@@ -805,65 +577,35 @@ export default function ProductDetails() {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════
-          SECTION 3: Related products
-          ════════════════════════════════════════════════════════ */}
+      {/* ══════════════════════════════════════════════════════════
+          SECTION 3 — Related products (horizontal carousel)
+          ══════════════════════════════════════════════════════════ */}
       {relatedProducts.length > 0 && (
-        <div
-          style={{
-            background: "#f0ede6",
-            padding: "80px 64px",
-            borderTop: "1px solid #e0ddd8",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-              marginBottom: "40px",
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                letterSpacing: "0.26em",
-                textTransform: "uppercase",
-                color: "#aaa",
-                margin: 0,
-              }}
-            >
-              You may also like
-            </p>
+        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-t border-borderLight dark:border-borderLight-dark">
+          <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
+            <div className="flex items-baseline gap-4">
+              <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                You may also like
+              </h2>
+              <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                Related pieces
+              </span>
+            </div>
             <button
               onClick={() => navigate(-1)}
-              style={{
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: "9px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "#bbb",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-              }}
+              className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
             >
               ← Back to results
             </button>
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "20px",
-            }}
-          >
-            {relatedProducts.slice(0, 4).map((p) => (
-              <ProductCard key={p.id} product={p} />
+          <div className={CAROUSEL}>
+            {relatedProducts.slice(0, 8).map((p) => (
+              <div key={p.id} className={CARD_WRAPPER}>
+                <ProductCard product={p} />
+              </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );

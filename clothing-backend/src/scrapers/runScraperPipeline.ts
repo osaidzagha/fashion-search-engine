@@ -16,6 +16,16 @@ type ScrapeProduct = (
   department: string,
 ) => Promise<Product | null>;
 
+// ─── Return type ──────────────────────────────────────────────────────────────
+
+export interface PipelineResult {
+  newItems: number;
+  updatedItems: number;
+  errorCount: number;
+}
+
+// ─── Pipeline ─────────────────────────────────────────────────────────────────
+
 export const runScraperPipeline = async (
   page: Page,
   brandName: string,
@@ -24,19 +34,42 @@ export const runScraperPipeline = async (
   getLinks: GetLinks,
   scrapeProduct: ScrapeProduct,
   testMode: boolean = true,
-) => {
-  let totalSaved = 0;
+): Promise<PipelineResult> => {
+  let newItems = 0;
+  let updatedItems = 0;
+  let errorCount = 0;
 
   for (const dept of departments) {
+    if (page.isClosed()) {
+      console.log("🛑 Browser was closed. Halting pipeline gracefully.");
+      break;
+    }
+
     console.log(`\n🚀 ${brandName} PIPELINE FOR: ${dept}`);
 
-    const categories = await getCategories(page, dept);
+    let categories: string[] = [];
+    try {
+      categories = await getCategories(page, dept);
+    } catch (err: any) {
+      if (
+        page.isClosed() ||
+        err.message?.includes("detached Frame") ||
+        err.message?.includes("Target closed")
+      ) {
+        console.log(
+          "🛑 Browser closed during category fetch. Halting gracefully.",
+        );
+        break;
+      }
+      console.log(`  --> ❌ Category fetch failed for ${dept}:`, err.message);
+      continue;
+    }
+
     if (!categories || categories.length === 0) {
       console.log(`  --> ⚠️ No categories found for ${dept}. Skipping.`);
       continue;
     }
 
-    // ✅ NEW: The Category Blocklist
     const forbiddenKeywords = [
       "bag",
       "perfume",
@@ -60,17 +93,36 @@ export const runScraperPipeline = async (
       `  --> 🛡️ Filtered out ${categories.length - cleanCategories.length} non-clothing categories.`,
     );
 
-    // Make sure to change `categories` to `cleanCategories` here!
     const shuffledCategories = shuffleArray(cleanCategories);
-
-    // Pick 10 categories
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 6);
+      : shuffledCategories.slice(0, 5);
 
     for (const categoryUrl of toScrape) {
+      if (page.isClosed()) {
+        console.log("🛑 Browser was closed. Halting pipeline gracefully.");
+        break;
+      }
+
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
-      const links = await getLinks(page, categoryUrl);
+
+      let links: string[] = [];
+      try {
+        links = await getLinks(page, categoryUrl);
+      } catch (err: any) {
+        if (
+          page.isClosed() ||
+          err.message?.includes("detached Frame") ||
+          err.message?.includes("Target closed")
+        ) {
+          console.log(
+            "🛑 Browser closed during link extraction. Halting gracefully.",
+          );
+          break;
+        }
+        console.log(`  --> ❌ Error finding links:`, err.message);
+        continue;
+      }
 
       if (!links || links.length === 0) {
         console.log(
@@ -80,20 +132,23 @@ export const runScraperPipeline = async (
       }
 
       const shuffledLinks = shuffleArray(links);
-      // Grab up to 60 items per category
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 20);
+        : shuffledLinks.slice(0, 15);
 
       for (const link of toTest) {
+        if (page.isClosed()) {
+          console.log("🛑 Browser was closed. Halting pipeline gracefully.");
+          break;
+        }
+
         const category =
           categoryUrl.split("/").pop()?.replace(".html", "") || "Unknown";
 
-        const product = await scrapeProduct(page, link, category, dept);
+        try {
+          const product = await scrapeProduct(page, link, category, dept);
 
-        if (product) {
-          try {
-            // Check existing product BEFORE upserting to detect price changes
+          if (product) {
             const existingProduct = await ProductModel.findOne(
               { id: product.id },
               { price: 1 },
@@ -102,10 +157,6 @@ export const runScraperPipeline = async (
             const oldPrice = existingProduct?.price ?? null;
             const isNewProduct = oldPrice === null;
             const isPriceDrop = !isNewProduct && product.price < oldPrice!;
-            // ✅ FIX: Only record a price history entry when:
-            //    - It's a brand new product (first ever entry), OR
-            //    - The price actually changed since last scrape
-            //    This prevents flat duplicate lines on the chart.
             const shouldRecordPrice =
               isNewProduct || product.price !== oldPrice;
 
@@ -146,10 +197,16 @@ export const runScraperPipeline = async (
               { upsert: true, returnDocument: "after" },
             );
 
+            // ── Track breakdown ──────────────────────────────────────────────
+            if (isNewProduct) {
+              newItems++;
+            } else {
+              updatedItems++;
+            }
+
             console.log(
               `   --> 💾 Saved: ${product.name}${shouldRecordPrice ? " (price recorded)" : " (price unchanged)"}`,
             );
-            totalSaved++;
 
             if (isPriceDrop) {
               console.log(
@@ -166,18 +223,30 @@ export const runScraperPipeline = async (
                 console.error("   --> ⚠️ Watchlist notification failed:", err),
               );
             }
-          } catch (dbError) {
-            console.error(
-              `   --> ❌ DB Error saving ${product.name}:`,
-              dbError,
-            );
           }
+        } catch (err: any) {
+          // The Magic Check: Intercept shutdown errors and exit silently
+          if (
+            page.isClosed() ||
+            err.message?.includes("detached Frame") ||
+            err.message?.includes("Target closed")
+          ) {
+            console.log(
+              `   --> 🛑 Scraper interrupted mid-page load. Exiting gracefully.`,
+            );
+            break;
+          }
+
+          console.error(`   --> ❌ Scraper crashed on ${link}:`, err.message);
+          errorCount++;
         }
 
+        if (page.isClosed()) break;
         const delay = testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000;
         await new Promise((r) => setTimeout(r, delay));
       }
 
+      if (page.isClosed()) break;
       console.log("  --> 🛑 Category complete. Resting...");
       const catDelay = testMode
         ? 4000
@@ -186,5 +255,5 @@ export const runScraperPipeline = async (
     }
   }
 
-  return totalSaved;
+  return { newItems, updatedItems, errorCount };
 };
