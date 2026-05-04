@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IWatchlistItem {
   productId: string;
+  trackedPrice: number; // 👈 NEW: The exact price when they clicked track
   addedAt: Date;
 }
 
@@ -36,6 +37,7 @@ const UserSchema: Schema = new Schema(
     watchlist: [
       {
         productId: { type: String, required: true },
+        trackedPrice: { type: Number, required: true }, // 👈 NEW
         addedAt: { type: Date, default: Date.now },
       },
     ],

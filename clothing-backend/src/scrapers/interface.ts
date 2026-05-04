@@ -16,7 +16,7 @@ export interface Product {
   category?: string;
   sizes?: string[];
   department: string;
-  video?: string;
+  videos?: string[];
 
   // FIX: Properly typed as an array of objects
   priceHistory?: { price: number; date: Date }[];

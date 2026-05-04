@@ -2,57 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* --- CUSTOM GLOBAL STYLES --- */
+/* --- BASE LAYER (Global HTML/Body styles) --- */
+@layer base {
+  body {
+    /* 
+      We apply our config colors here. 
+      The transition-colors ensures a graceful, premium fade when toggling dark mode.
+    */
+    @apply bg-bgPrimary text-textPrimary dark:bg-bgPrimary-dark dark:text-textPrimary-dark;
+    @apply antialiased transition-colors duration-500 ease-smooth;
+  }
 
-* {
-  box-sizing: border-box;
-}
+  /* Custom premium minimal scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
 
-body {
-  /* Warm cream background instead of stark white */
-  background: #faf9f6;
-  margin: 0;
-  /* Makes the fonts look crisper and more high-end on Mac/Windows */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-/* Responsive grid for ProductGrid */
-@media (max-width: 1200px) {
-  .product-grid-responsive {
-    grid-template-columns: repeat(3, 1fr) !important;
+  ::-webkit-scrollbar-thumb {
+    @apply bg-borderDark dark:bg-borderDark-dark rounded-full transition-colors;
   }
 }
 
-@media (max-width: 860px) {
-  .product-grid-responsive {
-    grid-template-columns: repeat(2, 1fr) !important;
+/* --- UTILITIES LAYER (Custom classes not natively handled by Tailwind) --- */
+@layer utilities {
+  /* Noise overlay for that editorial texture */
+  .noise-texture {
+    background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+    /* It's usually best to control opacity directly on the element in React, 
+       but you can set a base opacity here if desired */
+  }
+
+  /* Premium skeleton shimmer adapted for both Light and Dark modes */
+  .animate-shimmer-premium {
+    background: linear-gradient(
+      90deg,
+      theme("colors.skeletonBase") 25%,
+      #ffffff 50%,
+      theme("colors.skeletonBase") 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3.5s ease-in-out infinite;
+  }
+
+  .dark .animate-shimmer-premium {
+    background: linear-gradient(
+      90deg,
+      theme("colors.bgHover.dark") 25%,
+      theme("colors.bgSecondary.dark") 50%,
+      theme("colors.bgHover.dark") 75%
+    );
+  }
+
+  /* Zara-style minimal slider */
+  .slider-thumb-minimal {
+    @apply appearance-none bg-transparent cursor-pointer;
+  }
+
+  .slider-thumb-minimal::-webkit-slider-thumb {
+    @apply appearance-none w-2.5 h-2.5 rounded-full bg-textPrimary dark:bg-textPrimary-dark cursor-pointer transition-colors;
+    margin-top: -4px; /* Centers it on the 1px track */
+  }
+
+  .slider-thumb-minimal::-moz-range-thumb {
+    @apply appearance-none w-2.5 h-2.5 rounded-full bg-textPrimary dark:bg-textPrimary-dark border-none cursor-pointer transition-colors;
   }
 }
 
-@media (max-width: 520px) {
-  .product-grid-responsive {
-    grid-template-columns: 1fr !important;
+/* --- KEYFRAMES --- */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
-}
-
-/* Custom minimal scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d4d0c8;
-}
-
-/* Remove default ugly browser styles from inputs and buttons */
-input,
-button {
-  -webkit-appearance: none;
-  appearance: none;
+  100% {
+    background-position: 200% 0;
+  }
 }

@@ -32,7 +32,15 @@ export const fetchProductsFromAPI = async (
       urlParams.set("departments", filters.departments.join(","));
     if (filters.maxPrice)
       urlParams.set("maxPrice", filters.maxPrice.toString());
+    if (filters.maxPrice)
+      urlParams.set("maxPrice", filters.maxPrice.toString());
 
+    // 👇 ADD THESE TWO LINES 👇
+    if (filters.sizes && filters.sizes.length > 0)
+      urlParams.set("sizes", filters.sizes.join(","));
+    if (filters.colors && filters.colors.length > 0)
+      urlParams.set("colors", filters.colors.join(","));
+    if (filters.onSale) urlParams.set("onSale", "true");
     const response = await fetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,
     );
@@ -52,6 +60,17 @@ export async function fetchProductById(id: string): Promise<Product | null> {
   } catch (error) {
     console.error("Failed to fetch product:", error);
     return null;
+  }
+}
+
+export async function fetchRelatedProducts(id: string): Promise<Product[]> {
+  try {
+    const response = await fetch(`${BASE_URL}/api/products/${id}/related`);
+    if (!response.ok) throw new Error("Network response was not ok");
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch related products:", error);
+    return [];
   }
 }
 
@@ -138,5 +157,16 @@ export const checkIsTracked = async (productId: string): Promise<boolean> => {
     return watchlist.some((p) => p.id === productId);
   } catch {
     return false;
+  }
+};
+
+export const fetchCategories = async (): Promise<string[]> => {
+  try {
+    const response = await fetch(`${BASE_URL}/api/categories`);
+    if (!response.ok) throw new Error("Failed to fetch categories");
+    return await response.json();
+  } catch (error) {
+    console.error("Categories API error:", error);
+    return [];
   }
 };

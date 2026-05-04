@@ -1,21 +1,18 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-// import axios or your custom API fetcher here
 import axios from "axios";
 import { useDispatch } from "react-redux";
 import { setCredentials } from "../store/authSlice";
+import { Spinner } from "../components/Spinner";
 
 const VerifyEmail = () => {
-  // 1. The 'useParams' hook is the secret weapon. It grabs the ':token' from the URL!
   const { token } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  // 2. We need state to track what is happening
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("Verifying your email...");
   const [error, setError] = useState(false);
 
-  // 3. The useEffect hook runs exactly ONCE when the page first opens
   useEffect(() => {
     const verifyUser = async () => {
       try {
@@ -23,58 +20,82 @@ const VerifyEmail = () => {
           `http://localhost:5000/api/auth/verify/${token}`,
         );
 
-        // 🛡️ The Session Capture
-        // We extract the user data and the token from the backend response
         const {
           token: accessToken,
           message: serverMessage,
           ...userData
         } = response.data;
 
-        // 🧠 Tell Redux: "We are officially logged in!"
-        dispatch(
-          setCredentials({
-            user: userData,
-            token: accessToken,
-          }),
-        );
+        dispatch(setCredentials({ user: userData, token: accessToken }));
+        setMessage("Account Activated. Welcome to the club.");
 
-        setMessage("Account Activated! Welcome to the club.");
-
-        // 🏎️ The Luxury Exit: Redirect to Home instead of Login
         setTimeout(() => {
           navigate("/");
         }, 2000);
       } catch (err) {
         setError(true);
-
-        // 👇 Prove to TypeScript that this is an Axios error
         if (axios.isAxiosError(err)) {
-          // Now TS is happy, and we can use "Optional Chaining" (?.) to safely grab the message!
           setMessage(err.response?.data?.message || "Verification failed.");
         } else {
-          // If it's a random network failure or typo, it falls back here
           setMessage("An unexpected network error occurred.");
         }
       } finally {
-        // Turn off the loading spinner when the request finishes
         setLoading(false);
       }
     };
 
-    // Only run the function if a token actually exists in the URL
-    if (token) {
-      verifyUser();
-    }
+    if (token) verifyUser();
   }, [token, navigate]);
 
-  // 4. The UI (Keep it clean and luxury for your fashion brand)
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      {loading && <div>Loading Spinner Here...</div>}
+    <div className="flex flex-col items-center justify-center min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark px-6 text-center">
+      {/* Spinner while verifying */}
+      {loading && (
+        <div className="mb-8">
+          <Spinner />
+        </div>
+      )}
 
-      {/* If error is true, make text red. If false, make it green! */}
-      <h1 className={error ? "text-red-500" : "text-green-500"}>{message}</h1>
+      {/* Overline */}
+      {!loading && (
+        <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-6">
+          {error ? "Verification failed" : "Email verified"}
+        </p>
+      )}
+
+      {/* Message heading */}
+      <h1
+        className={[
+          "font-heading font-light text-4xl md:text-5xl tracking-[-0.02em] leading-none",
+          loading
+            ? "text-textMuted dark:text-textMuted-dark"
+            : error
+              ? "text-accentRed"
+              : "text-textPrimary dark:text-textPrimary-dark",
+        ].join(" ")}
+      >
+        {message}
+      </h1>
+
+      {/* Redirect hint on success */}
+      {!loading && !error && (
+        <p className="mt-6 font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+          Redirecting you now…
+        </p>
+      )}
+
+      {/* Retry hint on error */}
+      {!loading && error && (
+        <p className="mt-6 font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+          The link may have expired.{" "}
+          <button
+            onClick={() => navigate("/login")}
+            className="text-textPrimary dark:text-textPrimary-dark underline underline-offset-4 decoration-borderLight hover:decoration-textPrimary dark:hover:decoration-textPrimary-dark transition-colors duration-200 bg-transparent border-none cursor-pointer font-sans text-[10px] tracking-widest uppercase"
+          >
+            Return to Login
+          </button>
+        </p>
+      )}
     </div>
   );
 };
