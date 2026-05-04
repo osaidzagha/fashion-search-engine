@@ -1,7 +1,6 @@
 import { Page } from "puppeteer";
 import { Product } from "./interface";
 import { ProductModel } from "../models/Product";
-import { notifyWatchlistUsers } from "../controllers/watchlistController";
 
 const shuffleArray = (array: any[]) => {
   return [...array].sort(() => Math.random() - 0.5);
@@ -96,7 +95,7 @@ export const runScraperPipeline = async (
     const shuffledCategories = shuffleArray(cleanCategories);
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 5);
+      : shuffledCategories.slice(0, 7);
 
     for (const categoryUrl of toScrape) {
       if (page.isClosed()) {
@@ -134,7 +133,7 @@ export const runScraperPipeline = async (
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 15);
+        : shuffledLinks.slice(0, 20);
 
       for (const link of toTest) {
         if (page.isClosed()) {
@@ -207,22 +206,6 @@ export const runScraperPipeline = async (
             console.log(
               `   --> 💾 Saved: ${product.name}${shouldRecordPrice ? " (price recorded)" : " (price unchanged)"}`,
             );
-
-            if (isPriceDrop) {
-              console.log(
-                `   --> 📉 Price drop: ${oldPrice} → ${product.price} ${product.currency} for "${product.name}"`,
-              );
-              notifyWatchlistUsers(
-                product.id,
-                product.name,
-                product.link,
-                oldPrice!,
-                product.price,
-                product.currency,
-              ).catch((err) =>
-                console.error("   --> ⚠️ Watchlist notification failed:", err),
-              );
-            }
           }
         } catch (err: any) {
           // The Magic Check: Intercept shutdown errors and exit silently

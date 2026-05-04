@@ -3,8 +3,8 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-// 🚨 IMPORTANT: You will need to import your actual action from productSlice!
-// import { setDepartments } from "../store/productSlice";
+// ✅ UNCOMMENTED: We need this to talk to Redux
+import { setDepartments } from "../store/productSlice";
 
 const Navbar = () => {
   const dispatch = useDispatch();
@@ -21,15 +21,33 @@ const Navbar = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    // Check initial theme on mount
-    if (document.documentElement.classList.contains("dark")) {
+    // ✅ FIX: Check localStorage on mount so it remembers across refreshes
+    const savedTheme = localStorage.getItem("theme");
+
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      setIsDarkMode(true);
+    } else if (savedTheme === "light") {
+      document.documentElement.classList.remove("dark");
+      setIsDarkMode(false);
+    } else if (document.documentElement.classList.contains("dark")) {
+      // Fallback if no localStorage but class exists
       setIsDarkMode(true);
     }
   }, []);
 
   const toggleTheme = () => {
-    document.documentElement.classList.toggle("dark");
-    setIsDarkMode(!isDarkMode);
+    const html = document.documentElement;
+
+    if (html.classList.contains("dark")) {
+      // Switch to Light
+      html.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    } else {
+      // Switch to Dark
+      html.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    }
   };
 
   // 2. The Logout Handler
@@ -38,7 +56,7 @@ const Navbar = () => {
     navigate("/login");
   };
 
-  // 3. Department Helper (Checking Redux State)
+  // 3. Department Helper
   const isMen =
     selectDepartments?.includes("Men") || selectDepartments?.includes("MEN");
   const isWomen =
@@ -50,11 +68,27 @@ const Navbar = () => {
       selectDepartments?.includes(dept) ||
       selectDepartments?.includes(dept.toUpperCase());
 
+    // 1. Grab the CURRENT URL basket so we don't lose other filters (like Category)
+    const currentParams = new URLSearchParams(location.search);
+
     if (isActive) {
-      // dispatch(setDepartments([])); // Uncomment when action is imported
+      // Turn it off in Redux
+      dispatch(setDepartments([]));
+      // Remove it from the URL basket
+      currentParams.delete("department");
     } else {
-      // dispatch(setDepartments([dept])); // Uncomment when action is imported
+      // Turn it on in Redux
+      dispatch(setDepartments([dept]));
+      // Add or update it in the URL basket
+      currentParams.set("department", dept);
     }
+
+    // 2. Build the new URL string safely
+    const newSearchString = currentParams.toString();
+    const finalUrl = newSearchString ? `?${newSearchString}` : "";
+
+    // 3. Silent Context Update: Just update the URL and stay on the current page!
+    navigate(`${location.pathname}${finalUrl}`);
   };
 
   // Helper string for consistent minimal link styling
@@ -90,7 +124,6 @@ const Navbar = () => {
       </div>
 
       {/* CENTER: Minimalist Logo */}
-      {/* Absolute positioning keeps the logo dead-center regardless of how wide the left/right menus get */}
       <Link
         to="/"
         className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"

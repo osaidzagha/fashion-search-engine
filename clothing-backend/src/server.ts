@@ -1,16 +1,16 @@
+import "dotenv/config"; // 🚨 MUST BE THE ABSOLUTE FIRST LINE
 import express, { Request, Response } from "express";
 import cors from "cors";
 import mongoose from "mongoose";
-import * as dotenv from "dotenv";
 import { ProductModel } from "./models/Product";
 import productRoutes from "./routes/productRoutes";
 import authRoutes from "./routes/authRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
 import { startScraperCron } from "./scrapers/scheduler";
+import { priceAlertWorker } from "./queues/priceAlertWorker";
+import { redisConnection } from "./queues/queues";
 import adminRoutes from "./routes/admin";
-import { cleanupStaleRuns } from "./scrapers/scraperService"; // NEW
-dotenv.config();
-
+import { cleanupStaleRuns } from "./scrapers/scraperManager";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -44,3 +44,14 @@ mongoose
     console.error(error);
     process.exit(1);
   });
+console.log("🔔 Price alert worker online.");
+
+const shutdown = async (signal: string) => {
+  console.log(`\n${signal} received — shutting down gracefully...`);
+  await priceAlertWorker.close();
+  await redisConnection.quit();
+  process.exit(0);
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

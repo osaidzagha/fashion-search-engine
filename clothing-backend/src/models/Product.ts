@@ -70,5 +70,19 @@ ProductSchema.index(
   },
 );
 
+// ─── THE PERFORMANCE INDEXES ──────────────────────────────────────────────────
+
+// 1. The Core Browsing Index
+ProductSchema.index({ department: 1, brand: 1, price: 1 });
+
+// 2. The Text Search Index (COMMENTED OUT - ALREADY EXISTS IN MONGODB)
+// ProductSchema.index({ name: "text", description: "text", category: "text" });
+
+// 3. The Sale/Filter Index
+ProductSchema.index({ originalPrice: -1, price: 1 });
+
+// 4. The Facet Helper
+ProductSchema.index({ color: 1, sizes: 1 });
+
 // 3. We compile the Schema into a Model
 export const ProductModel = mongoose.model<IProduct>("Product", ProductSchema);

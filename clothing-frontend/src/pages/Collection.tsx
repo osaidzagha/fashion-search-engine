@@ -6,41 +6,24 @@ import { fetchProductsFromAPI } from "../services/api";
 import { ProductGrid } from "../components/ProductGrid";
 import { SearchBar } from "../components/SearchBar";
 import { clearFilters } from "../store/productSlice";
-import { FilterDrawer } from "../components/FilterDrawer"; // 👈 IMPORTED NEW DRAWER
+import { FilterDrawer } from "../components/FilterDrawer";
 import {
   setProducts,
   setLoading,
   setAvailableSizes,
   setAvailableColors,
   setSearchTerm,
+  setDepartments,
 } from "../store/productSlice";
-
-// Shared Theme
-const theme = {
-  colors: {
-    bgPrimary: "#faf9f6",
-    textPrimary: "#1a1a1a",
-    textSecondary: "#888",
-    borderDark: "#e8e4dc",
-  },
-  fonts: {
-    sans: "'DM Sans', sans-serif",
-    heading: "'Cormorant Garamond', serif",
-  },
-};
 
 export default function Collection() {
   const { type } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useDispatch();
 
-  // 👇 1. ADDED FILTER STATE
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const location = useLocation();
 
-  useEffect(() => {
-    dispatch(clearFilters());
-  }, [location.search, dispatch]);
   const qFromUrl =
     searchParams.get("search") ||
     searchParams.get("q") ||
@@ -48,7 +31,12 @@ export default function Collection() {
     "";
   const currentSort = searchParams.get("sort") || "";
   const displayTitle = searchParams.get("title");
-
+  const deptFromUrl = searchParams.get("department");
+  useEffect(() => {
+    if (deptFromUrl) {
+      dispatch(setDepartments([deptFromUrl]));
+    }
+  }, [deptFromUrl, dispatch]);
   const {
     items: products,
     isLoading,
@@ -64,23 +52,15 @@ export default function Collection() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ── HEADER DYNAMICS ──
+  // ── Header dynamics ──────────────────────────────────────────────────────
   const getHeaderInfo = () => {
-    // 👇 1. If we came from the Mega-Menu, use the pretty title
-    if (displayTitle) {
-      return {
-        title: displayTitle,
-        desc: "Explore our curated catalog.",
-      };
-    }
-
-    // 👇 2. If the user typed manually in the Search Bar
-    if (qFromUrl && !type) {
+    if (displayTitle)
+      return { title: displayTitle, desc: "Explore our curated catalog." };
+    if (qFromUrl && !type)
       return {
         title: `Results for "${qFromUrl}"`,
         desc: "Explore items matching your search.",
       };
-    }
     switch (type) {
       case "sale":
         return {
@@ -112,7 +92,7 @@ export default function Collection() {
 
   const header = getHeaderInfo();
 
-  // ── LIFECYCLE ──
+  // ── Lifecycle ────────────────────────────────────────────────────────────
   useEffect(() => {
     dispatch(setSearchTerm(qFromUrl));
     setCurrentPage(1);
@@ -166,15 +146,12 @@ export default function Collection() {
       } catch (error) {
         console.error("Error fetching products:", error);
       } finally {
-        if (!ignore) {
-          dispatch(setLoading(false));
-        }
+        if (!ignore) dispatch(setLoading(false));
       }
     };
 
     fetchData();
     window.scrollTo({ top: 0, behavior: "smooth" });
-
     return () => {
       ignore = true;
     };
@@ -192,54 +169,25 @@ export default function Collection() {
     searchParams,
   ]);
 
+  // ── Active filter indicator ──────────────────────────────────────────────
+  const hasActiveFilters =
+    (selectBrands?.length || 0) > 0 ||
+    (selectColors?.length || 0) > 0 ||
+    (selectSizes?.length || 0) > 0;
+
   return (
-    <div
-      style={{
-        background: theme.colors.bgPrimary,
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* ── 1. MINIMALIST CINEMATIC HEADER ── */}
-      <div
-        style={{
-          padding: "100px 64px 60px",
-          borderBottom: `1px solid ${theme.colors.borderDark}`,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          textAlign: "center",
-        }}
-      >
-        <p
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "10px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            color: theme.colors.textSecondary,
-            marginBottom: "24px",
-          }}
-        >
+    <div className="min-h-screen flex flex-col bg-bgPrimary dark:bg-bgPrimary-dark">
+      {/* ══ 1. CINEMATIC HEADER ══════════════════════════════════════════════ */}
+      <div className="px-6 md:px-16 lg:px-24 pt-20 md:pt-28 pb-12 md:pb-16 border-b border-borderLight dark:border-borderLight-dark flex flex-col items-center text-center">
+        <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-6">
           {type ? "Curated Catalog" : "Search"}
         </p>
-        <h1
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontSize: "64px",
-            fontWeight: 300,
-            color: theme.colors.textPrimary,
-            margin: "0 0 24px",
-            letterSpacing: "-0.02em",
-          }}
-        >
+
+        <h1 className="font-heading font-light text-[clamp(36px,6vw,72px)] leading-none tracking-[-0.02em] text-textPrimary dark:text-textPrimary-dark mb-0">
           {header.title}
         </h1>
 
-        {/* Inline Search */}
-        <div style={{ width: "100%", maxWidth: "500px", marginTop: "24px" }}>
-          {/* 👇 If we have a pretty title (mega-menu), leave the search box empty! */}
+        <div className="w-full max-w-[500px] mt-8">
           <SearchBar
             initialValue={displayTitle ? "" : qFromUrl}
             variant="compact"
@@ -247,75 +195,26 @@ export default function Collection() {
         </div>
       </div>
 
-      {/* ── 2. EDITORIAL FULL-WIDTH LAYOUT ── */}
-      {/* 👇 Removed the Sidebar and flex-row. This is now a clean column. */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          flex: 1,
-          maxWidth: "1800px",
-          margin: "0 auto",
-          width: "100%",
-          padding: "48px 64px 120px",
-        }}
-      >
-        {/* Top Utility Bar */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "48px",
-            borderBottom: `1px solid ${theme.colors.borderDark}`,
-            paddingBottom: "16px",
-          }}
-        >
-          {/* LEFT: Zara-Style Filter Trigger */}
+      {/* ══ 2. EDITORIAL FULL-WIDTH LAYOUT ═══════════════════════════════════ */}
+      <div className="flex flex-col flex-1 w-full max-w-[1800px] mx-auto px-6 md:px-16 lg:px-24 py-10 md:py-14 pb-24 md:pb-32">
+        {/* ── Utility bar ── */}
+        <div className="flex justify-between items-center mb-10 md:mb-12 border-b border-borderLight dark:border-borderLight-dark pb-4">
+          {/* LEFT: Filter trigger */}
           <button
             onClick={() => setIsFilterOpen(true)}
-            style={{
-              fontFamily: theme.fonts.sans,
-              fontSize: "11px",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              color: theme.colors.textPrimary,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
+            className="flex items-center gap-2 font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent border-none cursor-pointer text-textPrimary dark:text-textPrimary-dark hover:opacity-60 transition-opacity duration-200 ease-smooth"
           >
             Filters
-            {/* ✅ FIX: Safely check lengths with optional chaining */}
-            {((selectBrands?.length || 0) > 0 ||
-              (selectColors?.length || 0) > 0 ||
-              (selectSizes?.length || 0) > 0) && (
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  background: "#1a1a1a",
-                  borderRadius: "50%",
-                }}
-              />
+            {hasActiveFilters && (
+              <span className="w-1.5 h-1.5 rounded-full bg-textPrimary dark:bg-textPrimary-dark" />
             )}
           </button>
-          {/* RIGHT: Count & Sort grouped together */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: "32px" }}>
-            <span
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "11px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: theme.colors.textSecondary,
-              }}
-            >
+
+          {/* RIGHT: Count + sort */}
+          <div className="flex items-baseline gap-6 md:gap-8">
+            <span className="font-sans text-[10px] md:text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
               {isLoading
-                ? "Curating..."
+                ? "Curating…"
                 : `${totalCount.toLocaleString()} pieces`}
             </span>
 
@@ -327,18 +226,7 @@ export default function Collection() {
                 else newParams.delete("sort");
                 setSearchParams(newParams);
               }}
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "11px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                background: "transparent",
-                color: theme.colors.textPrimary,
-                border: "none",
-                cursor: "pointer",
-                outline: "none",
-                textAlign: "right",
-              }}
+              className="font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent text-textPrimary dark:text-textPrimary-dark border-none cursor-pointer outline-none text-right transition-opacity duration-200 hover:opacity-60"
             >
               <option value="">Recommended</option>
               <option value="lowest">Price: Ascending</option>
@@ -347,29 +235,13 @@ export default function Collection() {
           </div>
         </div>
 
-        {/* The Grid / State Handling */}
+        {/* ── Grid / empty state ── */}
         {products.length === 0 && !isLoading ? (
-          <div style={{ textAlign: "center", padding: "160px 0" }}>
-            <p
-              style={{
-                fontFamily: theme.fonts.heading,
-                fontStyle: "italic",
-                fontSize: "32px",
-                color: theme.colors.textSecondary,
-                margin: "0 0 16px",
-              }}
-            >
+          <div className="flex flex-col items-center justify-center py-40 text-center">
+            <p className="font-heading italic text-3xl text-textSecondary dark:text-textSecondary-dark mb-4">
               The archive is empty.
             </p>
-            <p
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "10px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: theme.colors.textSecondary,
-              }}
-            >
+            <p className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
               Adjust your filters to discover more.
             </p>
           </div>
@@ -377,57 +249,27 @@ export default function Collection() {
           <>
             <ProductGrid products={products} isLoading={isLoading} />
 
-            {/* Premium Pagination */}
+            {/* ── Pagination ── */}
             {totalPages > 1 && !isLoading && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "32px",
-                  marginTop: "80px",
-                  paddingTop: "40px",
-                  borderTop: `1px solid ${theme.colors.borderDark}`,
-                }}
-              >
+              <div className="flex justify-center items-center gap-8 md:gap-12 mt-20 pt-10 border-t border-borderLight dark:border-borderLight-dark">
                 <button
                   onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                   disabled={currentPage <= 1}
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "10px",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    background: "none",
-                    border: "none",
-                    cursor: currentPage <= 1 ? "not-allowed" : "pointer",
-                    color:
-                      currentPage <= 1
-                        ? theme.colors.borderDark
-                        : theme.colors.textPrimary,
-                    transition: "color 0.2s",
-                  }}
+                  className={[
+                    "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200 ease-smooth",
+                    currentPage <= 1
+                      ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
+                      : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
+                  ].join(" ")}
                 >
                   Previous
                 </button>
 
-                <span
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "11px",
-                    letterSpacing: "0.2em",
-                    color: theme.colors.textSecondary,
-                  }}
-                >
-                  {currentPage}{" "}
-                  <span
-                    style={{
-                      color: theme.colors.borderDark,
-                      margin: "0 8px",
-                    }}
-                  >
+                <span className="font-sans text-[11px] tracking-widest text-textMuted dark:text-textMuted-dark">
+                  {currentPage}
+                  <span className="mx-3 text-borderLight dark:text-borderLight-dark">
                     /
-                  </span>{" "}
+                  </span>
                   {totalPages}
                 </span>
 
@@ -436,21 +278,12 @@ export default function Collection() {
                     setCurrentPage((p) => Math.min(p + 1, totalPages))
                   }
                   disabled={currentPage >= totalPages}
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "10px",
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    background: "none",
-                    border: "none",
-                    cursor:
-                      currentPage >= totalPages ? "not-allowed" : "pointer",
-                    color:
-                      currentPage >= totalPages
-                        ? theme.colors.borderDark
-                        : theme.colors.textPrimary,
-                    transition: "color 0.2s",
-                  }}
+                  className={[
+                    "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200 ease-smooth",
+                    currentPage >= totalPages
+                      ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
+                      : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
+                  ].join(" ")}
                 >
                   Next
                 </button>
@@ -460,7 +293,7 @@ export default function Collection() {
         )}
       </div>
 
-      {/* 👇 3. INJECT THE DRAWER COMPONENT */}
+      {/* ══ 3. FILTER DRAWER ════════════════════════════════════════════════ */}
       <FilterDrawer
         isOpen={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}

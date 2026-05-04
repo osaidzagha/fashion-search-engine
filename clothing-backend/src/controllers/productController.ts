@@ -83,8 +83,16 @@ const excludeMap: Record<string, string> = {
 function buildBaseFilter(query: any): any {
   const filter: any = {};
 
-  if (query.maxPrice) filter.price = { $lte: Number(query.maxPrice) };
-
+  if (
+    query.maxPrice &&
+    query.maxPrice !== "undefined" &&
+    query.maxPrice !== "null"
+  ) {
+    const priceNum = Number(query.maxPrice);
+    if (!isNaN(priceNum) && priceNum > 0) {
+      filter.price = { $lte: priceNum };
+    }
+  }
   if (query.brand) {
     filter.brand = {
       $in: (query.brand as string).split(",").map((b: string) => b.trim()),
@@ -194,17 +202,27 @@ export const getProducts = async (req: Request, res: Response) => {
       }
     }
 
-    let projection: any = {};
+    // ── 1. THE PAYLOAD DIET (EXCLUSION STRATEGY) ──
+    // Instead of guessing what React needs, we just explicitly DROP the megabytes of heavy text.
+    let projection: any = {
+      priceHistory: 0, // Drops the massive array
+      description: 0, // Drops the heavy HTML
+      composition: 0, // Drops the long material text
+      videos: 0, // Drops the heavy media objects
+    };
+
     if (filter.$text && Object.keys(sortOption).length === 0) {
-      projection = { score: { $meta: "textScore" } };
+      projection.score = { $meta: "textScore" };
       sortOption = { score: { $meta: "textScore" } };
     }
 
+    // ── 2. THE LEAN QUERY ──
     const [allProducts, total] = await Promise.all([
       ProductModel.find(filter, projection)
         .sort(Object.keys(sortOption).length ? sortOption : { timestamp: -1 })
         .skip(skip)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       ProductModel.countDocuments(filter),
     ]);
 

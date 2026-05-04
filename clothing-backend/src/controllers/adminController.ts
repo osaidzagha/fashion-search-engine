@@ -7,7 +7,7 @@ import {
   knownBrandSlugs,
   brandNameForSlug,
   stopScraper,
-} from "../scrapers/scraperService";
+} from "../scrapers/scraperManager";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const DOW_TO_ABBR: Record<number, string> = {
@@ -22,13 +22,7 @@ const DOW_TO_ABBR: Record<number, string> = {
 const CHART_DAY_ORDER = [2, 3, 4, 5, 6, 7, 1] as const;
 
 const VIDEO_MATCH = {
-  $or: [
-    { video: { $exists: true, $ne: "" } },
-    { videoUrl: { $exists: true } },
-    { videos: { $not: { $size: 0 } } },
-    { "media.type": "video" },
-    { "media.url": /mp4/i },
-  ],
+  "videos.0": { $exists: true, $nin: ["", null] },
 };
 
 const ON_SALE_MATCH = { $expr: { $gt: ["$originalPrice", "$price"] } };
@@ -146,7 +140,7 @@ export const getDashboard = async (
                 },
                 {
                   $group: { _id: "$watchlist.productId", tracks: { $sum: 1 } },
-                }, // <-- Fixed ObjectId bug!
+                },
                 { $sort: { tracks: -1 } },
                 { $limit: 5 },
               ],
@@ -154,7 +148,7 @@ export const getDashboard = async (
           },
         ]),
 
-        // C: Scraper runs (Replaces mock data)
+        // C: Scraper runs
         ScraperRunModel.aggregate([
           { $sort: { startedAt: -1 } },
           { $limit: 100 },
@@ -297,7 +291,7 @@ export const runScraper = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const brand = req.params.brand as string; // TS FIX
+    const brand = req.params.brand as string;
 
     if (!knownBrandSlugs().includes(brand)) {
       res.status(400).json({ error: `Unknown brand slug: ${brand}` });
@@ -329,7 +323,7 @@ export const killScraper = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const brand = req.params.brand as string; // TS FIX
+    const brand = req.params.brand as string;
     const wasStopped = await stopScraper(brand);
 
     const brandName = brandNameForSlug(brand) || brand;

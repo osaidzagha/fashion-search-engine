@@ -29,7 +29,8 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/product/:id" element={<ProductDetails />} />
               <Route path="/search" element={<Collection />} />
-              <Route path="/collection/:type" element={<Collection />} />
+              <Route path="/collection" element={<Collection />} />
+              <Route path="/collection/:type" element={<Collection />} />{" "}
               <Route path="/watchlist" element={<Watchlist />} />
             </Route>
 
