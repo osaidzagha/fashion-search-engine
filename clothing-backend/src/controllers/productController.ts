@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
-
 // ─── Synonym map (Strict Equivalence) ─────────────────────────────────────────
 const synonymMap: Record<string, string> = {
   // ── BOTTOMS ──
@@ -203,12 +202,11 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     // ── 1. THE PAYLOAD DIET (EXCLUSION STRATEGY) ──
-    // Instead of guessing what React needs, we just explicitly DROP the megabytes of heavy text.
     let projection: any = {
-      priceHistory: 0, // Drops the massive array
-      description: 0, // Drops the heavy HTML
-      composition: 0, // Drops the long material text
-      videos: 0, // Drops the heavy media objects
+      priceHistory: 0,
+      description: 0,
+      composition: 0,
+      videos: 0,
     };
 
     if (filter.$text && Object.keys(sortOption).length === 0) {
@@ -271,6 +269,25 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
+// ─── DELETE /api/admin/products/:id ───────────────────────────────────────────
+export const deleteProduct = async (req: Request, res: Response) => {
+  try {
+    // Assuming your products use a custom string 'id' from the scraper, not just MongoDB's '_id'
+    const deletedProduct = await ProductModel.findOneAndDelete({
+      id: req.params.id,
+    });
+
+    if (!deletedProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    return res.status(200).json({ message: "Product permanently deleted" });
+  } catch (error) {
+    console.error("Error deleting product:", error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 // ─── GET /api/products/featured ───────────────────────────────────────────────
 export const getFeaturedProducts = async (req: Request, res: Response) => {
   try {
@@ -285,7 +302,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    // ── Exact regex per spec — allows shoes, bags, hats; blocks hair/fragrance/jewellery ──
+    // ── Exact regex per spec ──
     const NON_CLOTHING_CATEGORY_RE =
       /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
 
@@ -294,6 +311,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       newInZara,
       newInMassimo,
       withVideoRaw,
+      campaignHeroesRaw,
       jackets,
       shirts,
       trousers,
@@ -362,6 +380,18 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .limit(20)
         .lean(),
 
+      // ── 2. NEW QUERY: Fetch only Campaign Heroes directly from DB ──
+      // 🚨 Added strict check: MUST have a valid video array!
+      ProductModel.find({
+        isCampaignHero: true,
+        videos: { $exists: true, $not: { $size: 0 } },
+        "videos.0": { $exists: true, $nin: ["", null] },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .limit(30)
+        .lean(),
+
       // ── Category hero tiles ──
       ProductModel.findOne({
         category: { $regex: "jacket", $options: "i" },
@@ -396,14 +426,20 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const getValue = (result: PromiseSettledResult<any>) =>
       result.status === "fulfilled" ? result.value : null;
 
-    // Apply the exact NON_CLOTHING_CATEGORY_RE filter on the backend
-    // before sending — keeps the payload clean
+    // ── 3. Parse the results ──
     const rawVideoProducts: any[] = getValue(withVideoRaw) || [];
+    const rawCampaignHeroes: any[] = getValue(campaignHeroesRaw) || [];
+
+    // 1. Editor's Choice gets ALL clothing videos
     const withVideo = rawVideoProducts.filter(
       (p) =>
         !NON_CLOTHING_CATEGORY_RE.test(p.category || "") &&
         !NON_CLOTHING_CATEGORY_RE.test(p.name || ""),
     );
+
+    // 2. The Hero section gets the DB-queried campaign heroes
+    // 🚨 ADMIN OVERRIDE: We removed the Regex filter here. If you clicked "Set as Hero", it goes to the homepage. No exceptions.
+    const campaignHeroes = rawCampaignHeroes;
 
     return res.status(200).json({
       onSale: getValue(onSaleRaw) || [],
@@ -411,7 +447,8 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         zara: getValue(newInZara) || [],
         massimo: getValue(newInMassimo) || [],
       },
-      withVideo,
+      withVideo, // Normal Editor's Choice videos
+      campaignHeroes, // Dedicated Campaign Heroes
       categoryTiles: {
         jackets: getValue(jackets),
         shirts: getValue(shirts),
@@ -425,6 +462,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       onSale: [],
       newIn: { zara: [], massimo: [] },
       withVideo: [],
+      campaignHeroes: [],
       categoryTiles: {
         jackets: null,
         shirts: null,
@@ -434,7 +472,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     });
   }
 };
-
 // ─── GET /api/products/suggestions ───────────────────────────────────────────
 export const getSearchSuggestions = async (req: Request, res: Response) => {
   try {
@@ -522,5 +559,43 @@ export const getCategories = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error fetching categories:", error);
     res.status(500).json({ message: "Server Error" });
+  }
+};
+
+// DELETE /api/products/:id/media
+export const deleteProductMedia = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  try {
+    const { id } = req.params; // This is the string ID like 'pb_03671510'
+    const { mediaUrls } = req.body;
+
+    if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) {
+      res.status(400).json({ error: "No media URLs provided." });
+      return;
+    }
+
+    // Notice we use findOneAndUpdate({ id: id }) to match your custom ID string
+    const updatedProduct = await ProductModel.findOneAndUpdate(
+      { id: id },
+      {
+        $pullAll: {
+          images: mediaUrls,
+          videos: mediaUrls,
+        },
+      },
+      { new: true },
+    );
+
+    if (!updatedProduct) {
+      res.status(404).json({ error: "Product not found" });
+      return;
+    }
+
+    res.json(updatedProduct);
+  } catch (error) {
+    console.error("[ProductController] Delete Media Error:", error);
+    res.status(500).json({ error: "Failed to delete media." });
   }
 };

@@ -1,4 +1,5 @@
 import express from "express";
+import { deleteProductMedia } from "../controllers/productController";
 import {
   getProducts,
   getProductById,
@@ -55,7 +56,6 @@ router.get("/:id/related", async (req, res) => {
 router.get("/:id", getProductById);
 
 // ── Admin routes ──────────────────────────────────────────────────────────────
-
 router.post("/", protect, admin, (req, res) => {
   res.status(200).json({ message: "Admin Access Granted" });
 });
@@ -63,5 +63,8 @@ router.post("/", protect, admin, (req, res) => {
 router.delete("/:id", protect, admin, (req, res) => {
   res.status(200).json({ message: `Product ${req.params.id} deleted` });
 });
+
+// 👇 ADD YOUR NEW MEDIA DELETE ROUTE HERE 👇
+router.delete("/:id/media", protect, admin, deleteProductMedia);
 
 export default router;

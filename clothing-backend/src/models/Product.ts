@@ -20,6 +20,7 @@ export interface IProduct extends Document {
 
   // FIX 1: Pure TypeScript types!
   videos?: string[];
+  isCampaignHero?: boolean;
   priceHistory?: { price: number; date: Date }[];
 }
 
@@ -43,6 +44,7 @@ const ProductSchema: Schema = new Schema({
 
   // FIX 2: Added the Mongoose configurations here!
   videos: { type: [String], required: false },
+  isCampaignHero: { type: Boolean, default: false },
   priceHistory: [
     {
       price: { type: Number },

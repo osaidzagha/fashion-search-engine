@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
 import { UserModel } from "../models/User";
+import { ProductModel as Product } from "../models/Product";
 import { ScraperRunModel, IScraperRun } from "../models/ScraperRun";
 import {
   triggerScraper,
@@ -27,7 +28,6 @@ const VIDEO_MATCH = {
 
 const ON_SALE_MATCH = { $expr: { $gt: ["$originalPrice", "$price"] } };
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-const KNOWN_BRANDS = ["Zara", "Massimo Dutti"] as const;
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 function formatDuration(ms: number): string {
@@ -204,14 +204,18 @@ export const getDashboard = async (
       .filter((item): item is NonNullable<typeof item> => item !== null);
 
     // ── Unpack scraper facet ─────────────────────────────────────────────────
-    const sf = scraperRuns[0];
+    const sf = scraperRuns[0]; // <-- This is the 'sf' variable that was missing!
+
     const latestByBrand = new Map<string, IScraperRun>(
       (sf.latestPerBrand as any[]).map(({ _id, doc }) => [_id, doc]),
     );
 
-    const scraperStatus = KNOWN_BRANDS.map((brand) => {
+    // Dynamically generate cards based on the scraperManager registry
+    const scraperStatus = knownBrandSlugs().map((slug) => {
+      const brand = brandNameForSlug(slug) || slug;
       const run = latestByBrand.get(brand);
-      if (!run)
+
+      if (!run) {
         return {
           brand,
           status: "idle" as const,
@@ -220,6 +224,7 @@ export const getDashboard = async (
           newItems: 0,
           updated: 0,
         };
+      }
 
       return {
         brand,
@@ -231,6 +236,7 @@ export const getDashboard = async (
       };
     });
 
+    // ── Restore the Activity Log ─────────────────────────────────────────────
     const activityLog = (sf.recentRuns as IScraperRun[]).map((run) => ({
       time: formatTime(run.startedAt),
       brand: run.brand,
@@ -238,7 +244,13 @@ export const getDashboard = async (
       detail: buildActivityDetail(run),
       type: buildActivityType(run),
     }));
-
+    // The "Nuclear Option" loose query
+    const videoProducts = await Product.find({
+      videos: { $exists: true, $type: "array", $ne: [] },
+    })
+      .select("id name brand videos isCampaignHero")
+      .limit(50)
+      .lean();
     // ── KPI array ────────────────────────────────────────────────────────────
     const salePercent =
       totalProducts > 0
@@ -277,6 +289,7 @@ export const getDashboard = async (
       scraperStatus,
       watchlistTop,
       activityLog,
+      videoProducts,
     });
   } catch (err) {
     console.error("[AdminController] getDashboard error:", err);
@@ -291,14 +304,19 @@ export const runScraper = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const brand = req.params.brand as string;
+    const input = req.params.brand as string;
 
-    if (!knownBrandSlugs().includes(brand)) {
-      res.status(400).json({ error: `Unknown brand slug: ${brand}` });
+    // Smart Match: Check if the input is a slug OR a display name
+    const targetSlug = knownBrandSlugs().find(
+      (slug) => slug === input || brandNameForSlug(slug) === input,
+    );
+
+    if (!targetSlug) {
+      res.status(400).json({ error: `Unknown brand: ${input}` });
       return;
     }
 
-    const brandName = brandNameForSlug(brand);
+    const brandName = brandNameForSlug(targetSlug);
 
     const runDoc = await ScraperRunModel.create({
       brand: brandName,
@@ -306,7 +324,8 @@ export const runScraper = async (
       startedAt: new Date(),
     });
 
-    triggerScraper(brand, runDoc._id.toString(), false);
+    // We pass the targetSlug to triggerScraper, NOT the display name!
+    triggerScraper(targetSlug, runDoc._id.toString(), false);
 
     res.status(202).json({
       message: `${brandName} scraper started in the background.`,
@@ -318,15 +337,28 @@ export const runScraper = async (
   }
 };
 
+// ─── Kill Scraper DELETE Endpoint ─────────────────────────────────────────────
+
 export const killScraper = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const brand = req.params.brand as string;
-    const wasStopped = await stopScraper(brand);
+    const input = req.params.brand as string;
 
-    const brandName = brandNameForSlug(brand) || brand;
+    // Smart Match: Check if the input is a slug OR a display name
+    const targetSlug = knownBrandSlugs().find(
+      (slug) => slug === input || brandNameForSlug(slug) === input,
+    );
+
+    if (!targetSlug) {
+      res.status(400).json({ error: `Unknown brand: ${input}` });
+      return;
+    }
+
+    // Stop using the slug
+    const wasStopped = await stopScraper(targetSlug);
+    const brandName = brandNameForSlug(targetSlug) || input;
 
     // Immediately update the DB so the frontend stops polling
     await ScraperRunModel.findOneAndUpdate(
@@ -340,5 +372,36 @@ export const killScraper = async (
   } catch (err) {
     console.error("[AdminController] killScraper error:", err);
     res.status(500).json({ error: "Failed to stop scraper." });
+  }
+};
+// Toggle a product's Campaign Hero status for the homepage
+export const toggleCampaignHero = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Find the product
+    const product = await Product.findOne({ id });
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Ensure it actually has a video before allowing it to be a hero
+    if (!product.videos || product.videos.length === 0) {
+      return res
+        .status(400)
+        .json({ message: "Product must have a video to be a campaign hero" });
+    }
+
+    // Flip the switch
+    product.isCampaignHero = !product.isCampaignHero;
+    await product.save();
+
+    res.status(200).json({
+      message: `Product is now ${product.isCampaignHero ? "live on" : "removed from"} the homepage campaign.`,
+      isCampaignHero: product.isCampaignHero,
+    });
+  } catch (error) {
+    console.error("[Admin API] Error toggling campaign hero:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
