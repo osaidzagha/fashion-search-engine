@@ -179,7 +179,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           <div>
             <SectionHeader index="01" title="Curator" />
             <div className="flex flex-col gap-2 pl-10">
-              {["Zara", "Massimo Dutti"].map((brand) => (
+              {["Zara", "Massimo Dutti", "Pull & Bear"].map((brand) => (
                 <FilterOption
                   key={brand}
                   label={brand}

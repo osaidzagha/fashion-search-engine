@@ -19,7 +19,7 @@ export const TAXONOMY: TopCategory[] = [
         label: "All Clothing",
         type: "search",
         // Removed dangerous adjectives like 'knit', 'denim', 'active'
-        q: "shirt blouse tee top corset trousers chino pant jeans jogger sweatpant shorts bermuda skirt skort sweater pullover jumper cardigan jacket bomber puffer trench coat blazer suit tuxedo dress gown jumpsuit romper swimwear activewear lingerie bra panty sleepwear pajama",
+        q: "",
       },
       {
         label: "Beachwear & Swimwear",
@@ -219,6 +219,7 @@ export const TAXONOMY: TopCategory[] = [
     items: [
       { label: "Zara", type: "brand", q: "Zara" },
       { label: "Massimo Dutti", type: "brand", q: "Massimo Dutti" },
+      { label: "Pull & Bear", type: "brand", q: "Pull & Bear" },
     ],
   },
 ];

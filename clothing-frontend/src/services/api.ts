@@ -170,3 +170,18 @@ export const fetchCategories = async (): Promise<string[]> => {
     return [];
   }
 };
+
+export const toggleCampaignHeroAPI = async (productId: string) => {
+  const response = await authFetch(
+    `${BASE_URL}/api/admin/products/${productId}/campaign`,
+    {
+      method: "PUT",
+    },
+  );
+
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.message || "Failed to update campaign status");
+  }
+  return await response.json();
+};

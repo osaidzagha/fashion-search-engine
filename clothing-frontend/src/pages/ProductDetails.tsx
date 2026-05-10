@@ -12,6 +12,7 @@ import { Spinner } from "../components/Spinner";
 import ProductCard from "../components/ProductCard";
 import PriceHistoryChart from "../components/PriceHistoryChart";
 import { ImageLightbox } from "../components/ImageLightbox";
+import { Trash2, X, CheckCircle2 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toTitleCase(str: string) {
@@ -26,28 +27,26 @@ function discountPercent(original: number, current: number) {
 }
 
 // ─── Image grid layout engine ─────────────────────────────────────────────────
-// Repeating 6-cell pattern — magazine-quality rhythm
 function getGridClasses(idx: number): { colSpan: string; aspect: string } {
   const pattern = idx % 6;
   switch (pattern) {
     case 0:
-      return { colSpan: "col-span-2", aspect: "aspect-video" }; // wide landscape
+      return { colSpan: "col-span-2", aspect: "aspect-video" };
     case 1:
-      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" }; // tall left
+      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" };
     case 2:
-      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" }; // tall right
+      return { colSpan: "col-span-1", aspect: "aspect-[3/4]" };
     case 3:
-      return { colSpan: "col-span-1", aspect: "aspect-square" }; // square left
+      return { colSpan: "col-span-1", aspect: "aspect-square" };
     case 4:
-      return { colSpan: "col-span-1", aspect: "aspect-square" }; // square right
+      return { colSpan: "col-span-1", aspect: "aspect-square" };
     case 5:
-      return { colSpan: "col-span-2", aspect: "aspect-[21/9]" }; // ultra-wide cinematic
+      return { colSpan: "col-span-2", aspect: "aspect-[21/9]" };
     default:
       return { colSpan: "col-span-1", aspect: "aspect-[3/4]" };
   }
 }
 
-// ─── Shared carousel classes (mirrors Home.tsx) ───────────────────────────────
 const CAROUSEL =
   "flex gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
 const CARD_WRAPPER =
@@ -59,11 +58,11 @@ export default function ProductDetails() {
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const isAuthenticated = useSelector(
-    (state: any) => state.auth.isAuthenticated,
+  const { isAuthenticated, userInfo, token } = useSelector(
+    (state: any) => state.auth,
   );
+  const isAdmin = userInfo?.role === "admin";
 
-  // Reactively track Tailwind's `dark` class on <html> so chart re-renders on toggle
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
@@ -87,6 +86,11 @@ export default function ProductDetails() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(0);
   const [heroLoaded, setHeroLoaded] = useState(false);
+
+  // Admin Media Manager State
+  const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
+  const [isDeletingMedia, setIsDeletingMedia] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -132,6 +136,44 @@ export default function ProductDetails() {
     }
   };
 
+  // ─── ADMIN: Handle Media Deletion ───
+  const handleDeleteSelectedMedia = async () => {
+    if (selectedMedia.length === 0 || !product) return;
+    setIsDeletingMedia(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/products/${product.id}/media`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`, // Pass Redux token to pass authMiddleware
+          },
+          body: JSON.stringify({ mediaUrls: selectedMedia }),
+        },
+      );
+
+      if (res.ok) {
+        const updatedProduct = await res.json();
+        setProduct(updatedProduct); // Instantly update the UI
+        setSelectedMedia([]);
+        setIsMediaManagerOpen(false);
+      } else {
+        console.error("Failed to delete media");
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsDeletingMedia(false);
+    }
+  };
+
+  const toggleMediaSelection = (url: string) => {
+    setSelectedMedia((prev) =>
+      prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
+    );
+  };
+
   // ── Loading ──
   if (isLoading) {
     return (
@@ -159,8 +201,6 @@ export default function ProductDetails() {
   }
 
   const images = product.images ?? [];
-
-  // Safely extract ALL possible video sources from Zara and Massimo schemas
   const videos: string[] = [];
   if (product.video) videos.push(product.video);
   if (product.videoUrl) videos.push(product.videoUrl);
@@ -173,15 +213,14 @@ export default function ProductDetails() {
     videos.push(...mediaVideos);
   }
 
+  const allMedia = [...videos, ...images];
   const hasVideo = videos.length > 0;
-  // Hero: first video if available, else first image
   const heroMedia = hasVideo
     ? { type: "video" as const, src: videos[0] }
     : images.length > 0
       ? { type: "image" as const, src: images[0] }
       : null;
 
-  // Mixed media grid — remaining videos then all/remaining images
   const gridMedia: { type: "video" | "image"; src: string }[] = [];
   if (hasVideo) {
     videos
@@ -213,6 +252,93 @@ export default function ProductDetails() {
         />
       )}
 
+      {/* ── ADMIN MEDIA MANAGER OVERLAY ── */}
+      {isMediaManagerOpen && (
+        <div className="fixed inset-0 z-[100] bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md overflow-y-auto pt-20 pb-10 px-10">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-end mb-8 border-b border-borderLight dark:border-borderLight-dark pb-4">
+              <div>
+                <h2 className="font-heading text-3xl font-light text-textPrimary dark:text-textPrimary-dark">
+                  Manage Media
+                </h2>
+                <p className="font-sans text-[10px] tracking-widest uppercase text-textMuted mt-2">
+                  Select images or videos to permanently delete from the
+                  database.
+                </p>
+              </div>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleDeleteSelectedMedia}
+                  disabled={selectedMedia.length === 0 || isDeletingMedia}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-3 font-sans text-[10px] tracking-widest uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  {isDeletingMedia
+                    ? "Deleting..."
+                    : `Delete Selected (${selectedMedia.length})`}
+                  <Trash2 size={14} />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMediaManagerOpen(false);
+                    setSelectedMedia([]);
+                  }}
+                  className="p-2 border border-borderLight dark:border-borderLight-dark text-textPrimary dark:text-textPrimary-dark hover:bg-borderLight transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4">
+              {allMedia.map((url, idx) => {
+                const isSelected = selectedMedia.includes(url);
+                const isVid = url.toLowerCase().includes(".mp4");
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => toggleMediaSelection(url)}
+                    className={`relative cursor-pointer group aspect-[3/4] border-2 transition-all ${
+                      isSelected
+                        ? "border-red-500 scale-95"
+                        : "border-transparent"
+                    }`}
+                  >
+                    {isVid ? (
+                      <video src={url} className="w-full h-full object-cover" />
+                    ) : (
+                      <img
+                        src={url}
+                        alt="Media"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                    {isVid && (
+                      <span className="absolute bottom-2 left-2 bg-black/70 text-white text-[9px] uppercase px-2 py-1 tracking-widest">
+                        Video
+                      </span>
+                    )}
+                    {isSelected ? (
+                      <div className="absolute inset-0 bg-red-500/20 flex items-center justify-center">
+                        <CheckCircle2
+                          className="text-white fill-red-500"
+                          size={32}
+                        />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <span className="text-white font-sans text-[10px] uppercase tracking-widest border border-white px-3 py-1">
+                          Select
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ══════════════════════════════════════════════════════════
           SECTION 1 — CINEMATIC HERO
           ══════════════════════════════════════════════════════════ */}
@@ -238,8 +364,7 @@ export default function ProductDetails() {
             playsInline
             onCanPlay={() => setHeroLoaded(true)}
             className={[
-              "w-full h-full object-cover block",
-              "transition-all duration-[1200ms] ease-elegant",
+              "w-full h-full object-cover block transition-all duration-[1200ms] ease-elegant",
               heroLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.04]",
             ].join(" ")}
           />
@@ -249,17 +374,14 @@ export default function ProductDetails() {
             alt={product.name}
             onLoad={() => setHeroLoaded(true)}
             className={[
-              "w-full h-full object-cover block",
-              "transition-all duration-[1200ms] ease-elegant",
+              "w-full h-full object-cover block transition-all duration-[1200ms] ease-elegant",
               heroLoaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.04]",
             ].join(" ")}
           />
         ) : null}
 
-        {/* Bottom gradient for text legibility */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
 
-        {/* Top-left: back button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -270,14 +392,12 @@ export default function ProductDetails() {
           ← Back
         </button>
 
-        {/* Top-right: sale badge */}
         {isOnSale && (
           <div className="absolute top-8 right-8 z-20 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-3 py-1.5">
             −{discount}%
           </div>
         )}
 
-        {/* Video indicator */}
         {hasVideo && (
           <div className="absolute top-1/2 right-12 -translate-y-1/2 z-20 pointer-events-none">
             <div className="w-12 h-12 rounded-full border border-white/30 flex items-center justify-center">
@@ -286,26 +406,21 @@ export default function ProductDetails() {
           </div>
         )}
 
-        {/* ── Hero name overlay — bottom-left, slides up on load ── */}
         <div
           className={[
-            "absolute bottom-12 left-12 z-20 pointer-events-none",
-            "transition-all duration-700 ease-elegant",
+            "absolute bottom-12 left-12 z-20 pointer-events-none transition-all duration-700 ease-elegant",
             heroLoaded
               ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-6",
           ].join(" ")}
         >
-          {/* Brand overline */}
           <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-3">
             {product.brand}
             {product.color && <span className="ml-3">· {product.color}</span>}
           </p>
-          {/* Product name — large Cormorant italic */}
           <h1 className="font-heading font-light italic text-[clamp(32px,4vw,64px)] leading-none text-white max-w-2xl">
             {toTitleCase(product.name)}
           </h1>
-          {/* Price beneath name */}
           <div className="flex items-baseline gap-3 mt-4">
             <span
               className={[
@@ -323,11 +438,9 @@ export default function ProductDetails() {
           </div>
         </div>
 
-        {/* Scroll hint */}
         <div
           className={[
-            "absolute bottom-8 right-12 z-20 pointer-events-none",
-            "transition-all duration-700 delay-500 ease-elegant",
+            "absolute bottom-8 right-12 z-20 pointer-events-none transition-all duration-700 delay-500 ease-elegant",
             heroLoaded
               ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-4",
@@ -381,7 +494,6 @@ export default function ProductDetails() {
                       loading="lazy"
                       className="w-full h-full object-cover block transition-transform duration-700 ease-elegant group-hover:scale-[1.03]"
                     />
-                    {/* Zoom hint */}
                     <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center pointer-events-none">
                       <svg
                         width="24"
@@ -403,24 +515,33 @@ export default function ProductDetails() {
           })}
         </div>
 
-        {/* ── RIGHT: Sticky info panel — follows theme tokens ── */}
+        {/* ── RIGHT: Sticky info panel ── */}
         <div
           ref={panelRef}
           className="sticky top-0 h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           style={{ padding: "52px 48px 52px 52px" }}
         >
-          {/* Brand + color */}
-          <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4">
-            {product.brand}
-            {product.color && <span className="ml-3">· {product.color}</span>}
-          </p>
+          <div className="flex justify-between items-start mb-4">
+            <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+              {product.brand}
+              {product.color && <span className="ml-3">· {product.color}</span>}
+            </p>
 
-          {/* Name */}
+            {/* ── ADMIN: Manage Media Button ── */}
+            {isAdmin && (
+              <button
+                onClick={() => setIsMediaManagerOpen(true)}
+                className="font-sans text-[9px] tracking-widest uppercase text-accentRed border border-accentRed/30 px-3 py-1 hover:bg-accentRed/10 transition-colors"
+              >
+                Manage Media
+              </button>
+            )}
+          </div>
+
           <h2 className="font-heading font-light text-[clamp(24px,2.8vw,36px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark tracking-[-0.01em] mb-5">
             {toTitleCase(product.name)}
           </h2>
 
-          {/* Price */}
           <div className="flex items-baseline gap-3 mb-7">
             <span
               className={[
@@ -439,10 +560,8 @@ export default function ProductDetails() {
             )}
           </div>
 
-          {/* Divider */}
           <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-6" />
 
-          {/* Price history chart */}
           <div className="mb-6">
             <PriceHistoryChart
               history={product.priceHistory}
@@ -453,14 +572,11 @@ export default function ProductDetails() {
             />
           </div>
 
-          {/* Track price button */}
           <button
             onClick={handleTrackPrice}
             disabled={trackLoading}
             className={[
-              "w-full py-3.5 mb-2.5 border font-sans text-[10px] tracking-[0.18em] uppercase",
-              "flex items-center justify-center gap-2 cursor-pointer",
-              "transition-all duration-200 ease-smooth",
+              "w-full py-3.5 mb-2.5 border font-sans text-[10px] tracking-[0.18em] uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 ease-smooth",
               trackLoading ? "opacity-50 cursor-wait" : "",
               tracked
                 ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
@@ -477,7 +593,6 @@ export default function ProductDetails() {
                   : "Sign in to track"}
           </button>
 
-          {/* View on brand button */}
           <a
             href={product.link}
             target="_blank"
@@ -487,7 +602,6 @@ export default function ProductDetails() {
             View on {product.brand} →
           </a>
 
-          {/* Sizes */}
           {product.sizes && product.sizes.length > 0 && (
             <div className="mb-7">
               <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
@@ -501,8 +615,7 @@ export default function ProductDetails() {
                       setSelectedSize(size === selectedSize ? null : size)
                     }
                     className={[
-                      "font-sans text-[11px] px-3.5 py-2 border cursor-pointer",
-                      "transition-all duration-150 ease-smooth",
+                      "font-sans text-[11px] px-3.5 py-2 border cursor-pointer transition-all duration-150 ease-smooth",
                       selectedSize === size
                         ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
                         : "bg-transparent text-textTertiary dark:text-textTertiary-dark border-borderLight dark:border-borderLight-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark",
@@ -515,10 +628,8 @@ export default function ProductDetails() {
             </div>
           )}
 
-          {/* Divider */}
           <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-6" />
 
-          {/* Description */}
           {product.description && (
             <div className="mb-5">
               <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
@@ -530,7 +641,6 @@ export default function ProductDetails() {
             </div>
           )}
 
-          {/* Composition */}
           {product.composition && (
             <div className="mb-5">
               <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
@@ -542,7 +652,6 @@ export default function ProductDetails() {
             </div>
           )}
 
-          {/* ── Mini thumbnails footer ── */}
           <div className="mt-auto pt-6 border-t border-borderLight dark:border-borderLight-dark">
             <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-3">
               {images.length} image{images.length !== 1 ? "s" : ""}
@@ -578,7 +687,7 @@ export default function ProductDetails() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════
-          SECTION 3 — Related products (horizontal carousel)
+          SECTION 3 — Related products
           ══════════════════════════════════════════════════════════ */}
       {relatedProducts.length > 0 && (
         <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-t border-borderLight dark:border-borderLight-dark">

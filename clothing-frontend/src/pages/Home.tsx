@@ -4,10 +4,12 @@ import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { Product } from "../types";
 import { SearchBar } from "../components/SearchBar";
+import CampaignHeroSlider from "../components/CampaignHeroSlider";
 import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import { setSearchTerm, clearFilters } from "../store/productSlice";
-
+// Put this at the top with your other imports
+import CinematicHeroCard from "../components/CinematicHeroCard";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,6 +17,7 @@ interface FeaturedData {
   onSale: Product[];
   newIn: { zara: Product[]; massimo: Product[] };
   withVideo: Product[];
+  campaignHeroes: Product[];
   categoryTiles: {
     jackets: Product | null;
     shirts: Product | null;
@@ -114,9 +117,11 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
       {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-      <section className="grid grid-cols-[42%_58%] h-[calc(100vh-57px)] border-b border-borderLight dark:border-borderLight-dark">
+      {/* Removed the bottom border, adjusted ratio slightly for more visual drama */}
+      <section className="grid grid-cols-[40%_60%] h-[calc(100vh-57px)] relative">
         {/* LEFT — editorial text + search */}
-        <div className="relative flex flex-col justify-center px-16 py-16 border-r border-borderLight dark:border-borderLight-dark">
+        {/* Removed the border-r, increased horizontal padding for breathing room */}
+        <div className="relative flex flex-col justify-center px-20 py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
           <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
             {deptLabel}
           </p>
@@ -138,22 +143,23 @@ export default function Home() {
             <SearchBar variant="hero" />
           </div>
 
-          {/* Wordmark watermark */}
-          <span className="absolute bottom-8 left-16 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
+          <span className="absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
             Dope
           </span>
         </div>
 
-        {/* RIGHT — product mosaic
-            bg-bgPrimary keeps it visually unified with the page —
-            the mosaic images themselves provide the visual contrast */}
-        <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-3 overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
+        {/* RIGHT — FULL BLEED Campaign Heroes */}
+        {/* KILLED the p-3 padding. KILLED the rounded corners. Let it bleed! */}
+        <div className="relative h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
           {loading ? (
             <div className="h-full flex items-center justify-center">
               <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
                 Loading…
               </p>
             </div>
+          ) : featured?.campaignHeroes && featured.campaignHeroes.length > 0 ? (
+            // The Slider now takes up 100% of this container, right to the pixel edges.
+            <CampaignHeroSlider heroes={featured.campaignHeroes} />
           ) : mosaicProducts.length >= 4 ? (
             <ProductMosaic products={mosaicProducts} />
           ) : (
@@ -179,6 +185,7 @@ export default function Home() {
               </span>
             </div>
           </div>
+
           <div className={CAROUSEL}>
             {editorChoiceProducts.map((p) => (
               <div key={p.id} className={CARD_WRAPPER}>
