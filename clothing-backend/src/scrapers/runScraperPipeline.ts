@@ -69,24 +69,11 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const forbiddenKeywords = [
-      "bag",
-      "perfume",
-      "fragrance",
-      "edt",
-      "edp",
-      "wallet",
-      "belt",
-      "scarf",
-      "sunglasses",
-      "beauty",
-      "accessories",
-    ];
+    const cleanCategories = categories; // No filtering, take everything the crawler finds.
 
-    const cleanCategories = categories.filter((url) => {
-      const lowerUrl = url.toLowerCase();
-      return !forbiddenKeywords.some((keyword) => lowerUrl.includes(keyword));
-    });
+    console.log(
+      `  --> 🛡️ Category filter disabled. Processing all ${cleanCategories.length} discovered links.`,
+    );
 
     console.log(
       `  --> 🛡️ Filtered out ${categories.length - cleanCategories.length} non-clothing categories.`,

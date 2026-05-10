@@ -6,6 +6,16 @@ import {
   scrapeZaraProductData,
 } from "./brands/zara";
 import {
+  getMangoCategories,
+  getMangoProductLinks,
+  scrapeMangoProductData,
+} from "./brands/mango";
+import {
+  getPullAndBearCategories,
+  getPullAndBearProductLinks,
+  scrapePullAndBearProductData,
+} from "./brands/pullAndBear";
+import {
   getMassimoCategories,
   getMassimoProductLinks,
   scrapeMassimoProductData,
@@ -30,6 +40,19 @@ const BRAND_JOBS: Record<string, any> = {
     getLinks: getMassimoProductLinks,
     scrapeProduct: scrapeMassimoProductData,
   },
+  mango: {
+    // 👈 The New Mango Pipeline!
+    brandName: "Mango",
+    getCategories: getMangoCategories,
+    getLinks: getMangoProductLinks,
+    scrapeProduct: scrapeMangoProductData,
+  },
+  //"pull-and-bear": {
+  //brandName: "Pull & Bear",
+  // getCategories: getPullAndBearCategories,
+  //   getLinks: getPullAndBearProductLinks,
+  // scrapeProduct: scrapePullAndBearProductData,
+  //},
 };
 
 export const knownBrandSlugs = () => Object.keys(BRAND_JOBS);
@@ -69,7 +92,12 @@ export const triggerScraper = async (
   try {
     browser = await puppeteer.launch({
       headless: true,
-      args: ["--ignore-certificate-errors"], // 👈 ADD THIS
+      args: [
+        "--ignore-certificate-errors",
+        "--no-sandbox", // 👈 Required for Linux servers
+        "--disable-setuid-sandbox", // 👈 Required for Linux servers
+        "--disable-dev-shm-usage", // 👈 Prevents Docker memory crashes
+      ],
     });
     activeBrowsers.set(brandSlug, browser);
 
@@ -124,4 +152,31 @@ export const triggerScraper = async (
       activeBrowsers.delete(brandSlug);
     }
   }
+};
+
+// Add this to the bottom of src/scrapers/scraperManager.ts
+
+export const runAllScrapers = async (testMode = false): Promise<void> => {
+  console.log(
+    "🚀 MASTER CRON: Starting all registered scrapers sequentially...",
+  );
+  const brandSlugs = Object.keys(BRAND_JOBS);
+
+  for (const slug of brandSlugs) {
+    const job = BRAND_JOBS[slug];
+
+    // 1. Create the database record for this specific run
+    const runDoc = await ScraperRunModel.create({
+      brand: job.brandName,
+      status: "running",
+      startedAt: new Date(),
+    });
+
+    console.log(`\n⏳ CRON: Queuing ${job.brandName}...`);
+
+    // 2. Await the scraper so the next one doesn't start until this one finishes
+    await triggerScraper(slug, runDoc._id.toString(), testMode);
+  }
+
+  console.log("\n✅ MASTER CRON: All scraper jobs have completed.");
 };

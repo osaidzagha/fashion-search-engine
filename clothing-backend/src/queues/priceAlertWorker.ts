@@ -91,18 +91,19 @@ async function processPriceAlerts(
     droppedProducts.map((p) => [p.id, p]),
   );
 
-  // ── Step 4: Fan out — one email per (user × dropped product they track)
-  const emailTasks: Promise<void>[] = [];
+  // ── Step 4: Fan out — batching to avoid API rate limits ──
+  const emailTasks: (() => Promise<void>)[] = []; // Array of functions now
 
   for (const user of affectedUsers) {
     for (const watchlistItem of user.watchlist) {
       const product = productMap.get(watchlistItem.productId);
-      if (!product) continue; // This user tracks a different product — skip
+      if (!product) continue;
 
-      const oldPrice = product.lastTwo[0].price; // secondToLast
-      const newPrice = product.lastTwo[1].price; // latest (lower)
+      const oldPrice = product.lastTwo[0].price;
+      const newPrice = product.lastTwo[1].price;
 
-      emailTasks.push(
+      // Wrap the promise in an anonymous function so it doesn't execute immediately
+      emailTasks.push(() =>
         sendPriceAlertEmail(
           user.email,
           product.name,
@@ -115,10 +116,25 @@ async function processPriceAlerts(
     }
   }
 
-  // allSettled: a single failed email never aborts the rest
-  const results = await Promise.allSettled(emailTasks);
-  const sent = results.filter((r) => r.status === "fulfilled").length;
-  const failed = results.filter((r) => r.status === "rejected").length;
+  // ── The Batch Processor ──
+  let sent = 0;
+  let failed = 0;
+  const BATCH_SIZE = 50; // Adjust based on your email provider's limits
+
+  for (let i = 0; i < emailTasks.length; i += BATCH_SIZE) {
+    const batch = emailTasks.slice(i, i + BATCH_SIZE);
+
+    // Execute this batch of 50 concurrently
+    const results = await Promise.allSettled(batch.map((task) => task()));
+
+    sent += results.filter((r) => r.status === "fulfilled").length;
+    failed += results.filter((r) => r.status === "rejected").length;
+
+    // Optional: Add a tiny 1-second pause between batches to appease email APIs
+    if (i + BATCH_SIZE < emailTasks.length) {
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
 
   if (failed > 0) {
     console.warn(

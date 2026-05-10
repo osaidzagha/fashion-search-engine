@@ -2,16 +2,40 @@ import { Queue } from "bullmq";
 import IORedis from "ioredis";
 
 // ─── Shared Redis Connection ──────────────────────────────────────────────────
-// maxRetriesPerRequest: null is required by BullMQ — do not remove.
 export const redisConnection = new IORedis(
   process.env.REDIS_URL || "redis://localhost:6379",
   {
-    maxRetriesPerRequest: null,
-    tls: {
-      rejectUnauthorized: false, // 👈 ADD THIS: Tells Node to accept the Upstash cert
+    maxRetriesPerRequest: null, // Required by BullMQ
+
+    // 🛠️ THE FIX 1: Force Node to use IPv4. This instantly stops the 'ENOTFOUND' DNS crashes.
+    family: 4,
+
+    // 🛠️ THE FIX 2: Keep-alive ping to stop Upstash from falling asleep
+    keepAlive: 10000,
+
+    // Only apply TLS if the URL actually starts with rediss:// (prevents local crashes)
+    tls: process.env.REDIS_URL?.startsWith("rediss://")
+      ? { rejectUnauthorized: false }
+      : undefined,
+
+    // 🛠️ THE FIX 3: The Auto-Resuscitator
+    // If the connection drops, this prevents the fatal Node crash and silently reconnects.
+    retryStrategy: (times) => {
+      console.warn(
+        `⚠️ Redis connection dropped by Upstash. Reconnecting... (Attempt ${times})`,
+      );
+      // Reconnect after 2 seconds, up to a max of 10 seconds
+      return Math.min(times * 2000, 10000);
     },
   },
 );
+
+redisConnection.on("connect", () => console.log("✅ Redis connected"));
+redisConnection.on("error", (err) => {
+  // We silence standard ECONNRESET errors here because our retryStrategy handles them!
+  if (err.message.includes("ECONNRESET")) return;
+  console.error("❌ Redis error:", err.message);
+});
 
 redisConnection.on("connect", () => console.log("✅ Redis connected"));
 redisConnection.on("error", (err) =>
