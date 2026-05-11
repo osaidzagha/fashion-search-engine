@@ -15,7 +15,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FeaturedData {
   onSale: Product[];
-  newIn: { zara: Product[]; massimo: Product[] };
+  newIn: Product[]; // 👈 Changed from { zara: Product[], massimo: Product[] } to a flat array!
   withVideo: Product[];
   campaignHeroes: Product[];
   categoryTiles: {
@@ -25,14 +25,14 @@ interface FeaturedData {
     knitwear: Product | null;
   };
 }
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getMosaicImages(featured: FeaturedData): Product[] {
-  const pool: Product[] = [
-    ...(featured.newIn.zara || []),
-    ...(featured.newIn.massimo || []),
-  ].filter((p) => p.images?.[0]);
-  return pool.sort(() => 0.5 - Math.random()).slice(0, 6);
+  if (!featured?.newIn) return [];
+  // Take the flat array, filter for images, shuffle, and grab 6
+  return [...featured.newIn]
+    .filter((p) => p.images?.[0])
+    .sort(() => 0.5 - Math.random())
+    .slice(0, 6);
 }
 
 // ── Exact regex per spec — allows shoes, bags, hats; blocks hair/fragrance/jewellery ──
@@ -88,15 +88,9 @@ export default function Home() {
 
   const mosaicProducts = featured ? getMosaicImages(featured) : [];
 
-  // New In: zara + massimo sorted by recency, capped at 12
-  const allNewIn: Product[] = featured
-    ? [...(featured.newIn.zara || []), ...(featured.newIn.massimo || [])].sort(
-        (a, b) =>
-          new Date((b as any).timestamp || 0).getTime() -
-          new Date((a as any).timestamp || 0).getTime(),
-      )
-    : [];
-  const newInAll = allNewIn.slice(0, 12);
+  // New In: The backend already sorted this by timestamp and merged all brands!
+  // Just cap it at 12 items for the carousel.
+  const newInAll = featured?.newIn?.slice(0, 12) || [];
 
   // Editor's Choice: dedicated withVideo array from backend,
   // with a final isClothing pass as a safety net.
@@ -105,7 +99,6 @@ export default function Home() {
   const fallbackProducts = newInAll.filter((p) => !p.originalPrice).slice(0, 4);
   const editorChoiceProducts =
     videoProducts.length > 0 ? videoProducts : fallbackProducts;
-
   // Department overline label
   const deptLabel =
     selectDepartments?.[0] === "Men" || selectDepartments?.[0] === "MAN"

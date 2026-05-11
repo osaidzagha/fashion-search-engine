@@ -57,12 +57,15 @@ interface VideoProduct {
   category?: string;
   isCampaignHero: boolean;
 }
-
+interface BrandBreakdown {
+  _id: string;
+  count: number;
+}
 interface DashboardData {
   kpiData: KpiItem[];
   priceDropData: PriceDropPoint[];
   scraperStatus: ScraperStatus[];
-  watchlistTop: WatchlistItem[];
+  brandBreakdown: BrandBreakdown[]; // 👈 Added this!
   activityLog: any[];
   videoProducts: VideoProduct[];
 }
@@ -504,7 +507,7 @@ export default function AdminDashboard() {
           kpiData: json.kpiData || [],
           priceDropData: json.priceDropData || [],
           scraperStatus: json.scraperStatus || [],
-          watchlistTop: json.watchlistTop || [],
+          brandBreakdown: json.brandBreakdown || [], // 👈 Added this!
           activityLog: json.activityLog || [],
           videoProducts: json.videoProducts || [],
         });
@@ -724,7 +727,8 @@ export default function AdminDashboard() {
             <>
               {data.kpiData?.length > 0 && (
                 <section>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
+                  {/* Fixed Gray Gaps: Changed dark:bg-borderLight-dark to dark:bg-black */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
                     {data.kpiData.map((item) => (
                       <KpiCard key={item.label} item={item} />
                     ))}
@@ -732,114 +736,82 @@ export default function AdminDashboard() {
                 </section>
               )}
 
-              <section className="border border-borderLight dark:border-borderLight-dark p-7 flex flex-col gap-6">
-                <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
-                  Price Drops
-                </h3>
-                <div style={{ width: "100%", height: 200, minHeight: 200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={data.priceDropData}
-                      margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
-                    >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        vertical={false}
-                        stroke={t.grid}
-                      />
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 9, fill: t.axis }}
-                        axisLine={false}
-                        tickLine={false}
-                        dy={8}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 9, fill: t.axis }}
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <Tooltip
-                        content={<ChartTooltip isDark={isDarkMode} />}
-                        cursor={{ stroke: t.grid, strokeWidth: 1 }}
-                      />
-                      <Area
-                        type="monotone"
-                        dataKey="drops"
-                        stroke={t.area}
-                        strokeWidth={1.5}
-                        fill={t.area}
-                        fillOpacity={0.1}
-                        dot={false}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </section>
-
-              <section className="grid grid-cols-1 md:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
-                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-6 flex flex-col gap-4">
-                  <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                    Top Tracked Items
-                  </p>
-                  <div className="flex flex-col">
-                    {data.watchlistTop?.length > 0 ? (
-                      data.watchlistTop.map((item, i) => (
-                        <WatchlistRow
-                          key={`${item.brand}-${item.name}-${i}`}
-                          item={item}
+              <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
+                {/* Left: Price Drops Area Chart */}
+                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6 min-w-0">
+                  <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                    Price Drops
+                  </h3>
+                  {/* Added min-w-0 to prevent flexbox squishing, and hardcoded height={200} in Recharts */}
+                  <div className="w-full h-[200px] min-w-0">
+                    <ResponsiveContainer width="100%" height={200}>
+                      <AreaChart
+                        data={data.priceDropData}
+                        margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+                      >
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          vertical={false}
+                          stroke={t.grid}
                         />
-                      ))
-                    ) : (
-                      <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark py-8">
-                        No tracked items yet
-                      </p>
-                    )}
+                        <XAxis
+                          dataKey="day"
+                          tick={{ fontSize: 9, fill: t.axis }}
+                          axisLine={false}
+                          tickLine={false}
+                          dy={8}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 9, fill: t.axis }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <Tooltip
+                          content={<ChartTooltip isDark={isDarkMode} />}
+                          cursor={{ stroke: t.grid, strokeWidth: 1 }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="drops"
+                          stroke={t.area}
+                          strokeWidth={1.5}
+                          fill={t.area}
+                          fillOpacity={0.1}
+                          dot={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
 
-                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-6 flex flex-col gap-4 border-l border-borderLight dark:border-borderLight-dark">
-                  <div className="flex items-baseline justify-between">
-                    <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                      Live on Homepage
-                    </p>
-                    {heroCount > 0 && (
-                      <button
-                        onClick={() => setActiveNav("campaign")}
-                        className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-200"
-                      >
-                        Manage →
-                      </button>
-                    )}
+                {/* Right: Brand Distribution */}
+                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6">
+                  <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                    Brand Distribution
+                  </h3>
+                  <div className="flex flex-col gap-4">
+                    {(data as any).brandBreakdown?.map((brand: any) => (
+                      <div key={brand._id} className="flex flex-col gap-2">
+                        <div className="flex justify-between items-baseline">
+                          <span className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
+                            {brand._id}
+                          </span>
+                          <span className="font-heading font-light text-lg text-textMuted dark:text-textMuted-dark">
+                            {brand.count.toLocaleString("en-US")}
+                          </span>
+                        </div>
+                        {/* Simple progress bar representation */}
+                        <div className="w-full h-[2px] bg-borderLight dark:bg-borderLight-dark">
+                          <div
+                            className="h-full bg-textPrimary dark:bg-textPrimary-dark"
+                            style={{
+                              width: `${(brand.count / ((data.kpiData[0].value as number) || 1)) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  {liveHeroes.length > 0 ? (
-                    <div className="flex flex-col">
-                      {liveHeroes.map((product) => (
-                        <LiveHeroRow
-                          key={product.id}
-                          product={product}
-                          onRemove={handleToggleCampaign}
-                          isRemoving={togglingIds.has(product.id)}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-start justify-center gap-3 py-8">
-                      <p className="font-heading font-light text-xl text-textPrimary dark:text-textPrimary-dark">
-                        No active heroes
-                      </p>
-                      <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                        Set products in the Campaign tab to feature them here
-                      </p>
-                      <button
-                        onClick={() => setActiveNav("campaign")}
-                        className="mt-1 px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase border border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark transition-all duration-300"
-                      >
-                        Go to Campaign
-                      </button>
-                    </div>
-                  )}
                 </div>
               </section>
             </>
