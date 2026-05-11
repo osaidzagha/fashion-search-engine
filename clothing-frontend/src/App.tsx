@@ -14,58 +14,20 @@ import VerifyEmail from "./pages/VerifyEmail";
 import ScrollToTop from "./components/ScrollToTop";
 import Collection from "./pages/Collection";
 import StoreLayout from "./components/StoreLayout";
+import AnimatedRoutes from "./components/AnimatedRoutes";
 
 export default function App() {
   return (
     <CompareProvider>
       <div className="min-h-screen w-full bg-bgPrimary dark:bg-bgPrimary-dark text-textPrimary dark:text-textPrimary-dark transition-colors duration-500 ease-smooth">
-        {/* 🍞 THE DOPE TOASTER */}
-        <Toaster
-          position="bottom-right"
-          toastOptions={{
-            duration: 3500,
-            className:
-              "!bg-bgPrimary dark:!bg-bgPrimary-dark !text-textPrimary dark:!text-textPrimary-dark !border !border-borderLight dark:!border-borderLight-dark !rounded-none shadow-2xl font-sans text-[10px] tracking-widest uppercase",
-            success: {
-              iconTheme: {
-                primary: "currentColor",
-                secondary: "transparent",
-              },
-            },
-            error: {
-              iconTheme: {
-                primary: "#ef4444",
-                secondary: "#ffffff",
-              },
-            },
-          }}
-        />
+        <Toaster /* ... your toast config ... */ />
 
         <Router>
           <ScrollToTop />
 
-          <Routes>
-            {/* 🛍️ THE SHOPPING ZONE (Has Navbars) */}
-            <Route element={<StoreLayout />}>
-              <Route path="/" element={<Home />} />
-              <Route path="/product/:id" element={<ProductDetails />} />
-              <Route path="/search" element={<Collection />} />
-              <Route path="/collection" element={<Collection />} />
-              <Route path="/collection/:type" element={<Collection />} />
-              <Route path="/watchlist" element={<Watchlist />} />
-            </Route>
+          {/* 👇 Drop it in here! */}
+          <AnimatedRoutes />
 
-            {/* 🛑 THE FOCUS ZONE (No Navbars) */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/verify/:token" element={<VerifyEmail />} />
-
-            <Route element={<ProtectedRoute adminOnly={true} />}>
-              <Route path="/admin" element={<AdminDashboard />} />
-            </Route>
-          </Routes>
-
-          {/* Overlays rendered outside StoreLayout will now correctly inherit the dark/light mode transitions */}
           <CompareBar />
           <CompareOverlay />
         </Router>

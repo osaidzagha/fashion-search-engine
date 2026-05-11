@@ -8,6 +8,7 @@ import CampaignHeroSlider from "../components/CampaignHeroSlider";
 import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import { setSearchTerm, clearFilters } from "../store/productSlice";
+import PageTransition from "../components/PageTransition";
 // Put this at the top with your other imports
 import CinematicHeroCard from "../components/CinematicHeroCard";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -108,203 +109,206 @@ export default function Home() {
         : "Zara · Massimo Dutti";
 
   return (
-    <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
-      {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-      {/* Removed the bottom border, adjusted ratio slightly for more visual drama */}
-      <section className="grid grid-cols-[40%_60%] h-[calc(100vh-57px)] relative">
-        {/* LEFT — editorial text + search */}
-        {/* Removed the border-r, increased horizontal padding for breathing room */}
-        <div className="relative flex flex-col justify-center px-20 py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
-          <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
-            {deptLabel}
-          </p>
+    <PageTransition>
+      <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
+        {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
+        {/* Removed the bottom border, adjusted ratio slightly for more visual drama */}
+        <section className="grid grid-cols-[40%_60%] h-[calc(100vh-57px)] relative">
+          {/* LEFT — editorial text + search */}
+          {/* Removed the border-r, increased horizontal padding for breathing room */}
+          <div className="relative flex flex-col justify-center px-20 py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
+            <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
+              {deptLabel}
+            </p>
 
-          <h1 className="font-heading font-light text-[clamp(48px,5.5vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
-            Fashion,
-            <br />
-            <em className="italic text-textSecondary dark:text-textSecondary-dark">
-              tracked.
-            </em>
-          </h1>
+            <h1 className="font-heading font-light text-[clamp(48px,5.5vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
+              Fashion,
+              <br />
+              <em className="italic text-textSecondary dark:text-textSecondary-dark">
+                tracked.
+              </em>
+            </h1>
 
-          <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
-            Compare prices across every brand. Track drops. Find the best time
-            to buy.
-          </p>
+            <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+              Compare prices across every brand. Track drops. Find the best time
+              to buy.
+            </p>
 
-          <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both]">
-            <SearchBar variant="hero" />
+            <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both]">
+              <SearchBar variant="hero" />
+            </div>
+
+            <span className="absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
+              Dope
+            </span>
           </div>
 
-          <span className="absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
+          {/* RIGHT — FULL BLEED Campaign Heroes */}
+          {/* KILLED the p-3 padding. KILLED the rounded corners. Let it bleed! */}
+          <div className="relative h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
+            {loading ? (
+              <div className="h-full flex items-center justify-center">
+                <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
+                  Loading…
+                </p>
+              </div>
+            ) : featured?.campaignHeroes &&
+              featured.campaignHeroes.length > 0 ? (
+              // The Slider now takes up 100% of this container, right to the pixel edges.
+              <CampaignHeroSlider heroes={featured.campaignHeroes} />
+            ) : mosaicProducts.length >= 4 ? (
+              <ProductMosaic products={mosaicProducts} />
+            ) : (
+              <div className="h-full flex items-center justify-center">
+                <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
+                  Start scraping to see products here
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════════ */}
+        {!loading && editorChoiceProducts.length > 0 && (
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
+              <div className="flex items-baseline gap-4">
+                <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                  Editor's Choice
+                </h2>
+                <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                  {videoProducts.length > 0 ? "Hover to play" : "Curated picks"}
+                </span>
+              </div>
+            </div>
+
+            <div className={CAROUSEL}>
+              {editorChoiceProducts.map((p) => (
+                <div key={p.id} className={CARD_WRAPPER}>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ══ SALE STRIP ═══════════════════════════════════════════════════════ */}
+        {!loading && featured?.onSale && featured.onSale.length > 0 && (
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-12 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-baseline mb-8">
+              <div>
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-2">
+                  Limited Time
+                </p>
+                <h2 className="font-heading font-light text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
+                  Price drops, right now.
+                </h2>
+              </div>
+              <button
+                onClick={() => navigate("/collection/sale")}
+                className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
+              >
+                View all
+              </button>
+            </div>
+            <div className={CAROUSEL}>
+              {featured.onSale.map((p) => (
+                <div key={p.id} className={CARD_WRAPPER}>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
+        {!loading && newInAll.length > 0 && (
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20">
+            <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
+              <div className="flex items-baseline gap-4">
+                <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                  New in
+                </h2>
+                <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                  Latest arrivals
+                </span>
+              </div>
+              <button
+                onClick={() => navigate("/collection/new-in")}
+                className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
+              >
+                See all →
+              </button>
+            </div>
+            <div className={CAROUSEL}>
+              {newInAll.map((p) => (
+                <div key={p.id} className={CARD_WRAPPER}>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ══ BRAND SPLIT ══════════════════════════════════════════════════════ */}
+        {!loading && featured && (
+          <section className="grid grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
+            {/* Zara */}
+            <div
+              onClick={() => {
+                dispatch(clearFilters());
+                dispatch(setSearchTerm(""));
+                navigate("/collection/zara");
+              }}
+              className="flex items-center justify-between px-16 py-12 border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+            >
+              <div>
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                  Brand
+                </p>
+                <h3 className="font-heading font-light text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
+                  Zara
+                </h3>
+              </div>
+              <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
+                →
+              </span>
+            </div>
+
+            {/* Massimo Dutti */}
+            <div
+              onClick={() => {
+                dispatch(clearFilters());
+                dispatch(setSearchTerm(""));
+                navigate("/collection/massimo-dutti");
+              }}
+              className="flex items-center justify-between px-16 py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+            >
+              <div>
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                  Brand
+                </p>
+                <h3 className="font-heading font-light text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
+                  Massimo Dutti
+                </h3>
+              </div>
+              <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
+                →
+              </span>
+            </div>
+          </section>
+        )}
+
+        {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
+        <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-8 flex justify-between items-center border-t border-borderLight dark:border-borderLight-dark">
+          <span className="font-heading font-light text-[15px] tracking-editorial uppercase text-textSecondary dark:text-textSecondary-dark">
             Dope
           </span>
-        </div>
-
-        {/* RIGHT — FULL BLEED Campaign Heroes */}
-        {/* KILLED the p-3 padding. KILLED the rounded corners. Let it bleed! */}
-        <div className="relative h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
-          {loading ? (
-            <div className="h-full flex items-center justify-center">
-              <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
-                Loading…
-              </p>
-            </div>
-          ) : featured?.campaignHeroes && featured.campaignHeroes.length > 0 ? (
-            // The Slider now takes up 100% of this container, right to the pixel edges.
-            <CampaignHeroSlider heroes={featured.campaignHeroes} />
-          ) : mosaicProducts.length >= 4 ? (
-            <ProductMosaic products={mosaicProducts} />
-          ) : (
-            <div className="h-full flex items-center justify-center">
-              <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
-                Start scraping to see products here
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════════ */}
-      {!loading && editorChoiceProducts.length > 0 && (
-        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-b border-borderLight dark:border-borderLight-dark">
-          <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
-            <div className="flex items-baseline gap-4">
-              <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
-                Editor's Choice
-              </h2>
-              <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
-                {videoProducts.length > 0 ? "Hover to play" : "Curated picks"}
-              </span>
-            </div>
-          </div>
-
-          <div className={CAROUSEL}>
-            {editorChoiceProducts.map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══ SALE STRIP ═══════════════════════════════════════════════════════ */}
-      {!loading && featured?.onSale && featured.onSale.length > 0 && (
-        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-12 border-b border-borderLight dark:border-borderLight-dark">
-          <div className="flex justify-between items-baseline mb-8">
-            <div>
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-2">
-                Limited Time
-              </p>
-              <h2 className="font-heading font-light text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
-                Price drops, right now.
-              </h2>
-            </div>
-            <button
-              onClick={() => navigate("/collection/sale")}
-              className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
-            >
-              View all
-            </button>
-          </div>
-          <div className={CAROUSEL}>
-            {featured.onSale.map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
-      {!loading && newInAll.length > 0 && (
-        <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20">
-          <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
-            <div className="flex items-baseline gap-4">
-              <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
-                New in
-              </h2>
-              <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
-                Latest arrivals
-              </span>
-            </div>
-            <button
-              onClick={() => navigate("/collection/new-in")}
-              className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
-            >
-              See all →
-            </button>
-          </div>
-          <div className={CAROUSEL}>
-            {newInAll.map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ══ BRAND SPLIT ══════════════════════════════════════════════════════ */}
-      {!loading && featured && (
-        <section className="grid grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
-          {/* Zara */}
-          <div
-            onClick={() => {
-              dispatch(clearFilters());
-              dispatch(setSearchTerm(""));
-              navigate("/collection/zara");
-            }}
-            className="flex items-center justify-between px-16 py-12 border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
-          >
-            <div>
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                Brand
-              </p>
-              <h3 className="font-heading font-light text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
-                Zara
-              </h3>
-            </div>
-            <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
-              →
-            </span>
-          </div>
-
-          {/* Massimo Dutti */}
-          <div
-            onClick={() => {
-              dispatch(clearFilters());
-              dispatch(setSearchTerm(""));
-              navigate("/collection/massimo-dutti");
-            }}
-            className="flex items-center justify-between px-16 py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
-          >
-            <div>
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                Brand
-              </p>
-              <h3 className="font-heading font-light text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
-                Massimo Dutti
-              </h3>
-            </div>
-            <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
-              →
-            </span>
-          </div>
-        </section>
-      )}
-
-      {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-      <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-8 flex justify-between items-center border-t border-borderLight dark:border-borderLight-dark">
-        <span className="font-heading font-light text-[15px] tracking-editorial uppercase text-textSecondary dark:text-textSecondary-dark">
-          Dope
-        </span>
-        <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-          Price tracking · Zara & Massimo Dutti · Turkey
-        </span>
-      </footer>
-    </div>
+          <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+            Price tracking · Zara & Massimo Dutti · Turkey
+          </span>
+        </footer>
+      </div>
+    </PageTransition>
   );
 }

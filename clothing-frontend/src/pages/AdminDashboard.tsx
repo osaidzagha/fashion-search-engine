@@ -12,6 +12,7 @@ import {
 import { useSelector } from "react-redux";
 import { toggleCampaignHeroAPI } from "../services/api";
 import toast from "react-hot-toast";
+import PageTransition from "../components/PageTransition";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface KpiItem {
@@ -546,226 +547,228 @@ export default function AdminDashboard() {
   const t = isDarkMode ? CHART_TOKENS.dark : CHART_TOKENS.light;
 
   return (
-    <div className="flex min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
-      {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-      <aside className="w-[220px] flex-shrink-0 border-r border-borderLight dark:border-borderLight-dark flex flex-col sticky top-0 h-screen">
-        <div className="px-8 py-8 border-b border-borderLight dark:border-borderLight-dark">
-          <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
-            Control Room
-          </p>
-          <h1 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
-            Dope
-          </h1>
-        </div>
-        <nav className="flex flex-col px-4 py-6 gap-1 flex-1">
-          {NAV_ITEMS.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveNav(item.id)}
-              className={`text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 border ${
-                activeNav === item.id
-                  ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
-                  : "border-transparent text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        {heroCount > 0 && (
-          <div className="px-8 py-6 border-t border-borderLight dark:border-borderLight-dark">
-            <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
-              Live on Homepage
+    <PageTransition>
+      <div className="flex min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
+        {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
+        <aside className="w-[220px] flex-shrink-0 border-r border-borderLight dark:border-borderLight-dark flex flex-col sticky top-0 h-screen">
+          <div className="px-8 py-8 border-b border-borderLight dark:border-borderLight-dark">
+            <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
+              Control Room
             </p>
-            <p className="font-heading font-light text-3xl leading-none text-textPrimary dark:text-textPrimary-dark">
-              {heroCount}
-            </p>
+            <h1 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+              Dope
+            </h1>
           </div>
-        )}
-      </aside>
+          <nav className="flex flex-col px-4 py-6 gap-1 flex-1">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveNav(item.id)}
+                className={`text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 border ${
+                  activeNav === item.id
+                    ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
+                    : "border-transparent text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
 
-      {/* ── Main ────────────────────────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="px-12 py-10 border-b border-borderLight dark:border-borderLight-dark flex items-baseline justify-between">
-          <h2 className="font-heading font-light text-4xl text-textPrimary dark:text-textPrimary-dark">
-            {NAV_ITEMS.find((n) => n.id === activeNav)?.label}
-          </h2>
-          {activeNav === "campaign" && (
-            <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-              {heroCount} of {totalVideoProducts} set as hero
-            </p>
+          {heroCount > 0 && (
+            <div className="px-8 py-6 border-t border-borderLight dark:border-borderLight-dark">
+              <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                Live on Homepage
+              </p>
+              <p className="font-heading font-light text-3xl leading-none text-textPrimary dark:text-textPrimary-dark">
+                {heroCount}
+              </p>
+            </div>
           )}
-        </div>
+        </aside>
 
-        <div className="px-12 py-10 flex flex-col gap-12">
-          {/* ══════════════════════════════════ OVERVIEW ══════════════════ */}
-          {activeNav === "overview" && (
-            <>
-              {data.kpiData?.length > 0 && (
-                <section>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
-                    {data.kpiData.map((item) => (
-                      <KpiCard key={item.label} item={item} />
-                    ))}
+        {/* ── Main ────────────────────────────────────────────────────────────── */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="px-12 py-10 border-b border-borderLight dark:border-borderLight-dark flex items-baseline justify-between">
+            <h2 className="font-heading font-light text-4xl text-textPrimary dark:text-textPrimary-dark">
+              {NAV_ITEMS.find((n) => n.id === activeNav)?.label}
+            </h2>
+            {activeNav === "campaign" && (
+              <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                {heroCount} of {totalVideoProducts} set as hero
+              </p>
+            )}
+          </div>
+
+          <div className="px-12 py-10 flex flex-col gap-12">
+            {/* ══════════════════════════════════ OVERVIEW ══════════════════ */}
+            {activeNav === "overview" && (
+              <>
+                {data.kpiData?.length > 0 && (
+                  <section>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
+                      {data.kpiData.map((item) => (
+                        <KpiCard key={item.label} item={item} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+
+                <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
+                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6 min-w-0">
+                    <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                      Price Drops
+                    </h3>
+                    <div className="w-full h-[200px] min-w-0">
+                      <ResponsiveContainer width="100%" height={200}>
+                        <AreaChart
+                          data={data.priceDropData}
+                          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
+                        >
+                          <CartesianGrid
+                            strokeDasharray="3 3"
+                            vertical={false}
+                            stroke={t.grid}
+                          />
+                          <XAxis
+                            dataKey="day"
+                            tick={{ fontSize: 9, fill: t.axis }}
+                            axisLine={false}
+                            tickLine={false}
+                            dy={8}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 9, fill: t.axis }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <Tooltip
+                            content={<ChartTooltip isDark={isDarkMode} />}
+                            cursor={{ stroke: t.grid, strokeWidth: 1 }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="drops"
+                            stroke={t.area}
+                            strokeWidth={1.5}
+                            fill={t.area}
+                            fillOpacity={0.1}
+                            dot={false}
+                          />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6">
+                    <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                      Brand Distribution
+                    </h3>
+                    <div className="flex flex-col gap-4">
+                      {(data as any).brandBreakdown?.map((brand: any) => (
+                        <div key={brand._id} className="flex flex-col gap-2">
+                          <div className="flex justify-between items-baseline">
+                            <span className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
+                              {brand._id}
+                            </span>
+                            <span className="font-heading font-light text-lg text-textMuted dark:text-textMuted-dark">
+                              {brand.count.toLocaleString("en-US")}
+                            </span>
+                          </div>
+                          <div className="w-full h-[2px] bg-borderLight dark:bg-borderLight-dark">
+                            <div
+                              className="h-full bg-textPrimary dark:bg-textPrimary-dark"
+                              style={{
+                                width: `${(brand.count / ((data.kpiData[0].value as number) || 1)) * 100}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </section>
-              )}
+              </>
+            )}
 
-              <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
-                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6 min-w-0">
-                  <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
-                    Price Drops
-                  </h3>
-                  <div className="w-full h-[200px] min-w-0">
-                    <ResponsiveContainer width="100%" height={200}>
-                      <AreaChart
-                        data={data.priceDropData}
-                        margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          vertical={false}
-                          stroke={t.grid}
-                        />
-                        <XAxis
-                          dataKey="day"
-                          tick={{ fontSize: 9, fill: t.axis }}
-                          axisLine={false}
-                          tickLine={false}
-                          dy={8}
-                        />
-                        <YAxis
-                          tick={{ fontSize: 9, fill: t.axis }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
-                        <Tooltip
-                          content={<ChartTooltip isDark={isDarkMode} />}
-                          cursor={{ stroke: t.grid, strokeWidth: 1 }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="drops"
-                          stroke={t.area}
-                          strokeWidth={1.5}
-                          fill={t.area}
-                          fillOpacity={0.1}
-                          dot={false}
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6">
-                  <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
-                    Brand Distribution
-                  </h3>
-                  <div className="flex flex-col gap-4">
-                    {(data as any).brandBreakdown?.map((brand: any) => (
-                      <div key={brand._id} className="flex flex-col gap-2">
-                        <div className="flex justify-between items-baseline">
-                          <span className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
-                            {brand._id}
-                          </span>
-                          <span className="font-heading font-light text-lg text-textMuted dark:text-textMuted-dark">
-                            {brand.count.toLocaleString("en-US")}
-                          </span>
-                        </div>
-                        <div className="w-full h-[2px] bg-borderLight dark:bg-borderLight-dark">
-                          <div
-                            className="h-full bg-textPrimary dark:bg-textPrimary-dark"
-                            style={{
-                              width: `${(brand.count / ((data.kpiData[0].value as number) || 1)) * 100}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-            </>
-          )}
-
-          {/* ══════════════════════════════════ SCRAPERS ══════════════════ */}
-          {activeNav === "scrapers" && (
-            <section>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
-                {data.scraperStatus?.map((s) => (
-                  <ScraperCard
-                    key={s.brand}
-                    s={s}
-                    onRun={handleRunScraper}
-                    onStop={handleStopScraper}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* ══════════════════════════════════ CAMPAIGN ══════════════════ */}
-          {activeNav === "campaign" && (
-            <section className="flex flex-col gap-8">
-              <div className="flex items-center justify-between">
-                <div className="flex items-baseline gap-3">
-                  <span className="font-heading font-light text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
-                    {heroCount}
-                  </span>
-                  <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                    / {totalVideoProducts} active as homepage hero
-                  </span>
-                </div>
-
-                <div className="flex gap-px border border-borderLight dark:bg-borderLight-dark">
-                  {(
-                    [
-                      { key: "all", label: "All" },
-                      { key: "live", label: "Live" },
-                      { key: "standard", label: "Standard" },
-                    ] as const
-                  ).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setCampaignFilter(key)}
-                      className={`px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 ${
-                        campaignFilter === key
-                          ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
-                          : "bg-bgPrimary dark:bg-bgPrimary-dark text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {filteredCampaign.length === 0 ? (
-                <div className="border border-borderLight dark:border-borderLight-dark p-16 text-center">
-                  <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                    {campaignFilter === "live"
-                      ? "No active heroes — add some below"
-                      : "No products match this filter"}
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
-                  {filteredCampaign.map((product) => (
-                    <CampaignCard
-                      key={product.id}
-                      product={product}
-                      onToggle={handleToggleCampaign}
-                      isToggling={togglingIds.has(product.id)}
-                      onClick={() => navigate(`/product/${product.id}`)} // 👈 Navigation added here
+            {/* ══════════════════════════════════ SCRAPERS ══════════════════ */}
+            {activeNav === "scrapers" && (
+              <section>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
+                  {data.scraperStatus?.map((s) => (
+                    <ScraperCard
+                      key={s.brand}
+                      s={s}
+                      onRun={handleRunScraper}
+                      onStop={handleStopScraper}
                     />
                   ))}
                 </div>
-              )}
-            </section>
-          )}
-        </div>
-      </main>
-    </div>
+              </section>
+            )}
+
+            {/* ══════════════════════════════════ CAMPAIGN ══════════════════ */}
+            {activeNav === "campaign" && (
+              <section className="flex flex-col gap-8">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-heading font-light text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
+                      {heroCount}
+                    </span>
+                    <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                      / {totalVideoProducts} active as homepage hero
+                    </span>
+                  </div>
+
+                  <div className="flex gap-px border border-borderLight dark:bg-borderLight-dark">
+                    {(
+                      [
+                        { key: "all", label: "All" },
+                        { key: "live", label: "Live" },
+                        { key: "standard", label: "Standard" },
+                      ] as const
+                    ).map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => setCampaignFilter(key)}
+                        className={`px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 ${
+                          campaignFilter === key
+                            ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
+                            : "bg-bgPrimary dark:bg-bgPrimary-dark text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {filteredCampaign.length === 0 ? (
+                  <div className="border border-borderLight dark:border-borderLight-dark p-16 text-center">
+                    <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                      {campaignFilter === "live"
+                        ? "No active heroes — add some below"
+                        : "No products match this filter"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
+                    {filteredCampaign.map((product) => (
+                      <CampaignCard
+                        key={product.id}
+                        product={product}
+                        onToggle={handleToggleCampaign}
+                        isToggling={togglingIds.has(product.id)}
+                        onClick={() => navigate(`/product/${product.id}`)} // 👈 Navigation added here
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
+        </main>
+      </div>
+    </PageTransition>
   );
 }

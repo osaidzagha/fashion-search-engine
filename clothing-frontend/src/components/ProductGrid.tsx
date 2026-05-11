@@ -1,6 +1,7 @@
 import { Product } from "../types";
 import { ProductCard } from "./ProductCard";
 import { ProductSkeleton } from "./ProductSkeleton";
+import { AnimatedGrid, AnimatedGridItem } from "./AnimatedGrid"; // 👈 IMPORT ADDED
 
 interface ProductGridProps {
   products: Product[];
@@ -57,17 +58,14 @@ export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
 
   // ── 3. THE LOADED STATE ──
   return (
-    <div className={gridWrapperClasses}>
+    // 👈 Replaced the div with AnimatedGrid
+    <AnimatedGrid className={gridWrapperClasses}>
       {products.map((product, index) => (
-        <div
-          key={product.id}
-          className={`animate-fade-in ${getGridClass(index)}`}
-          // Optional: stagger the animation delay slightly for a premium reveal
-          style={{ animationDelay: `${(index % 10) * 0.05}s` }}
-        >
+        // 👈 Replaced the div with AnimatedGridItem and passed your custom classes!
+        <AnimatedGridItem key={product.id} className={getGridClass(index)}>
           <ProductCard product={product} />
-        </div>
+        </AnimatedGridItem>
       ))}
-    </div>
+    </AnimatedGrid>
   );
 };
