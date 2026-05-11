@@ -82,8 +82,6 @@ function buildActivityType(run: IScraperRun): "success" | "info" | "error" {
   return "error";
 }
 
-// ─── Controllers ──────────────────────────────────────────────────────────────
-
 export const getDashboard = async (
   _req: Request,
   res: Response,
@@ -91,8 +89,18 @@ export const getDashboard = async (
   try {
     const oneWeekAgo = new Date(Date.now() - ONE_WEEK_MS);
 
-    // ── Three parallel DB round-trips ────────────────────────────────────────
-    const [productFacetResult, userFacetResult, scraperRuns] =
+    // EXACT match with frontend video query to prevent sync issues
+    const videoOmniQuery = {
+      $or: [
+        { video: { $exists: true, $nin: [null, ""] } },
+        { videoUrl: { $exists: true, $nin: [null, ""] } },
+        { videos: { $exists: true, $not: { $size: 0 } } },
+        { "media.type": "video" },
+        { "media.url": { $regex: "mp4", $options: "i" } },
+      ],
+    };
+
+    const [productFacetResult, totalUsers, scraperRuns, videoProducts] =
       await Promise.all([
         // A: All product-level stats
         ProductModel.aggregate([
@@ -103,8 +111,13 @@ export const getDashboard = async (
                 { $match: { timestamp: { $gte: oneWeekAgo } } },
                 { $count: "count" },
               ],
-              activeVideos: [{ $match: VIDEO_MATCH }, { $count: "count" }],
+              activeVideos: [{ $match: videoOmniQuery }, { $count: "count" }],
               itemsOnSale: [{ $match: ON_SALE_MATCH }, { $count: "count" }],
+              // NEW: Get product counts by brand
+              brandBreakdown: [
+                { $group: { _id: "$brand", count: { $sum: 1 } } },
+                { $sort: { count: -1 } },
+              ],
               priceDropChart: [
                 { $match: ON_SALE_MATCH },
                 {
@@ -119,34 +132,8 @@ export const getDashboard = async (
           },
         ]),
 
-        // B: Watchlist stats
-        UserModel.aggregate([
-          {
-            $facet: {
-              trackedTotal: [
-                {
-                  $project: {
-                    count: { $size: { $ifNull: ["$watchlist", []] } },
-                  },
-                },
-                { $group: { _id: null, total: { $sum: "$count" } } },
-              ],
-              topProducts: [
-                {
-                  $unwind: {
-                    path: "$watchlist",
-                    preserveNullAndEmptyArrays: false,
-                  },
-                },
-                {
-                  $group: { _id: "$watchlist.productId", tracks: { $sum: 1 } },
-                },
-                { $sort: { tracks: -1 } },
-                { $limit: 5 },
-              ],
-            },
-          },
-        ]),
+        // B: Get Total Users
+        UserModel.countDocuments(),
 
         // C: Scraper runs
         ScraperRunModel.aggregate([
@@ -161,14 +148,22 @@ export const getDashboard = async (
             },
           },
         ]),
+
+        // D: Fetch ALL valid videos using the Omni-Query so the Admin sees them
+        Product.find(videoOmniQuery)
+          .select(
+            "id name brand videos video videoUrl media isCampaignHero images",
+          )
+          .limit(100)
+          .lean(),
       ]);
 
-    // ── Unpack product facet ─────────────────────────────────────────────────
     const pf = productFacetResult[0];
     const totalProducts = pf.totalProducts[0]?.count ?? 0;
     const newThisWeek = pf.newThisWeek[0]?.count ?? 0;
     const activeVideos = pf.activeVideos[0]?.count ?? 0;
     const itemsOnSale = pf.itemsOnSale[0]?.count ?? 0;
+    const brandBreakdown = pf.brandBreakdown || [];
 
     const dropsByDow = new Map<number, number>(
       (pf.priceDropChart as any[]).map((r) => [r._id, r.drops]),
@@ -178,39 +173,11 @@ export const getDashboard = async (
       drops: dropsByDow.get(dow) ?? 0,
     }));
 
-    // ── Unpack user facet ────────────────────────────────────────────────────
-    const uf = userFacetResult[0];
-    const trackedTotal = uf.trackedTotal[0]?.total ?? 0;
-    const topEntries = uf.topProducts as { _id: string; tracks: number }[];
-
-    const topIds = topEntries.map((e) => e._id);
-    const topDocs = await ProductModel.find(
-      { id: { $in: topIds } },
-      { id: 1, name: 1, brand: 1, images: 1, _id: 0 },
-    ).lean<any[]>();
-
-    const docById = new Map(topDocs.map((d) => [d.id, d]));
-    const watchlistTop = topEntries
-      .map((entry) => {
-        const doc = docById.get(entry._id);
-        if (!doc) return null;
-        return {
-          name: doc.name,
-          brand: doc.brand,
-          img: doc.images?.[0] ?? "",
-          tracks: entry.tracks,
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-
-    // ── Unpack scraper facet ─────────────────────────────────────────────────
-    const sf = scraperRuns[0]; // <-- This is the 'sf' variable that was missing!
-
+    const sf = scraperRuns[0];
     const latestByBrand = new Map<string, IScraperRun>(
       (sf.latestPerBrand as any[]).map(({ _id, doc }) => [_id, doc]),
     );
 
-    // Dynamically generate cards based on the scraperManager registry
     const scraperStatus = knownBrandSlugs().map((slug) => {
       const brand = brandNameForSlug(slug) || slug;
       const run = latestByBrand.get(brand);
@@ -236,7 +203,6 @@ export const getDashboard = async (
       };
     });
 
-    // ── Restore the Activity Log ─────────────────────────────────────────────
     const activityLog = (sf.recentRuns as IScraperRun[]).map((run) => ({
       time: formatTime(run.startedAt),
       brand: run.brand,
@@ -244,18 +210,12 @@ export const getDashboard = async (
       detail: buildActivityDetail(run),
       type: buildActivityType(run),
     }));
-    // The "Nuclear Option" loose query
-    const videoProducts = await Product.find({
-      videos: { $exists: true, $type: "array", $ne: [] },
-    })
-      .select("id name brand videos isCampaignHero")
-      .limit(50)
-      .lean();
-    // ── KPI array ────────────────────────────────────────────────────────────
+
     const salePercent =
       totalProducts > 0
         ? ((itemsOnSale / totalProducts) * 100).toFixed(1)
         : "0.0";
+
     const kpiData = [
       {
         label: "Total Products",
@@ -264,9 +224,9 @@ export const getDashboard = async (
         up: newThisWeek > 0,
       },
       {
-        label: "Active Videos",
-        value: activeVideos.toLocaleString("en-US"),
-        delta: "Real-time query",
+        label: "Registered Users",
+        value: totalUsers.toLocaleString("en-US"),
+        delta: "Total accounts",
         up: true,
       },
       {
@@ -276,9 +236,9 @@ export const getDashboard = async (
         up: false,
       },
       {
-        label: "Tracked by Users",
-        value: trackedTotal.toLocaleString("en-US"),
-        delta: "Real-time query",
+        label: "Active Videos",
+        value: activeVideos.toLocaleString("en-US"),
+        delta: "Available for campaigns",
         up: true,
       },
     ];
@@ -287,7 +247,7 @@ export const getDashboard = async (
       kpiData,
       priceDropData,
       scraperStatus,
-      watchlistTop,
+      brandBreakdown, // Replaced Watchlist!
       activityLog,
       videoProducts,
     });
@@ -296,7 +256,6 @@ export const getDashboard = async (
     res.status(500).json({ error: "Failed to load dashboard data." });
   }
 };
-
 // ─── Trigger Scraper POST Endpoint ────────────────────────────────────────────
 
 export const runScraper = async (

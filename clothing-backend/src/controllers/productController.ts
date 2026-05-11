@@ -302,14 +302,25 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    // ── Exact regex per spec ──
     const NON_CLOTHING_CATEGORY_RE =
       /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
 
+    // THE OMNI-QUERY: Shared video search logic
+    const videoOmniQuery = {
+      $or: [
+        { video: { $exists: true, $nin: [null, ""] } },
+        { videoUrl: { $exists: true, $nin: [null, ""] } },
+        { videos: { $exists: true, $not: { $size: 0 } } },
+        { "media.type": "video" },
+        { "media.url": { $regex: "mp4", $options: "i" } },
+      ],
+      images: { $exists: true, $not: { $size: 0 } },
+      ...deptFilter,
+    };
+
     const [
       onSaleRaw,
-      newInZara,
-      newInMassimo,
+      newInRaw,
       withVideoRaw,
       campaignHeroesRaw,
       jackets,
@@ -317,7 +328,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       trousers,
       knitwear,
     ] = await Promise.allSettled([
-      // ── On sale — sorted by highest discount % ──
+      // ── 1. On sale — Sorted by RECENCY first, then discount ──
       ProductModel.aggregate([
         {
           $match: {
@@ -340,53 +351,30 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
             },
           },
         },
-        { $sort: { discountPct: -1 } },
+        // Prioritize fresh drops over older, steeper discounts
+        { $sort: { timestamp: -1, discountPct: -1 } },
         { $limit: 12 },
       ]),
 
-      // ── New in Zara ──
+      // ── 2. New In — Brand Agnostic (Now includes Mango & Future Brands!) ──
       ProductModel.find({
-        brand: "Zara",
         images: { $exists: true, $not: { $size: 0 } },
         ...deptFilter,
       })
         .sort({ timestamp: -1 })
-        .limit(8)
+        .limit(15)
         .lean(),
 
-      // ── New in Massimo ──
-      ProductModel.find({
-        brand: "Massimo Dutti",
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .limit(8)
-        .lean(),
-
-      // ── Editor's Choice: Omni-Query across all video field schemas ──
-      ProductModel.find({
-        $or: [
-          { video: { $exists: true, $nin: [null, ""] } },
-          { videoUrl: { $exists: true, $nin: [null, ""] } },
-          { videos: { $exists: true, $not: { $size: 0 } } },
-          { "media.type": "video" },
-          { "media.url": { $regex: "mp4", $options: "i" } },
-        ],
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
+      // ── 3. Editor's Choice (All Videos) ──
+      ProductModel.find(videoOmniQuery)
         .sort({ timestamp: -1 })
         .limit(20)
         .lean(),
 
-      // ── 2. NEW QUERY: Fetch only Campaign Heroes directly from DB ──
-      // 🚨 Added strict check: MUST have a valid video array!
+      // ── 4. Dedicated Campaign Heroes ──
       ProductModel.find({
         isCampaignHero: true,
-        videos: { $exists: true, $not: { $size: 0 } },
-        "videos.0": { $exists: true, $nin: ["", null] },
-        ...deptFilter,
+        ...videoOmniQuery, // Ensure it actually has a video
       })
         .sort({ timestamp: -1 })
         .limit(30)
@@ -426,29 +414,21 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const getValue = (result: PromiseSettledResult<any>) =>
       result.status === "fulfilled" ? result.value : null;
 
-    // ── 3. Parse the results ──
     const rawVideoProducts: any[] = getValue(withVideoRaw) || [];
-    const rawCampaignHeroes: any[] = getValue(campaignHeroesRaw) || [];
+    const campaignHeroes: any[] = getValue(campaignHeroesRaw) || [];
 
-    // 1. Editor's Choice gets ALL clothing videos
+    // Filter non-clothing from Editor's Choice
     const withVideo = rawVideoProducts.filter(
       (p) =>
         !NON_CLOTHING_CATEGORY_RE.test(p.category || "") &&
         !NON_CLOTHING_CATEGORY_RE.test(p.name || ""),
     );
 
-    // 2. The Hero section gets the DB-queried campaign heroes
-    // 🚨 ADMIN OVERRIDE: We removed the Regex filter here. If you clicked "Set as Hero", it goes to the homepage. No exceptions.
-    const campaignHeroes = rawCampaignHeroes;
-
     return res.status(200).json({
       onSale: getValue(onSaleRaw) || [],
-      newIn: {
-        zara: getValue(newInZara) || [],
-        massimo: getValue(newInMassimo) || [],
-      },
-      withVideo, // Normal Editor's Choice videos
-      campaignHeroes, // Dedicated Campaign Heroes
+      newIn: getValue(newInRaw) || [], // Unified array!
+      withVideo,
+      campaignHeroes,
       categoryTiles: {
         jackets: getValue(jackets),
         shirts: getValue(shirts),
@@ -458,18 +438,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching featured:", error);
-    return res.status(200).json({
-      onSale: [],
-      newIn: { zara: [], massimo: [] },
-      withVideo: [],
-      campaignHeroes: [],
-      categoryTiles: {
-        jackets: null,
-        shirts: null,
-        trousers: null,
-        knitwear: null,
-      },
-    });
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 // ─── GET /api/products/suggestions ───────────────────────────────────────────
