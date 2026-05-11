@@ -3,11 +3,11 @@ import { useDispatch } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "../services/api";
 import { setCredentials } from "../store/authSlice";
+import toast from "react-hot-toast"; // 👈 IMPORT ADDED
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -15,17 +15,24 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
-    try {
-      const response = await loginUser({ email, password });
+
+    // 👈 We wrap the API call in a Promise to feed it to toast.promise
+    const loginPromise = loginUser({ email, password }).then((response) => {
       const { token, ...userData } = response;
       dispatch(setCredentials({ user: userData, token }));
       navigate("/");
-    } catch (err: any) {
-      setError(err.message || "Failed to login");
-    } finally {
-      setLoading(false);
-    }
+    });
+
+    // 🍞 THE TOAST
+    toast
+      .promise(loginPromise, {
+        loading: "Authenticating...",
+        success: "Welcome back to Dope.",
+        error: (err: any) => err.message || "Invalid credentials.",
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (
@@ -40,13 +47,6 @@ const Login = () => {
             Sign In
           </h1>
         </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-6 px-4 py-3 border border-accentRed text-accentRed font-sans text-[10px] tracking-widest uppercase">
-            {error}
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">

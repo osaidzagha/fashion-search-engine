@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom"; // 👈 Added useNavigate
 import {
   AreaChart,
   Area,
@@ -8,8 +9,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { useSelector } from "react-redux"; // 👈 Added Redux to get the token
+import { useSelector } from "react-redux";
 import { toggleCampaignHeroAPI } from "../services/api";
+import toast from "react-hot-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface KpiItem {
@@ -65,7 +67,7 @@ interface DashboardData {
   kpiData: KpiItem[];
   priceDropData: PriceDropPoint[];
   scraperStatus: ScraperStatus[];
-  brandBreakdown: BrandBreakdown[]; // 👈 Added this!
+  brandBreakdown: BrandBreakdown[];
   activityLog: any[];
   videoProducts: VideoProduct[];
 }
@@ -177,96 +179,6 @@ function KpiCard({ item }: { item: KpiItem }) {
   );
 }
 
-function WatchlistRow({ item }: { item: WatchlistItem }) {
-  const inner = (
-    <div className="flex items-center gap-4 py-3 border-b border-borderLight dark:border-borderLight-dark last:border-b-0 group">
-      <div className="flex-shrink-0 w-10 h-[50px] overflow-hidden border border-borderLight dark:border-borderLight-dark bg-bgSecondary dark:bg-bgSecondary-dark">
-        <img
-          src={item.image}
-          alt={item.name}
-          width={40}
-          height={50}
-          className="w-10 h-[50px] object-cover grayscale group-hover:grayscale-0 transition-all duration-300"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
-          }}
-          style={{ display: "block" }}
-        />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark truncate">
-          {item.brand}
-        </p>
-        <p className="font-heading font-light text-base text-textPrimary dark:text-textPrimary-dark leading-tight truncate group-hover:opacity-70 transition-opacity duration-200">
-          {item.name}
-        </p>
-      </div>
-      <div className="flex-shrink-0 text-right">
-        <p className="font-heading font-light text-2xl leading-none text-textPrimary dark:text-textPrimary-dark">
-          {item.trackCount}
-        </p>
-        <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mt-0.5">
-          tracked
-        </p>
-      </div>
-    </div>
-  );
-  return item.link ? (
-    <a href={item.link} target="_blank" rel="noopener noreferrer">
-      {inner}
-    </a>
-  ) : (
-    inner
-  );
-}
-
-function LiveHeroRow({
-  product,
-  onRemove,
-  isRemoving,
-}: {
-  product: VideoProduct;
-  onRemove: (id: string) => void;
-  isRemoving: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-4 py-3 border-b border-borderLight dark:border-borderLight-dark last:border-b-0">
-      <div className="flex-shrink-0 w-10 h-[50px] overflow-hidden border border-borderLight dark:border-borderLight-dark bg-bgSecondary dark:bg-bgSecondary-dark">
-        <img
-          src={resolvePoster(product)}
-          alt={product.name}
-          width={40}
-          height={50}
-          className="w-10 h-[50px] object-cover"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src = PLACEHOLDER;
-          }}
-          style={{ display: "block" }}
-        />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark truncate">
-          {product.brand}
-        </p>
-        <p className="font-heading font-light text-sm text-textPrimary dark:text-textPrimary-dark leading-tight truncate">
-          {product.name}
-        </p>
-      </div>
-      <button
-        onClick={() => onRemove(product.id)}
-        disabled={isRemoving}
-        className={`flex-shrink-0 px-3 py-1.5 font-sans text-[8px] tracking-widest uppercase border transition-all duration-200 ${
-          isRemoving
-            ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark"
-            : "border-accentRed text-accentRed hover:bg-accentRed hover:text-white"
-        }`}
-      >
-        Remove
-      </button>
-    </div>
-  );
-}
-
 function ScraperCard({
   s,
   onRun,
@@ -334,16 +246,17 @@ function ScraperCard({
   );
 }
 
+// 👈 Updated CampaignCard: Clickable container, removed Delete button
 function CampaignCard({
   product,
   onToggle,
   isToggling,
-  onDelete,
+  onClick,
 }: {
   product: VideoProduct;
   onToggle: (id: string) => void;
   isToggling: boolean;
-  onDelete: (id: string) => void;
+  onClick: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [hovered, setHovered] = useState(false);
@@ -365,7 +278,8 @@ function CampaignCard({
 
   return (
     <div
-      className="flex flex-col border border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark overflow-hidden group"
+      onClick={onClick}
+      className="flex flex-col border border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark overflow-hidden group cursor-pointer"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -434,20 +348,12 @@ function CampaignCard({
             </span>
           </p>
           <div className="flex items-center gap-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(product.id);
-              }}
-              className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-accentRed transition-colors duration-200"
-            >
-              Delete
-            </button>
             {product.link && (
               <a
                 href={product.link}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()} // 👈 Prevent card click when clicking link
                 className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-200"
               >
                 View ↗
@@ -456,7 +362,10 @@ function CampaignCard({
           </div>
         </div>
         <button
-          onClick={() => onToggle(product.id)}
+          onClick={(e) => {
+            e.stopPropagation(); // 👈 Prevent card click when toggling
+            onToggle(product.id);
+          }}
           disabled={isToggling}
           className={`w-full py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${isToggling ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark" : isHero ? "border-accentRed text-accentRed hover:bg-accentRed hover:text-white" : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"}`}
         >
@@ -474,13 +383,13 @@ function CampaignCard({
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [activeNav, setActiveNav] = useState("overview");
+  const navigate = useNavigate(); // 👈 Added navigation for card clicks
   const [isDarkMode] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 👈 Extract token from Redux for authorization headers
   const { token } = useSelector((state: any) => state.auth);
 
   const [campaignFilter, setCampaignFilter] = useState<
@@ -493,7 +402,6 @@ export default function AdminDashboard() {
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
-        // 👈 Added the token header so the backend lets us in!
         const res = await fetch(`${API_BASE}/api/admin/dashboard`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -502,12 +410,11 @@ export default function AdminDashboard() {
         if (!res.ok) throw new Error("Failed to fetch dashboard data");
         const json = await res.json();
 
-        // 👈 Defensive mapping: Ensure everything is at least an empty array
         setData({
           kpiData: json.kpiData || [],
           priceDropData: json.priceDropData || [],
           scraperStatus: json.scraperStatus || [],
-          brandBreakdown: json.brandBreakdown || [], // 👈 Added this!
+          brandBreakdown: json.brandBreakdown || [],
           activityLog: json.activityLog || [],
           videoProducts: json.videoProducts || [],
         });
@@ -550,7 +457,7 @@ export default function AdminDashboard() {
     try {
       await fetch(`${API_BASE}/api/admin/scrape/${safeBrand}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }, // 👈 Token attached
+        headers: { Authorization: `Bearer ${token}` },
       });
       fetchDashboard(true);
     } catch (err) {
@@ -564,7 +471,7 @@ export default function AdminDashboard() {
     try {
       await fetch(`${API_BASE}/api/admin/scrape/stop/${safeBrand}`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` }, // 👈 Token attached
+        headers: { Authorization: `Bearer ${token}` },
       });
       fetchDashboard(true);
     } catch (err) {
@@ -591,7 +498,7 @@ export default function AdminDashboard() {
     );
 
     try {
-      await toggleCampaignHeroAPI(productId); // Assuming this uses token internally via interceptor
+      await toggleCampaignHeroAPI(productId);
       fetchDashboard(true);
     } catch (err) {
       console.error("Toggle failed — rolling back:", err);
@@ -616,35 +523,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // ── Product Deletion ──
-  const handleDeleteProduct = async (productId: string) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to permanently delete this product? This cannot be undone.",
-      )
-    )
-      return;
-    setData((d) =>
-      d
-        ? {
-            ...d,
-            videoProducts: d.videoProducts.filter((p) => p.id !== productId),
-          }
-        : d,
-    );
-    try {
-      await fetch(`${API_BASE}/api/admin/products/${productId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` }, // 👈 Token attached
-      });
-    } catch (err) {
-      console.error("Failed to delete product:", err);
-      fetchDashboard(true);
-    }
-  };
-
-  // ── Derived data ──
-  // 👈 Added optional chaining (`?.`) so it won't crash even if videoProducts is somehow undefined
   const liveHeroes = data?.videoProducts?.filter((p) => p.isCampaignHero) ?? [];
   const heroCount = liveHeroes.length;
   const totalVideoProducts = data?.videoProducts?.length ?? 0;
@@ -655,7 +533,6 @@ export default function AdminDashboard() {
     return true;
   });
 
-  // ── Loading / null guards ──
   if (loading && !data)
     return (
       <div className="flex min-h-screen items-center justify-center bg-bgPrimary dark:bg-bgPrimary-dark">
@@ -727,7 +604,6 @@ export default function AdminDashboard() {
             <>
               {data.kpiData?.length > 0 && (
                 <section>
-                  {/* Fixed Gray Gaps: Changed dark:bg-borderLight-dark to dark:bg-black */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
                     {data.kpiData.map((item) => (
                       <KpiCard key={item.label} item={item} />
@@ -737,12 +613,10 @@ export default function AdminDashboard() {
               )}
 
               <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
-                {/* Left: Price Drops Area Chart */}
                 <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6 min-w-0">
                   <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
                     Price Drops
                   </h3>
-                  {/* Added min-w-0 to prevent flexbox squishing, and hardcoded height={200} in Recharts */}
                   <div className="w-full h-[200px] min-w-0">
                     <ResponsiveContainer width="100%" height={200}>
                       <AreaChart
@@ -784,7 +658,6 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* Right: Brand Distribution */}
                 <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6">
                   <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
                     Brand Distribution
@@ -800,7 +673,6 @@ export default function AdminDashboard() {
                             {brand.count.toLocaleString("en-US")}
                           </span>
                         </div>
-                        {/* Simple progress bar representation */}
                         <div className="w-full h-[2px] bg-borderLight dark:bg-borderLight-dark">
                           <div
                             className="h-full bg-textPrimary dark:bg-textPrimary-dark"
@@ -885,7 +757,7 @@ export default function AdminDashboard() {
                       product={product}
                       onToggle={handleToggleCampaign}
                       isToggling={togglingIds.has(product.id)}
-                      onDelete={handleDeleteProduct}
+                      onClick={() => navigate(`/product/${product.id}`)} // 👈 Navigation added here
                     />
                   ))}
                 </div>

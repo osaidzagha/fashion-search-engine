@@ -5,9 +5,9 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Watchlist from "./pages/Watchlist";
 import { CompareProvider } from "./context/CompareContext";
+import { Toaster } from "react-hot-toast";
 import { CompareBar } from "./components/CompareBar";
 import { CompareOverlay } from "./components/CompareOverlay";
-// 👇 1. Import your new files
 import ProtectedRoute from "./utils/ProtectedRoute";
 import AdminDashboard from "./pages/AdminDashboard";
 import VerifyEmail from "./pages/VerifyEmail";
@@ -18,8 +18,29 @@ import StoreLayout from "./components/StoreLayout";
 export default function App() {
   return (
     <CompareProvider>
-      {/* 👇 NEW: Global Theme Wrapper to ensure overlays/modals inherit dark mode perfectly */}
       <div className="min-h-screen w-full bg-bgPrimary dark:bg-bgPrimary-dark text-textPrimary dark:text-textPrimary-dark transition-colors duration-500 ease-smooth">
+        {/* 🍞 THE DOPE TOASTER */}
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            duration: 3500,
+            className:
+              "!bg-bgPrimary dark:!bg-bgPrimary-dark !text-textPrimary dark:!text-textPrimary-dark !border !border-borderLight dark:!border-borderLight-dark !rounded-none shadow-2xl font-sans text-[10px] tracking-widest uppercase",
+            success: {
+              iconTheme: {
+                primary: "currentColor",
+                secondary: "transparent",
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: "#ef4444",
+                secondary: "#ffffff",
+              },
+            },
+          }}
+        />
+
         <Router>
           <ScrollToTop />
 
@@ -30,7 +51,7 @@ export default function App() {
               <Route path="/product/:id" element={<ProductDetails />} />
               <Route path="/search" element={<Collection />} />
               <Route path="/collection" element={<Collection />} />
-              <Route path="/collection/:type" element={<Collection />} />{" "}
+              <Route path="/collection/:type" element={<Collection />} />
               <Route path="/watchlist" element={<Watchlist />} />
             </Route>
 

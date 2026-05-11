@@ -13,6 +13,8 @@ import ProductCard from "../components/ProductCard";
 import PriceHistoryChart from "../components/PriceHistoryChart";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { Trash2, X, CheckCircle2 } from "lucide-react";
+import toast from "react-hot-toast"; // 👈 Import toast
+import ConfirmModal from "../components/ConfirmModal"; // 👈 Import Modal
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toTitleCase(str: string) {
@@ -92,6 +94,10 @@ export default function ProductDetails() {
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [isDeletingMedia, setIsDeletingMedia] = useState(false);
 
+  // 👈 New Product Deletion State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     setIsLoading(true);
@@ -120,6 +126,7 @@ export default function ProductDetails() {
 
   const handleTrackPrice = async () => {
     if (!isAuthenticated) {
+      toast("Please sign in to track items", { icon: "🔒" });
       navigate("/login");
       return;
     }
@@ -127,10 +134,18 @@ export default function ProductDetails() {
     setTrackLoading(true);
     try {
       if (tracked) {
-        if (await removeFromWatchlist(product.id)) setTracked(false);
+        if (await removeFromWatchlist(product.id)) {
+          setTracked(false);
+          toast.success("Removed from Watchlist");
+        }
       } else {
-        if (await addToWatchlist(product.id)) setTracked(true);
+        if (await addToWatchlist(product.id)) {
+          setTracked(true);
+          toast.success("Tracking price drop");
+        }
       }
+    } catch (err) {
+      toast.error("Failed to update watchlist");
     } finally {
       setTrackLoading(false);
     }
@@ -147,7 +162,7 @@ export default function ProductDetails() {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`, // Pass Redux token to pass authMiddleware
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ mediaUrls: selectedMedia }),
         },
@@ -155,14 +170,16 @@ export default function ProductDetails() {
 
       if (res.ok) {
         const updatedProduct = await res.json();
-        setProduct(updatedProduct); // Instantly update the UI
+        setProduct(updatedProduct);
         setSelectedMedia([]);
         setIsMediaManagerOpen(false);
+        toast.success("Media deleted successfully");
       } else {
-        console.error("Failed to delete media");
+        toast.error("Failed to delete media");
       }
     } catch (error) {
       console.error(error);
+      toast.error("Failed to delete media");
     } finally {
       setIsDeletingMedia(false);
     }
@@ -172,6 +189,33 @@ export default function ProductDetails() {
     setSelectedMedia((prev) =>
       prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url],
     );
+  };
+
+  // 👈 ADMIN: Handle Product Deletion
+  const handleDeleteProduct = async () => {
+    if (!product) return;
+    setIsDeletingProduct(true);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/products/${product.id}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (res.ok) {
+        toast.success("Product deleted permanently");
+        navigate("/admin"); // Kick them back to dashboard
+      } else {
+        toast.error("Failed to delete product");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An error occurred while deleting");
+    } finally {
+      setIsDeletingProduct(false);
+      setIsDeleteModalOpen(false);
+    }
   };
 
   // ── Loading ──
@@ -527,14 +571,22 @@ export default function ProductDetails() {
               {product.color && <span className="ml-3">· {product.color}</span>}
             </p>
 
-            {/* ── ADMIN: Manage Media Button ── */}
+            {/* 👈 ADMIN: Manage Media & Delete Product Buttons */}
             {isAdmin && (
-              <button
-                onClick={() => setIsMediaManagerOpen(true)}
-                className="font-sans text-[9px] tracking-widest uppercase text-accentRed border border-accentRed/30 px-3 py-1 hover:bg-accentRed/10 transition-colors"
-              >
-                Manage Media
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsMediaManagerOpen(true)}
+                  className="font-sans text-[9px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark border border-borderLight dark:border-borderLight-dark px-3 py-1 hover:bg-borderLight dark:hover:bg-borderLight-dark transition-colors"
+                >
+                  Manage Media
+                </button>
+                <button
+                  onClick={() => setIsDeleteModalOpen(true)}
+                  className="font-sans text-[9px] tracking-widest uppercase text-accentRed border border-accentRed/30 px-3 py-1 hover:bg-accentRed/10 transition-colors"
+                >
+                  Delete Product
+                </button>
+              </div>
             )}
           </div>
 
@@ -716,6 +768,18 @@ export default function ProductDetails() {
           </div>
         </section>
       )}
+
+      {/* 🍞 THE DELETE CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Delete Product"
+        message="Are you sure you want to permanently delete this product? This will remove it from the database entirely and cannot be undone."
+        confirmText={isDeletingProduct ? "Deleting..." : "Delete Permanently"}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={handleDeleteProduct}
+        onCancel={() => !isDeletingProduct && setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }

@@ -1,33 +1,38 @@
 import React, { useState } from "react";
-import { useDispatch } from "react-redux";
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { registerUser } from "../services/api";
-import { setCredentials } from "../store/authSlice";
+import toast from "react-hot-toast"; // 👈 IMPORT ADDED
 
 const Register = () => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const dispatch = useDispatch();
-  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password !== confirmPassword) return setError("Passwords do not match");
-    setLoading(true);
-    setError("");
-    try {
-      await registerUser({ name, email, password });
-      setSuccess(true);
-    } catch (err: any) {
-      setError(err.message || "Failed to register");
-    } finally {
-      setLoading(false);
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match"); // 🍞 SIMPLE ERROR TOAST
+      return;
     }
+    setLoading(true);
+
+    const registerPromise = registerUser({ name, email, password }).then(() => {
+      setSuccess(true);
+    });
+
+    // 🍞 THE TOAST
+    toast
+      .promise(registerPromise, {
+        loading: "Creating your account...",
+        success: "Welcome to the VIP List.",
+        error: (err: any) => err.message || "Failed to register",
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   // ── Success screen ────────────────────────────────────────────────────────
@@ -39,7 +44,7 @@ const Register = () => {
             Registration complete
           </p>
           <h2 className="font-heading font-light text-4xl md:text-5xl tracking-[-0.02em] text-textPrimary dark:text-textPrimary-dark mb-6">
-            Welcome to the VIP List
+            Check Your Email
           </h2>
           <p className="font-sans text-[11px] tracking-wide text-textSecondary dark:text-textSecondary-dark mb-2">
             We sent a verification link to{" "}
@@ -49,8 +54,7 @@ const Register = () => {
             .
           </p>
           <p className="font-sans text-[10px] tracking-wide text-textMuted dark:text-textMuted-dark mb-10">
-            Check your inbox and click the link to activate your account before
-            signing in.
+            Click the link to activate your account before signing in.
           </p>
           <Link
             to="/login"
@@ -76,13 +80,6 @@ const Register = () => {
             Create an Account
           </h1>
         </div>
-
-        {/* Error */}
-        {error && (
-          <div className="mb-6 px-4 py-3 border border-accentRed text-accentRed font-sans text-[10px] tracking-widest uppercase">
-            {error}
-          </div>
-        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
