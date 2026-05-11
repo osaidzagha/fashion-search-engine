@@ -82,7 +82,7 @@ export const runScraperPipeline = async (
     const shuffledCategories = shuffleArray(cleanCategories);
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 7);
+      : shuffledCategories.slice(0, 15);
 
     for (const categoryUrl of toScrape) {
       if (page.isClosed()) {

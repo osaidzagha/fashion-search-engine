@@ -398,7 +398,21 @@ export async function scrapeMangoProductData(page: Page, url: string) {
           if (fallbackSrc) rawImages.push(fallbackSrc);
         }
       }
-
+      // ── Video Extraction ──
+      var videoItems = document.querySelectorAll(
+        'video, [class*="video"] video, [data-testid*="video"]',
+      );
+      var rawVideos = [];
+      for (var v = 0; v < videoItems.length; v++) {
+        var vid = videoItems[v];
+        // Check for src directly on the video tag, or inside a <source> child
+        var src = vid.getAttribute("src") || vid.getAttribute("data-src");
+        if (!src) {
+          var sourceTag = vid.querySelector('source[type="video/mp4"]');
+          if (sourceTag) src = sourceTag.getAttribute("src");
+        }
+        if (src) rawVideos.push(src);
+      }
       // Breadcrumbs
       var breadcrumbItems = document.querySelectorAll(
         '[class*="BreadcrumbBase"] [class*="listItem"] a',
@@ -480,6 +494,7 @@ export async function scrapeMangoProductData(page: Page, url: string) {
         titleTr: titleTr,
         descriptionTr: descriptionTr,
         rawImages: rawImages,
+        rawVideos: rawVideos,
         categoryTr: categoryTr,
         composition: composition,
         sizes: sizes,
@@ -509,6 +524,13 @@ export async function scrapeMangoProductData(page: Page, url: string) {
         src.startsWith("http") ? src : `https://shop.mango.com${src}`,
       );
     const uniqueImages = [...new Set(cleanImages)];
+
+    const cleanVideos = (domData.rawVideos || [])
+      .filter((src: string) => src && src.includes(".mp4"))
+      .map((src: string) =>
+        src.startsWith("http") ? src : `https://shop.mango.com${src}`,
+      );
+    const uniqueVideos = [...new Set(cleanVideos)];
 
     // ── Resolve price ─────────────────────────────────────────────────────────
     let finalPrice = 0;
@@ -542,6 +564,7 @@ export async function scrapeMangoProductData(page: Page, url: string) {
       category: finalCategory,
       composition: finalComposition, // 👈 Saved to DB here!
       images: uniqueImages,
+      videos: uniqueVideos,
       link: turkishUrl,
       timestamp: new Date(),
       color: colorCode || "Default",
