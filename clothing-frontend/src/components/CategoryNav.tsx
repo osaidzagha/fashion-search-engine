@@ -26,8 +26,10 @@ export const CategoryNav: React.FC = () => {
 
     switch (item.type) {
       case "search":
-        params.set("search", item.q);
+        if (item.q) params.set("search", item.q);
+        params.set("mode", "category"); // ← NEW: tells backend to use regex, not $text
         break;
+
       case "sale":
         params.set("onSale", "true");
         break;

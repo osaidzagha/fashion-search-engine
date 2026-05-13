@@ -32,12 +32,11 @@ export default function Collection() {
     "";
   const currentSort = searchParams.get("sort") || "";
   const displayTitle = searchParams.get("title");
-  const deptFromUrl = searchParams.get("department");
-  useEffect(() => {
-    if (deptFromUrl) {
-      dispatch(setDepartments([deptFromUrl]));
-    }
-  }, [deptFromUrl, dispatch]);
+  const modeFromUrl = searchParams.get("mode") || "";
+  const urlDepts = (searchParams.get("departments") || "")
+    .split(",")
+    .filter(Boolean);
+
   const {
     items: products,
     isLoading,
@@ -116,22 +115,28 @@ export default function Collection() {
     const fetchData = async () => {
       dispatch(setLoading(true));
       try {
+        // URL departments take precedence over drawer-selected departments
+        const effectiveDepts =
+          urlDepts.length > 0 ? urlDepts : selectDepartments || [];
+
         const filters: any = {
           searchTerm,
           page: currentPage,
           brands: searchParams.get("brands")
             ? [searchParams.get("brands")]
             : selectBrands,
-          departments: selectDepartments,
+          departments: effectiveDepts, // ← fixed
           sizes: selectSizes,
           colors: selectColors,
           maxPrice,
           sort: currentSort,
+          mode: modeFromUrl, // ← new
         };
 
         if (type === "sale" || searchParams.get("onSale") === "true")
           filters.onSale = true;
         if (type === "zara") filters.brands = ["Zara"];
+        if (type === "mango") filters.brands = ["Mango"];
         if (type === "massimo-dutti") filters.brands = ["Massimo Dutti"];
         if (type === "new-in") filters.sort = "newest";
 

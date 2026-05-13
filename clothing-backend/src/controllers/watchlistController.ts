@@ -1,12 +1,14 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import { UserModel } from "../models/User";
 import { ProductModel } from "../models/Product";
+import { priceAlertQueue } from "../queues/queues";
+import { AuthRequest } from "../middlewares/authMiddleware"; // 👈 1. IMPORT YOUR CUSTOM TYPE
 
 // GET /api/watchlist
-// Returns all products the logged-in user is tracking PLUS their custom trackedPrice
-export const getWatchlist = async (req: Request, res: Response) => {
+export const getWatchlist = async (req: AuthRequest, res: Response) => {
   try {
-    const user = await UserModel.findById((req as any).user._id).lean();
+    // 👈 2. USE req.user! (The exclamation mark tells TS "I know this exists because the auth middleware checked it")
+    const user = await UserModel.findById(req.user!._id).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
     if (!user.watchlist || user.watchlist.length === 0) {
@@ -18,16 +20,14 @@ export const getWatchlist = async (req: Request, res: Response) => {
       id: { $in: productIds },
     }).lean();
 
-    // 👇 THE MERGE: We combine the global product data with the user's specific tracked price
     const productsWithTrackedPrices = products.map((product) => {
-      // Find this specific product in the user's watchlist array
       const userTrackData = user.watchlist.find(
         (item) => item.productId === product.id,
       );
 
       return {
         ...product,
-        trackedPrice: userTrackData?.trackedPrice || product.price, // Fallback safely
+        trackedPrice: userTrackData?.trackedPrice || product.price,
       };
     });
 
@@ -39,8 +39,7 @@ export const getWatchlist = async (req: Request, res: Response) => {
 };
 
 // POST /api/watchlist/:productId
-// Add a product to the logged-in user's watchlist
-export const addToWatchlist = async (req: Request, res: Response) => {
+export const addToWatchlist = async (req: AuthRequest, res: Response) => {
   try {
     const { productId } = req.params;
     if (Array.isArray(productId)) {
@@ -48,32 +47,36 @@ export const addToWatchlist = async (req: Request, res: Response) => {
         .status(400)
         .json({ message: "Only one product ID is allowed." });
     }
-    const userId = (req as any).user._id;
 
-    // Check product exists AND get its current price
+    const userId = req.user!._id; // 👈 3. USE req.user!
+
     const product = await ProductModel.findOne({ id: productId });
+    // This return guarantees product is not null for the rest of the function!
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    const user = await UserModel.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // Prevent duplicates
-    const alreadyTracking = user.watchlist.some(
-      (item) => item.productId === productId,
+    // The atomic update (This is the best way to do this!)
+    const updated = await UserModel.findOneAndUpdate(
+      {
+        _id: userId,
+        "watchlist.productId": { $ne: productId },
+      },
+      {
+        $push: {
+          watchlist: {
+            productId,
+            trackedPrice: product.price,
+            addedAt: new Date(),
+          },
+        },
+      },
+      { new: true },
     );
-    if (alreadyTracking) {
+
+    if (!updated) {
       return res.status(200).json({ message: "Already tracking this product" });
     }
 
-    // 👇 CAPTURE THE EVENT STATE: Save the price at this exact second
-    user.watchlist.push({
-      productId,
-      trackedPrice: product.price,
-      addedAt: new Date(),
-    });
-
-    await user.save();
-
+    // 👈 4. THE DEAD CODE IS GONE! Just return the success response.
     return res.status(200).json({ message: "Added to watchlist", productId });
   } catch (error) {
     console.error("Error adding to watchlist:", error);
@@ -82,11 +85,10 @@ export const addToWatchlist = async (req: Request, res: Response) => {
 };
 
 // DELETE /api/watchlist/:productId
-// Remove a product from the logged-in user's watchlist
-export const removeFromWatchlist = async (req: Request, res: Response) => {
+export const removeFromWatchlist = async (req: AuthRequest, res: Response) => {
   try {
     const { productId } = req.params;
-    const userId = (req as any).user._id;
+    const userId = req.user!._id; // 👈 5. USE req.user!
 
     await UserModel.findByIdAndUpdate(userId, {
       $pull: { watchlist: { productId } },
@@ -101,8 +103,6 @@ export const removeFromWatchlist = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Called by the scraper pipeline after saving a product with a new lower price.
-// Finds all users watching this product and sends them a price drop email.
 export const notifyWatchlistUsers = async (
   productId: string,
   productName: string,
@@ -110,11 +110,10 @@ export const notifyWatchlistUsers = async (
   oldPrice: number,
   newPrice: number,
   currency: string,
+  brandName: string, // <-- Passed this in to satisfy TS
+  runId: string, // <-- Passed this in to satisfy TS
 ): Promise<void> => {
   try {
-    const { sendPriceAlertEmail } = await import("../utils/sendEmail");
-
-    // Find all users who have this product in their watchlist
     const users = await UserModel.find({
       "watchlist.productId": productId,
     }).lean();
@@ -122,21 +121,36 @@ export const notifyWatchlistUsers = async (
     if (users.length === 0) return;
 
     console.log(
-      `📧 Notifying ${users.length} user(s) about price drop on ${productName}`,
+      `📧 Prepping price drop alerts for ${users.length} users on ${productName}`,
     );
 
-    for (const user of users) {
-      await sendPriceAlertEmail(
-        user.email,
+    // 1. Map the users into the exact format BullMQ expects for a Bulk insert
+    const jobs = users.map((user) => ({
+      name: "price-alert", // The name of the job
+      data: {
+        email: user.email,
         productName,
         productLink,
         oldPrice,
         newPrice,
         currency,
-      );
+        brandName,
+        runId,
+      },
+    }));
+
+    // 2. We chunk the array into batches of 1,000 to be perfectly safe on memory
+    const BATCH_SIZE = 1000;
+
+    for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
+      const batch = jobs.slice(i, i + BATCH_SIZE);
+
+      // 3. Send 1,000 jobs to Redis in a single network operation!
+      await priceAlertQueue.addBulk(batch);
+
+      console.log(`✅ Queued batch of ${batch.length} emails...`);
     }
   } catch (error) {
-    console.error("Error notifying watchlist users:", error);
-    // Don't throw — price alerts failing should never break the scraper
+    console.error("Error queueing watchlist notifications:", error);
   }
 };

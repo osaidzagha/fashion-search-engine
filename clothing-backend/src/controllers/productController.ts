@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
+
 // ─── Synonym map (Strict Equivalence) ─────────────────────────────────────────
 const synonymMap: Record<string, string> = {
   // ── BOTTOMS ──
@@ -150,53 +151,74 @@ export const getProducts = async (req: Request, res: Response) => {
       (req.query.search as string) || (req.query.q as string)
     )?.trim();
 
+    const isCategoryMode = req.query.mode === "category";
+
     if (rawSearch) {
       const cleanSearch = rawSearch.replace(/[-&|©]/g, " ");
-      const userWords = cleanSearch
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((w) => w.length > 0);
 
-      if (userWords.length > 0) {
-        let textSearchTerms: string[] = [];
-        let excludeTerms: string[] = [];
+      if (isCategoryMode) {
+        // ── CATEGORY NAV: precise regex against name + category only ──────────
+        // Split the taxonomy q string into individual terms and match with word boundaries
+        const terms = cleanSearch
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w.length > 1)
+          .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // escape regex chars
 
-        userWords.forEach((word) => {
-          const isPlural =
-            word.endsWith("s") &&
-            !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
-          const singular = isPlural ? word.slice(0, -1) : word;
+        if (terms.length > 0) {
+          const regexPattern = `\\b(${terms.join("|")})\\b`;
+          const regex = new RegExp(regexPattern, "i");
 
-          textSearchTerms.push(word);
-
-          const mappedSynonyms = synonymMap[word] || synonymMap[singular];
-          if (mappedSynonyms) {
-            textSearchTerms.push(...mappedSynonyms.split(/\s+/));
-          }
-
-          const mappedExcludes = excludeMap[word] || excludeMap[singular];
-          if (mappedExcludes) {
-            excludeTerms.push(...mappedExcludes.split(/\s+/));
-          }
-        });
-
-        const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
-        const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
-
-        let finalMongoSearchString = uniqueSearchTerms.join(" ");
-        if (uniqueExcludeTerms.length > 0) {
-          finalMongoSearchString +=
-            " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
+          filter.$or = [{ category: regex }, { name: regex }];
         }
+      } else {
+        // ── USER SEARCH: existing $text + synonym + exclusion logic ───────────
+        const userWords = cleanSearch
+          .toLowerCase()
+          .split(/\s+/)
+          .filter((w) => w.length > 0);
 
-        filter.$text = { $search: finalMongoSearchString };
+        if (userWords.length > 0) {
+          let textSearchTerms: string[] = [];
+          let excludeTerms: string[] = [];
 
-        if (uniqueExcludeTerms.length > 0) {
-          const excludePattern = uniqueExcludeTerms.join("|");
-          const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
-          filter.$and = filter.$and || [];
-          filter.$and.push({ name: { $not: excludeRegex } });
-          filter.$and.push({ category: { $not: excludeRegex } });
+          userWords.forEach((word) => {
+            const isPlural =
+              word.endsWith("s") &&
+              !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+            const singular = isPlural ? word.slice(0, -1) : word;
+
+            textSearchTerms.push(word);
+
+            const mappedSynonyms = synonymMap[word] || synonymMap[singular];
+            if (mappedSynonyms) {
+              textSearchTerms.push(...mappedSynonyms.split(/\s+/));
+            }
+
+            const mappedExcludes = excludeMap[word] || excludeMap[singular];
+            if (mappedExcludes) {
+              excludeTerms.push(...mappedExcludes.split(/\s+/));
+            }
+          });
+
+          const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
+          const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
+
+          let finalMongoSearchString = uniqueSearchTerms.join(" ");
+          if (uniqueExcludeTerms.length > 0) {
+            finalMongoSearchString +=
+              " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
+          }
+
+          filter.$text = { $search: finalMongoSearchString };
+
+          if (uniqueExcludeTerms.length > 0) {
+            const excludePattern = uniqueExcludeTerms.join("|");
+            const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
+            filter.$and = filter.$and || [];
+            filter.$and.push({ name: { $not: excludeRegex } });
+            filter.$and.push({ category: { $not: excludeRegex } });
+          }
         }
       }
     }
@@ -209,9 +231,19 @@ export const getProducts = async (req: Request, res: Response) => {
       videos: 0,
     };
 
-    if (filter.$text && Object.keys(sortOption).length === 0) {
+    // Fix sort — "newest" must override text score sort
+    if (
+      filter.$text &&
+      Object.keys(sortOption).length === 0 &&
+      req.query.sort !== "newest"
+    ) {
       projection.score = { $meta: "textScore" };
       sortOption = { score: { $meta: "textScore" } };
+    }
+
+    // "newest" always wins regardless of text index
+    if (req.query.sort === "newest") {
+      sortOption = { timestamp: -1 };
     }
 
     // ── 2. THE LEAN QUERY ──
@@ -479,18 +511,18 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
 export const getCategories = async (req: Request, res: Response) => {
   try {
     const potentialCategories = [
-      "Jackets",
-      "Shirts",
-      "Trousers",
-      "Jeans",
-      "Shorts",
-      "Hoodies",
-      "Sweaters",
-      "Suits",
-      "Blazers",
-      "Shoes",
-      "Bags",
-      "Polos",
+      "jacket",
+      "shirt",
+      "trouser",
+      "jean",
+      "short",
+      "hoodie",
+      "sweater",
+      "suit",
+      "blazer",
+      "shoe",
+      "bag",
+      "polo",
     ];
 
     const deptFilter: any = {};
@@ -507,24 +539,43 @@ export const getCategories = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    const activeCategories: string[] = [];
+    const results = await ProductModel.aggregate([
+      { $match: deptFilter },
+      {
+        $group: {
+          _id: null,
+          allNames: { $push: { $toLower: "$name" } },
+          allCats: { $push: { $toLower: "$category" } },
+        },
+      },
+    ]);
+
+    // better: just do one $facet with regex per category
+    const pipeline = potentialCategories.map((cat) => ({
+      $match: {
+        ...deptFilter,
+        $or: [
+          { name: { $regex: cat, $options: "i" } },
+          { category: { $regex: cat, $options: "i" } },
+        ],
+      },
+    }));
+
+    const active: string[] = [];
     await Promise.all(
       potentialCategories.map(async (cat) => {
-        const singular = cat.toLowerCase().endsWith("s")
-          ? cat.toLowerCase().slice(0, -1)
-          : cat.toLowerCase();
-        const productExists = await ProductModel.exists({
+        const exists = await ProductModel.exists({
           ...deptFilter,
           $or: [
-            { name: { $regex: singular, $options: "i" } },
-            { category: { $regex: singular, $options: "i" } },
+            { name: { $regex: cat, $options: "i" } },
+            { category: { $regex: cat, $options: "i" } },
           ],
         });
-        if (productExists) activeCategories.push(cat);
+        if (exists)
+          active.push(cat.charAt(0).toUpperCase() + cat.slice(1) + "s");
       }),
     );
-
-    return res.status(200).json(activeCategories.sort());
+    return res.status(200).json(active.sort());
   } catch (error) {
     console.error("Error fetching categories:", error);
     res.status(500).json({ message: "Server Error" });
@@ -566,5 +617,67 @@ export const deleteProductMedia = async (
   } catch (error) {
     console.error("[ProductController] Delete Media Error:", error);
     res.status(500).json({ error: "Failed to delete media." });
+  }
+};
+
+// ─── GET /api/products/:id/related ───────────────────────────────────────────
+export const getRelatedProducts = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Fetch the target product so we know what we are comparing against
+    const currentProduct = await ProductModel.findOne({ id }).lean();
+    if (!currentProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // 2. Build the Search String (The "DNA" of the product)
+    // We combine the name and category to give the text index good keywords.
+    const searchString =
+      `${currentProduct.name} ${currentProduct.category || ""}`.trim();
+
+    // 3. The Hybrid Query
+    let relatedProducts = await ProductModel.find(
+      {
+        $text: { $search: searchString },
+        id: { $ne: id }, // SAFETY: Do not recommend the exact same product
+        department: currentProduct.department, // SAFETY: Stay in the same department
+      },
+      {
+        score: { $meta: "textScore" }, // Get the relevance score
+        description: 0, // Payload diet: keep the response light
+        priceHistory: 0,
+      },
+    )
+      .sort({ score: { $meta: "textScore" } }) // Sort by most relevant first
+      .limit(4) // Only send back 4 items for the UI carousel
+      .lean();
+
+    // 4. The Fallback (Just in case the text search is too narrow)
+    if (relatedProducts.length === 0 && currentProduct.category) {
+      relatedProducts = await ProductModel.find({
+        id: { $ne: id },
+        department: currentProduct.department,
+        category: { $regex: currentProduct.category, $options: "i" },
+      })
+        .sort({ timestamp: -1 })
+        .limit(4)
+        .lean();
+    }
+    // Tier 3: same brand
+    if (relatedProducts.length === 0) {
+      relatedProducts = await ProductModel.find({
+        id: { $ne: id },
+        department: currentProduct.department,
+        brand: currentProduct.brand,
+      })
+        .sort({ timestamp: -1 })
+        .limit(4)
+        .lean();
+    }
+    return res.status(200).json(relatedProducts);
+  } catch (error) {
+    console.error("Error fetching related products:", error);
+    res.status(500).json({ message: "Server Error" });
   }
 };

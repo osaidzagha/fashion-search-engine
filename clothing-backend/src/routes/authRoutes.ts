@@ -1,4 +1,5 @@
 import express from "express";
+import { body } from "express-validator";
 import {
   registerUser,
   loginUser,
@@ -7,11 +8,22 @@ import {
 
 const router = express.Router();
 
-// POST /api/auth/register
-router.post("/register", registerUser);
+router.post(
+  "/register",
+  [
+    body("email").isEmail().normalizeEmail(),
+    body("password").isLength({ min: 6 }),
+    body("name").trim().notEmpty(),
+  ],
+  registerUser,
+);
 
-// POST /api/auth/login
-router.post("/login", loginUser);
+router.post(
+  "/login",
+  [body("email").isEmail().normalizeEmail(), body("password").notEmpty()],
+  loginUser,
+);
 
 router.get("/verify/:token", verifyEmail);
+
 export default router;

@@ -18,10 +18,16 @@ interface AuthState {
 // 3. The "Persistence" Check
 // When the app starts, we immediately check if they left their VIP wristband in localStorage
 const tokenFromStorage = localStorage.getItem("token") || null;
-const userFromStorage = localStorage.getItem("userInfo")
-  ? JSON.parse(localStorage.getItem("userInfo") as string)
-  : null;
-
+const getUserFromStorage = (): UserInfo | null => {
+  try {
+    const raw = localStorage.getItem("userInfo");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    localStorage.removeItem("userInfo"); // clear corrupted data
+    return null;
+  }
+};
+const userFromStorage = getUserFromStorage();
 const initialState: AuthState = {
   userInfo: userFromStorage,
   token: tokenFromStorage,

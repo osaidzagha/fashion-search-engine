@@ -42,4 +42,6 @@ export interface FetchProductParams {
   colors?: string[];
   maxPrice?: number;
   onSale?: boolean;
+  sort?: string; // ← ADD
+  mode?: string;
 }
