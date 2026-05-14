@@ -24,6 +24,7 @@ app.use(
     origin: [
       "http://localhost:5173",
       "https://fashion-search-engine-nine.vercel.app",
+      "https://dope-fashion.vercel.app",
     ],
     credentials: true,
   }),
