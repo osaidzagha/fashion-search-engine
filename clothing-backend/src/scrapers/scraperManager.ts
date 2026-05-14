@@ -94,11 +94,12 @@ export const triggerScraper = async (
       headless: true,
       args: [
         "--ignore-certificate-errors",
-        "--no-sandbox", // 👈 Required for Linux servers
-        "--disable-setuid-sandbox", // 👈 Required for Linux servers
-        "--disable-dev-shm-usage", // 👈 Prevents Docker memory crashes
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
       ],
     });
+
     activeBrowsers.set(brandSlug, browser);
 
     const page = await browser.newPage();
