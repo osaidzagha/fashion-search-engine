@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { fetchProductsFromAPI } from "../services/api";
 import { ProductGrid } from "../components/ProductGrid";
 import { SearchBar } from "../components/SearchBar";
-import { clearFilters } from "../store/productSlice";
 import { FilterDrawer } from "../components/FilterDrawer";
 import {
   setProducts,
@@ -25,6 +24,7 @@ export default function Collection() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const location = useLocation();
 
+  // ── Primitives extracted from URL (Stable for dependencies) ──────────────
   const qFromUrl =
     searchParams.get("search") ||
     searchParams.get("q") ||
@@ -33,9 +33,11 @@ export default function Collection() {
   const currentSort = searchParams.get("sort") || "";
   const displayTitle = searchParams.get("title");
   const modeFromUrl = searchParams.get("mode") || "";
-  const urlDepts = (searchParams.get("departments") || "")
-    .split(",")
-    .filter(Boolean);
+  const brandsFromUrl = searchParams.get("brands") || "";
+  const onSaleFromUrl = searchParams.get("onSale") || "";
+  const deptsFromUrl = searchParams.get("departments") || "";
+
+  const urlDepts = deptsFromUrl.split(",").filter(Boolean);
 
   const {
     items: products,
@@ -51,6 +53,9 @@ export default function Collection() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+
+  // ── Guaranteed Mount Guard ───────────────────────────────────────────────
+  const initialFetchDone = useRef(false);
 
   // ── Header dynamics ──────────────────────────────────────────────────────
   const getHeaderInfo = () => {
@@ -122,19 +127,16 @@ export default function Collection() {
         const filters: any = {
           searchTerm,
           page: currentPage,
-          brands: searchParams.get("brands")
-            ? [searchParams.get("brands")]
-            : selectBrands,
-          departments: effectiveDepts, // ← fixed
+          brands: brandsFromUrl ? [brandsFromUrl] : selectBrands,
+          departments: effectiveDepts,
           sizes: selectSizes,
           colors: selectColors,
           maxPrice,
           sort: currentSort,
-          mode: modeFromUrl, // ← new
+          mode: modeFromUrl,
         };
 
-        if (type === "sale" || searchParams.get("onSale") === "true")
-          filters.onSale = true;
+        if (type === "sale" || onSaleFromUrl === "true") filters.onSale = true;
         if (type === "zara") filters.brands = ["Zara"];
         if (type === "mango") filters.brands = ["Mango"];
         if (type === "massimo-dutti") filters.brands = ["Massimo Dutti"];
@@ -156,23 +158,40 @@ export default function Collection() {
       }
     };
 
+    // ✅ FORCE INITIAL MOUNT FETCH
+    if (!initialFetchDone.current) {
+      fetchData();
+      initialFetchDone.current = true;
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return () => {
+        ignore = true;
+      };
+    }
+
+    // ✅ SUBSEQUENT FETCHES ON DEPENDENCY CHANGES
     fetchData();
     window.scrollTo({ top: 0, behavior: "smooth" });
+
     return () => {
       ignore = true;
     };
+
+    // ✅ STABLE PRIMITIVE DEPENDENCIES ONLY
   }, [
     searchTerm,
     currentPage,
-    selectBrands,
-    selectDepartments,
-    selectSizes,
-    selectColors,
+    (selectBrands || []).join(","),
+    (selectDepartments || []).join(","),
+    (selectSizes || []).join(","),
+    (selectColors || []).join(","),
     maxPrice,
     type,
     currentSort,
+    modeFromUrl,
+    brandsFromUrl,
+    onSaleFromUrl,
+    deptsFromUrl,
     dispatch,
-    searchParams,
   ]);
 
   // ── Active filter indicator ──────────────────────────────────────────────
