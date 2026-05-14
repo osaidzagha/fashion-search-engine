@@ -1,13 +1,12 @@
 {
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^25.6.0",
-    "@types/node-cron": "^3.0.11",
-    "@types/nodemailer": "^8.0.0",
-    "tsx": "^4.21.0"
+  "name": "clothing-backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -24,5 +23,16 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^8.0.5",
     "puppeteer": "^24.40.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^25.6.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/nodemailer": "^8.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^4.21.0"
   }
 }
