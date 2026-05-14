@@ -18,7 +18,16 @@ const PORT = process.env.PORT || 8080;
 
 // ── Security middleware FIRST ─────────────────────────────────────
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:5173" }));
+// ✅ ADD THIS INSTEAD:
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://fashion-search-engine-nine.vercel.app",
+    ],
+    credentials: true,
+  }),
+);
 app.use(express.json());
 
 // ── Rate limiting on auth routes ──────────────────────────────────
