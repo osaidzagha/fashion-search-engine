@@ -41,6 +41,13 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: "Something went wrong" });
 });
 
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    message: "Fashion backend is running 🚀",
+  });
+});
+
 // ── Database + server start ───────────────────────────────────────
 mongoose
   .connect(process.env.MONGO_URI as string)
