@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "render-build": "npm install && npx puppeteer browsers install chrome && npm run build",
     "dev": "tsx watch src/server.ts"
   },
   "dependencies": {
