@@ -3,7 +3,7 @@ import { useDispatch } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { loginUser } from "../services/api";
 import { setCredentials } from "../store/authSlice";
-import toast from "react-hot-toast"; // 👈 IMPORT ADDED
+import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
 
 const Login = () => {
@@ -17,23 +17,25 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // 👈 We wrap the API call in a Promise to feed it to toast.promise
-    const loginPromise = loginUser({ email, password }).then((response) => {
-      const { token, ...userData } = response;
-      dispatch(setCredentials({ user: userData, token }));
-      navigate("/");
-    });
-
-    // 🍞 THE TOAST
-    toast
-      .promise(loginPromise, {
+    try {
+      // ✅ FIX: Await the toast promise so we can catch any errors
+      const response = await toast.promise(loginUser({ email, password }), {
         loading: "Authenticating...",
         success: "Welcome back to Dope.",
         error: (err: any) => err.message || "Invalid credentials.",
-      })
-      .finally(() => {
-        setLoading(false);
       });
+
+      // Only runs if the API call was successful
+      const { token, ...userData } = response;
+      dispatch(setCredentials({ user: userData, token }));
+      navigate("/");
+    } catch (err) {
+      console.error("Login error:", err);
+      // We don't need to do anything else here, the toast already showed the error message to the user!
+    } finally {
+      // ✅ FIX: This ALWAYS runs, preventing the button from being stuck on "Signing in..."
+      setLoading(false);
+    }
   };
 
   return (

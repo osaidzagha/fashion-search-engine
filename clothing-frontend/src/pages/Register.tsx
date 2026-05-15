@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { registerUser } from "../services/api";
-import toast from "react-hot-toast"; // 👈 IMPORT ADDED
+import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
 
 const Register = () => {
@@ -15,25 +15,27 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast.error("Passwords do not match"); // 🍞 SIMPLE ERROR TOAST
+      toast.error("Passwords do not match");
       return;
     }
     setLoading(true);
 
-    const registerPromise = registerUser({ name, email, password }).then(() => {
-      setSuccess(true);
-    });
-
-    // 🍞 THE TOAST
-    toast
-      .promise(registerPromise, {
+    try {
+      // ✅ FIX: Await the toast promise so we can catch any errors thrown by registerUser
+      await toast.promise(registerUser({ name, email, password }), {
         loading: "Creating your account...",
         success: "Welcome to the VIP List.",
         error: (err: any) => err.message || "Failed to register",
-      })
-      .finally(() => {
-        setLoading(false);
       });
+      // Only runs if the API call was successful
+      setSuccess(true);
+    } catch (err) {
+      console.error("Registration error:", err);
+      // We don't need to do anything else here, the toast already showed the error message to the user!
+    } finally {
+      // ✅ FIX: This ALWAYS runs, preventing the button from being stuck on "Creating Account..."
+      setLoading(false);
+    }
   };
 
   // ── Success screen ────────────────────────────────────────────────────────
