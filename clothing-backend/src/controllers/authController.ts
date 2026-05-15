@@ -35,12 +35,10 @@ export const registerUser = async (
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    // Keep this in dev — remove before shipping to prod
-    if (process.env.NODE_ENV !== "production") {
-      console.log("-----------------------------------------");
-      console.log(`DEBUG OTP FOR ${email}: ${otp}`);
-      console.log("-----------------------------------------");
-    }
+    // ✅ Always log OTP so you can verify manually if email fails
+    console.log("-----------------------------------------");
+    console.log(`DEBUG OTP FOR ${email}: ${otp}`);
+    console.log("-----------------------------------------");
 
     const user = await UserModel.create({
       name,
@@ -55,14 +53,12 @@ export const registerUser = async (
       return res.status(400).json({ message: "Invalid user data" });
     }
 
-    // Non-fatal: user still gets to the OTP page even if email fails
     try {
       await sendVerificationEmail(user.email, otp);
+      console.log(`✅ Verification email sent to ${user.email}`);
     } catch (mailError) {
-      // sendVerificationEmail already logs the structured error — no need to re-log
-      console.error(
-        "⚠️  [registerUser] Email delivery failed — user can still verify manually.",
-      );
+      console.error("⚠️  [registerUser] Email delivery failed:", mailError);
+      console.log(`📋 Manual OTP for ${user.email}: ${otp}`);
     }
 
     return res.status(201).json({
