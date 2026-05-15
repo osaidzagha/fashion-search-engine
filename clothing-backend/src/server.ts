@@ -19,7 +19,6 @@ const PORT = process.env.PORT || 8080;
 
 // ── Security middleware FIRST ─────────────────────────────────────
 app.use(helmet());
-// ✅ ADD THIS INSTEAD:
 app.use(
   cors({
     origin: [
@@ -52,7 +51,8 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   res.status(500).json({ error: "Something went wrong" });
 });
 
-app.get("/", (req, res) => {
+// ── Health check ──────────────────────────────────────────────────
+app.get("/", (req: Request, res: Response) => {
   res.json({
     status: "ok",
     message: "Fashion backend is running 🚀",

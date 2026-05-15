@@ -9,6 +9,7 @@ import { Toaster } from "react-hot-toast";
 import { CompareBar } from "./components/CompareBar";
 import { CompareOverlay } from "./components/CompareOverlay";
 import ProtectedRoute from "./utils/ProtectedRoute";
+import VerifyOTP from "./pages/VerifyOTP";
 import AdminDashboard from "./pages/AdminDashboard";
 import VerifyEmail from "./pages/VerifyEmail";
 import ScrollToTop from "./components/ScrollToTop";
