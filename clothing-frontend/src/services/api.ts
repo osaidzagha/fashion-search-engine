@@ -1,9 +1,9 @@
 import { FetchProductParams, PaginatedResponse, Product } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const AUTH_URL = `${BASE_URL}/api/auth`;
 
 // ─── Helper: authenticated fetch ─────────────────────────────────────────────
-// Reads the token from localStorage and adds it to every request that needs auth.
 function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = localStorage.getItem("token");
   return fetch(url, {
@@ -37,8 +37,8 @@ export const fetchProductsFromAPI = async (
     if (filters.colors && filters.colors.length > 0)
       urlParams.set("colors", filters.colors.join(","));
     if (filters.onSale) urlParams.set("onSale", "true");
-    if (filters.sort) urlParams.set("sort", filters.sort); // ← NEW
-    if (filters.mode) urlParams.set("mode", filters.mode); // ← NEW
+    if (filters.sort) urlParams.set("sort", filters.sort);
+    if (filters.mode) urlParams.set("mode", filters.mode);
 
     const response = await fetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,
@@ -75,8 +75,6 @@ export async function fetchRelatedProducts(id: string): Promise<Product[]> {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-const AUTH_URL = `${BASE_URL}/api/auth`;
-
 export const loginUser = async (credentials: {
   email: string;
   password: string;
@@ -86,9 +84,20 @@ export const loginUser = async (credentials: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to login");
-  return data;
+
+  // ✅ SAFE ERROR HANDLING
+  if (!response.ok) {
+    let errorMsg = "Login failed";
+    try {
+      const data = await response.json();
+      errorMsg = data.message || errorMsg;
+    } catch (e) {
+      errorMsg = `Server Error (${response.status}). The server might be waking up.`;
+    }
+    throw new Error(errorMsg);
+  }
+
+  return await response.json();
 };
 
 export const registerUser = async (userData: {
@@ -101,18 +110,50 @@ export const registerUser = async (userData: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Failed to register");
-  return data;
+
+  // ✅ SAFE ERROR HANDLING: Prevents "stuck on loading"
+  if (!response.ok) {
+    let errorMsg = "Registration failed";
+    try {
+      const data = await response.json();
+      errorMsg = data.message || errorMsg;
+    } catch (e) {
+      errorMsg = `Server error (${response.status}). Please try again in 1 minute.`;
+    }
+    throw new Error(errorMsg);
+  }
+
+  return await response.json();
+};
+
+// ✅ NEW: Added for OTP verification
+export const verifyOTP = async (verifyData: { email: string; otp: string }) => {
+  const response = await fetch(`${AUTH_URL}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(verifyData),
+  });
+
+  if (!response.ok) {
+    let errorMsg = "Verification failed";
+    try {
+      const data = await response.json();
+      errorMsg = data.message || errorMsg;
+    } catch (e) {
+      errorMsg = "Server error during verification.";
+    }
+    throw new Error(errorMsg);
+  }
+
+  return await response.json();
 };
 
 // ─── Watchlist ────────────────────────────────────────────────────────────────
 
-// GET /api/watchlist — fetch all tracked products for the logged-in user
 export const fetchWatchlist = async (): Promise<Product[]> => {
   try {
     const response = await authFetch(`${BASE_URL}/api/watchlist`);
-    if (response.status === 401) return []; // not logged in
+    if (response.status === 401) return [];
     if (!response.ok) throw new Error("Failed to fetch watchlist");
     return await response.json();
   } catch (error) {
@@ -121,7 +162,6 @@ export const fetchWatchlist = async (): Promise<Product[]> => {
   }
 };
 
-// POST /api/watchlist/:productId — start tracking a product
 export const addToWatchlist = async (productId: string): Promise<boolean> => {
   try {
     const response = await authFetch(`${BASE_URL}/api/watchlist/${productId}`, {
@@ -134,7 +174,6 @@ export const addToWatchlist = async (productId: string): Promise<boolean> => {
   }
 };
 
-// DELETE /api/watchlist/:productId — stop tracking a product
 export const removeFromWatchlist = async (
   productId: string,
 ): Promise<boolean> => {
@@ -149,11 +188,10 @@ export const removeFromWatchlist = async (
   }
 };
 
-// Check if a specific product is in the user's watchlist
 export const checkIsTracked = async (productId: string): Promise<boolean> => {
   try {
     const watchlist = await fetchWatchlist();
-    return watchlist.some((p) => p.id === productId);
+    return watchlist.some((p: any) => p.id === productId);
   } catch {
     return false;
   }
