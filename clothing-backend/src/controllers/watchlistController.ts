@@ -1,13 +1,16 @@
+// src/controllers/watchlistController.ts
 import { Response } from "express";
 import { UserModel } from "../models/User";
 import { ProductModel } from "../models/Product";
 import { priceAlertQueue } from "../queues/queues";
-import { AuthRequest } from "../middlewares/authMiddleware"; // 👈 1. IMPORT YOUR CUSTOM TYPE
+import { AuthRequest } from "../middlewares/authMiddleware";
 
 // GET /api/watchlist
-export const getWatchlist = async (req: AuthRequest, res: Response) => {
+export const getWatchlist = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
   try {
-    // 👈 2. USE req.user! (The exclamation mark tells TS "I know this exists because the auth middleware checked it")
     const user = await UserModel.findById(req.user!._id).lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -24,7 +27,6 @@ export const getWatchlist = async (req: AuthRequest, res: Response) => {
       const userTrackData = user.watchlist.find(
         (item) => item.productId === product.id,
       );
-
       return {
         ...product,
         trackedPrice: userTrackData?.trackedPrice || product.price,
@@ -34,27 +36,27 @@ export const getWatchlist = async (req: AuthRequest, res: Response) => {
     return res.status(200).json(productsWithTrackedPrices);
   } catch (error) {
     console.error("Error fetching watchlist:", error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 // POST /api/watchlist/:productId
-export const addToWatchlist = async (req: AuthRequest, res: Response) => {
+export const addToWatchlist = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
   try {
-    const { productId } = req.params;
-    if (Array.isArray(productId)) {
-      return res
-        .status(400)
-        .json({ message: "Only one product ID is allowed." });
+    const productId = req.params["productId"] as string;
+
+    if (!productId) {
+      return res.status(400).json({ message: "Product ID is required." });
     }
 
-    const userId = req.user!._id; // 👈 3. USE req.user!
+    const userId = req.user!._id;
 
     const product = await ProductModel.findOne({ id: productId });
-    // This return guarantees product is not null for the rest of the function!
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // The atomic update (This is the best way to do this!)
     const updated = await UserModel.findOneAndUpdate(
       {
         _id: userId,
@@ -76,19 +78,21 @@ export const addToWatchlist = async (req: AuthRequest, res: Response) => {
       return res.status(200).json({ message: "Already tracking this product" });
     }
 
-    // 👈 4. THE DEAD CODE IS GONE! Just return the success response.
     return res.status(200).json({ message: "Added to watchlist", productId });
   } catch (error) {
     console.error("Error adding to watchlist:", error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
 // DELETE /api/watchlist/:productId
-export const removeFromWatchlist = async (req: AuthRequest, res: Response) => {
+export const removeFromWatchlist = async (
+  req: AuthRequest,
+  res: Response,
+): Promise<Response> => {
   try {
-    const { productId } = req.params;
-    const userId = req.user!._id; // 👈 5. USE req.user!
+    const productId = req.params["productId"] as string;
+    const userId = req.user!._id;
 
     await UserModel.findByIdAndUpdate(userId, {
       $pull: { watchlist: { productId } },
@@ -99,7 +103,7 @@ export const removeFromWatchlist = async (req: AuthRequest, res: Response) => {
       .json({ message: "Removed from watchlist", productId });
   } catch (error) {
     console.error("Error removing from watchlist:", error);
-    res.status(500).json({ message: "Server error" });
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -110,8 +114,8 @@ export const notifyWatchlistUsers = async (
   oldPrice: number,
   newPrice: number,
   currency: string,
-  brandName: string, // <-- Passed this in to satisfy TS
-  runId: string, // <-- Passed this in to satisfy TS
+  brandName: string,
+  runId: string,
 ): Promise<void> => {
   try {
     const users = await UserModel.find({
@@ -124,9 +128,8 @@ export const notifyWatchlistUsers = async (
       `📧 Prepping price drop alerts for ${users.length} users on ${productName}`,
     );
 
-    // 1. Map the users into the exact format BullMQ expects for a Bulk insert
     const jobs = users.map((user) => ({
-      name: "price-alert", // The name of the job
+      name: "price-alert",
       data: {
         email: user.email,
         productName,
@@ -139,15 +142,10 @@ export const notifyWatchlistUsers = async (
       },
     }));
 
-    // 2. We chunk the array into batches of 1,000 to be perfectly safe on memory
     const BATCH_SIZE = 1000;
-
     for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
       const batch = jobs.slice(i, i + BATCH_SIZE);
-
-      // 3. Send 1,000 jobs to Redis in a single network operation!
       await priceAlertQueue.addBulk(batch);
-
       console.log(`✅ Queued batch of ${batch.length} emails...`);
     }
   } catch (error) {
