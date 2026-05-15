@@ -1,16 +1,20 @@
 import nodemailer from "nodemailer";
 
-// ─── Shared transporter factory ───────────────────────────────────────────────
 function createTransporter() {
   return nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false, // true for 465, false for 587
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    // ✅ ADD THIS: Forces IPv4 and handles TLS handshakes better in cloud environments
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 }
-
 // ─── Verification email (Updated for OTP) ────────────────────────────────────
 export const sendVerificationEmail = async (userEmail: string, otp: string) => {
   try {
