@@ -9,14 +9,16 @@ function createTransporter() {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    // ✅ Render-specific fixes: Force IPv4 and handle handshake timeouts
-    greetingTimeout: 15000,
-    connectionTimeout: 15000,
+    // ✅ The 'as any' cast tells TypeScript to stop worrying about the properties
+    // This allows family, greetingTimeout, etc. to work at runtime.
+    family: 4,
+    greetingTimeout: 20000,
+    connectionTimeout: 20000,
     tls: {
       rejectUnauthorized: false,
       servername: "smtp.gmail.com",
     },
-  });
+  } as any);
 }
 
 export const sendVerificationEmail = async (userEmail: string, otp: string) => {
