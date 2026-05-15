@@ -2,7 +2,7 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IWatchlistItem {
   productId: string;
-  trackedPrice: number; // 👈 NEW: The exact price when they clicked track
+  trackedPrice: number;
   addedAt: Date;
 }
 
@@ -13,9 +13,8 @@ export interface IUser extends Document {
   role: "user" | "admin";
   savedItems: string[];
   isVerified: boolean;
-  verificationToken?: string;
+  verificationToken?: string; // 👈 Now stores the 6-digit OTP
   verificationExpires?: Date;
-  // ✅ Watchlist: array of { productId, addedAt }
   watchlist: IWatchlistItem[];
 }
 
@@ -31,13 +30,12 @@ const UserSchema: Schema = new Schema(
     },
     savedItems: [{ type: String }],
     isVerified: { type: Boolean, default: false },
-    verificationToken: { type: String },
+    verificationToken: { type: String }, // 👈 OTP stored here
     verificationExpires: { type: Date },
-    // ✅ New watchlist field
     watchlist: [
       {
         productId: { type: String, required: true },
-        trackedPrice: { type: Number, required: true }, // 👈 NEW
+        trackedPrice: { type: Number, required: true },
         addedAt: { type: Date, default: Date.now },
       },
     ],

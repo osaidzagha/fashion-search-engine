@@ -24,6 +24,7 @@ router.post(
   loginUser,
 );
 
-router.get("/verify/:token", verifyEmail);
+// 👈 Changed to POST, no longer uses a URL parameter
+router.post("/verify", verifyEmail);
 
 export default router;

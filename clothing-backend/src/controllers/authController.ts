@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { UserModel } from "../models/User";
-import crypto from "crypto";
 import { sendVerificationEmail } from "../utils/sendEmail";
 import { validationResult } from "express-validator";
 
@@ -28,23 +27,26 @@ export const registerUser = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const magicToken = crypto.randomBytes(20).toString("hex");
-    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // 👈 Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
 
     const user = await UserModel.create({
       name,
       email,
       password: hashedPassword,
       isVerified: false,
-      verificationToken: magicToken,
+      verificationToken: otp,
       verificationExpires: tokenExpiry,
     });
 
     if (user) {
-      const verificationUrl = `${process.env.CLIENT_URL}/verify/${magicToken}`;
-      await sendVerificationEmail(user.email, verificationUrl);
+      // 👈 Send the OTP instead of a URL
+      await sendVerificationEmail(user.email, otp);
       res.status(201).json({
-        message: "Registration successful. Please check your email.",
+        message:
+          "Registration successful. Please check your email for your OTP.",
+        email: user.email, // Send email back so frontend knows who to verify
       });
     } else {
       res.status(400).json({ message: "Invalid user data" });
@@ -88,17 +90,23 @@ export const loginUser = async (req: Request, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
-    const { token } = req.params;
+    // 👈 Now expects a POST body with email and the 6-digit OTP
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ message: "Email and OTP are required." });
+    }
 
     const user = await UserModel.findOne({
-      verificationToken: token,
+      email: email,
+      verificationToken: otp,
       verificationExpires: { $gt: Date.now() },
     });
 
     if (!user) {
       return res
         .status(400)
-        .json({ message: "Invalid or expired verification token." });
+        .json({ message: "Invalid or expired verification code." });
     }
 
     user.isVerified = true;
@@ -114,7 +122,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
       email: user.email,
       role: user.role,
       token: accessToken,
-      message: "Email verified successfully! Welcome to Fashion Engine.",
+      message: "Email verified successfully! Welcome to DOPE.",
     });
   } catch (error) {
     console.error("Verification error:", error);

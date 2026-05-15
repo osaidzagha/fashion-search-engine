@@ -8,7 +8,7 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import Watchlist from "../pages/Watchlist";
 import AdminDashboard from "../pages/AdminDashboard";
-import VerifyEmail from "../pages/VerifyEmail";
+import VerifyOTP from "../pages/VerifyOTP"; // 👈 IMPORT ADDED
 import Collection from "../pages/Collection";
 
 // Layouts & Utils
@@ -32,12 +32,11 @@ export default function AnimatedRoutes() {
           <Route path="/collection/:type" element={<Collection />} />
           <Route path="/watchlist" element={<Watchlist />} />
         </Route>
-
         {/* 🛑 THE FOCUS ZONE */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/verify/:token" element={<VerifyEmail />} />
-
+        <Route path="/verify-otp" element={<VerifyOTP />} />{" "}
+        {/* 👈 ROUTE ADDED */}
         <Route element={<ProtectedRoute adminOnly={true} />}>
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>
