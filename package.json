@@ -1,8 +1,0 @@
-{
-  "name": "fashion-search-engine-root",
-  "private": true,
-  "scripts": {
-    "build": "cd clothing-backend && npm install && npm run build",
-    "start": "cd clothing-backend && npm start"
-  }
-}
