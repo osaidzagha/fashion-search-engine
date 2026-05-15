@@ -28,9 +28,14 @@ export const registerUser = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Generate a 6-digit OTP
+    // 1. Generate the OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+    const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+    // ✅ 2. LOG IMMEDIATELY (The Debug Backdoor)
+    console.log("-----------------------------------------");
+    console.log(`DEBUG OTP FOR ${email}: ${otp}`);
+    console.log("-----------------------------------------");
 
     const user = await UserModel.create({
       name,
@@ -42,21 +47,15 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     if (user) {
-      // ✅ NON-FATAL EMAIL SENDING
-      // We wrap this in a separate try/catch so the user is still created
-      // and the frontend unfreezes even if the SMTP connection hangs.
+      // 3. Attempt email (Non-Fatal)
       try {
         await sendVerificationEmail(user.email, otp);
-        console.log(`📧 OTP [${otp}] sent to ${user.email}`);
+        console.log(`📧 OTP successfully passed to mailer for ${user.email}`);
       } catch (mailError) {
-        console.error(
-          "CRITICAL: User created but email failed to send:",
-          mailError,
-        );
-        // Note: In production, you might want to log this to a service like Sentry
+        console.error("CRITICAL: User created, but SMTP failed:", mailError);
       }
 
-      // ALWAYS return a success response if the user was created in the DB
+      // 4. Always respond to unfreeze the frontend
       return res.status(201).json({
         message:
           "Registration successful. Please check your email for your OTP.",
