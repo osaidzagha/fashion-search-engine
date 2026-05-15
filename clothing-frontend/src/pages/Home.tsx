@@ -16,7 +16,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FeaturedData {
   onSale: Product[];
-  newIn: Product[]; // 👈 Changed from { zara: Product[], massimo: Product[] } to a flat array!
+  newIn: Product[];
   withVideo: Product[];
   campaignHeroes: Product[];
   categoryTiles: {
@@ -29,14 +29,12 @@ interface FeaturedData {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getMosaicImages(featured: FeaturedData): Product[] {
   if (!featured?.newIn) return [];
-  // Take the flat array, filter for images, shuffle, and grab 6
   return [...featured.newIn]
     .filter((p) => p.images?.[0])
     .sort(() => 0.5 - Math.random())
     .slice(0, 6);
 }
 
-// ── Exact regex per spec — allows shoes, bags, hats; blocks hair/fragrance/jewellery ──
 const NON_CLOTHING_RE =
   /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
 
@@ -47,10 +45,10 @@ function isClothing(p: Product): boolean {
 
 // ─── Shared carousel classes ──────────────────────────────────────────────────
 const CAROUSEL =
-  "flex gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
+  "flex gap-4 lg:gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
 
 const CARD_WRAPPER =
-  "min-w-[260px] max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
+  "min-w-[220px] lg:min-w-[260px] max-w-[220px] lg:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
@@ -85,22 +83,13 @@ export default function Home() {
     fetchFeatured();
   }, [selectDepartments]);
 
-  // ── Derived data ──────────────────────────────────────────────────────────
-
   const mosaicProducts = featured ? getMosaicImages(featured) : [];
-
-  // New In: The backend already sorted this by timestamp and merged all brands!
-  // Just cap it at 12 items for the carousel.
   const newInAll = featured?.newIn?.slice(0, 12) || [];
-
-  // Editor's Choice: dedicated withVideo array from backend,
-  // with a final isClothing pass as a safety net.
-  // Fallback uses newInAll without sale items to keep it clean.
   const videoProducts = (featured?.withVideo || []).filter(isClothing);
   const fallbackProducts = newInAll.filter((p) => !p.originalPrice).slice(0, 4);
   const editorChoiceProducts =
     videoProducts.length > 0 ? videoProducts : fallbackProducts;
-  // Department overline label
+
   const deptLabel =
     selectDepartments?.[0] === "Men" || selectDepartments?.[0] === "MAN"
       ? "Men's Collection"
@@ -110,18 +99,19 @@ export default function Home() {
 
   return (
     <PageTransition>
-      <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
+      <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark overflow-x-hidden">
         {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-        {/* Removed the bottom border, adjusted ratio slightly for more visual drama */}
-        <section className="grid grid-cols-[40%_60%] h-[calc(100vh-57px)] relative">
+        {/* ✅ FIX: Stacks on mobile, Grid on desktop */}
+        <section className="flex flex-col lg:grid lg:grid-cols-[40%_60%] min-h-[calc(100vh-57px)] relative">
           {/* LEFT — editorial text + search */}
-          {/* Removed the border-r, increased horizontal padding for breathing room */}
-          <div className="relative flex flex-col justify-center px-20 py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
-            <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
+          {/* ✅ FIX: px-6 for mobile, px-20 for desktop */}
+          <div className="relative flex flex-col justify-center px-6 lg:px-20 py-12 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
+            <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4 lg:mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
               {deptLabel}
             </p>
 
-            <h1 className="font-heading font-light text-[clamp(48px,5.5vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
+            {/* ✅ FIX: More aggressive text scaling for mobile */}
+            <h1 className="font-heading font-light text-[clamp(36px,10vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-4 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
               Fashion,
               <br />
               <em className="italic text-textSecondary dark:text-textSecondary-dark">
@@ -129,37 +119,37 @@ export default function Home() {
               </em>
             </h1>
 
-            <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+            <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-8 lg:mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
               Compare prices across every brand. Track drops. Find the best time
               to buy.
             </p>
 
-            <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both]">
+            <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
               <SearchBar variant="hero" />
             </div>
 
-            <span className="absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
+            {/* ✅ FIX: Hidden on mobile so it doesn't overlap text, visible on lg */}
+            <span className="hidden lg:block absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
               Dope
             </span>
           </div>
 
           {/* RIGHT — FULL BLEED Campaign Heroes */}
-          {/* KILLED the p-3 padding. KILLED the rounded corners. Let it bleed! */}
-          <div className="relative h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
+          {/* ✅ FIX: Takes remaining height on mobile, full height on desktop */}
+          <div className="relative flex-1 min-h-[50vh] lg:min-h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
             {loading ? (
-              <div className="h-full flex items-center justify-center">
+              <div className="h-full w-full flex items-center justify-center">
                 <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
                   Loading…
                 </p>
               </div>
             ) : featured?.campaignHeroes &&
               featured.campaignHeroes.length > 0 ? (
-              // The Slider now takes up 100% of this container, right to the pixel edges.
               <CampaignHeroSlider heroes={featured.campaignHeroes} />
             ) : mosaicProducts.length >= 4 ? (
               <ProductMosaic products={mosaicProducts} />
             ) : (
-              <div className="h-full flex items-center justify-center">
+              <div className="h-full w-full flex items-center justify-center">
                 <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
                   Start scraping to see products here
                 </p>
@@ -169,14 +159,15 @@ export default function Home() {
         </section>
 
         {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════════ */}
+        {/* ✅ FIX: px-6 on mobile, px-16 on desktop */}
         {!loading && editorChoiceProducts.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-b border-borderLight dark:border-borderLight-dark">
-            <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
-              <div className="flex items-baseline gap-4">
-                <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-12 lg:py-20 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-baseline mb-8 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 lg:pb-5">
+              <div className="flex items-baseline gap-2 lg:gap-4">
+                <h2 className="font-heading font-light text-2xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                   Editor's Choice
                 </h2>
-                <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
                   {videoProducts.length > 0 ? "Hover to play" : "Curated picks"}
                 </span>
               </div>
@@ -194,19 +185,19 @@ export default function Home() {
 
         {/* ══ SALE STRIP ═══════════════════════════════════════════════════════ */}
         {!loading && featured?.onSale && featured.onSale.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-12 border-b border-borderLight dark:border-borderLight-dark">
-            <div className="flex justify-between items-baseline mb-8">
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-10 lg:py-12 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-6 lg:mb-8 gap-4">
               <div>
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-2">
                   Limited Time
                 </p>
-                <h2 className="font-heading font-light text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
+                <h2 className="font-heading font-light text-2xl lg:text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
                   Price drops, right now.
                 </h2>
               </div>
               <button
                 onClick={() => navigate("/collection/sale")}
-                className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
+                className="self-start sm:self-auto font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
               >
                 View all
               </button>
@@ -223,13 +214,13 @@ export default function Home() {
 
         {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
         {!loading && newInAll.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20">
-            <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
-              <div className="flex items-baseline gap-4">
-                <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-12 lg:py-20">
+            <div className="flex justify-between items-baseline mb-8 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 lg:pb-5">
+              <div className="flex items-baseline gap-2 lg:gap-4">
+                <h2 className="font-heading font-light text-2xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                   New in
                 </h2>
-                <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
                   Latest arrivals
                 </span>
               </div>
@@ -251,8 +242,9 @@ export default function Home() {
         )}
 
         {/* ══ BRAND SPLIT ══════════════════════════════════════════════════════ */}
+        {/* ✅ FIX: Stacks on mobile, split on tablet/desktop */}
         {!loading && featured && (
-          <section className="grid grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
+          <section className="grid grid-cols-1 md:grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
             {/* Zara */}
             <div
               onClick={() => {
@@ -260,13 +252,13 @@ export default function Home() {
                 dispatch(setSearchTerm(""));
                 navigate("/collection/zara");
               }}
-              className="flex items-center justify-between px-16 py-12 border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+              className="flex items-center justify-between px-6 lg:px-16 py-8 lg:py-12 border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
             >
               <div>
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
                   Brand
                 </p>
-                <h3 className="font-heading font-light text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
+                <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
                   Zara
                 </h3>
               </div>
@@ -282,13 +274,13 @@ export default function Home() {
                 dispatch(setSearchTerm(""));
                 navigate("/collection/massimo-dutti");
               }}
-              className="flex items-center justify-between px-16 py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+              className="flex items-center justify-between px-6 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
             >
               <div>
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
                   Brand
                 </p>
-                <h3 className="font-heading font-light text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
+                <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
                   Massimo Dutti
                 </h3>
               </div>
@@ -300,7 +292,8 @@ export default function Home() {
         )}
 
         {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-        <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-8 flex justify-between items-center border-t border-borderLight dark:border-borderLight-dark">
+        {/* ✅ FIX: Stack footer on mobile so text doesn't overlap */}
+        <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-6 lg:py-8 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-borderLight dark:border-borderLight-dark text-center md:text-left">
           <span className="font-heading font-light text-[15px] tracking-editorial uppercase text-textSecondary dark:text-textSecondary-dark">
             Dope
           </span>

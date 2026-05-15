@@ -14,8 +14,8 @@ import ProductCard from "../components/ProductCard";
 import PriceHistoryChart from "../components/PriceHistoryChart";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { Trash2, X, CheckCircle2 } from "lucide-react";
-import toast from "react-hot-toast"; // 👈 Import toast
-import ConfirmModal from "../components/ConfirmModal"; // 👈 Import Modal
+import toast from "react-hot-toast";
+import ConfirmModal from "../components/ConfirmModal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toTitleCase(str: string) {
@@ -50,10 +50,11 @@ function getGridClasses(idx: number): { colSpan: string; aspect: string } {
   }
 }
 
+// ✅ FIX: Added mobile spacing to constants
 const CAROUSEL =
-  "flex gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
+  "flex gap-4 md:gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
 const CARD_WRAPPER =
-  "min-w-[260px] max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
+  "min-w-[220px] md:min-w-[260px] max-w-[220px] md:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ProductDetails() {
@@ -95,7 +96,7 @@ export default function ProductDetails() {
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [isDeletingMedia, setIsDeletingMedia] = useState(false);
 
-  // 👈 New Product Deletion State
+  // Product Deletion State
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
 
@@ -192,7 +193,7 @@ export default function ProductDetails() {
     );
   };
 
-  // 👈 ADMIN: Handle Product Deletion
+  // ADMIN: Handle Product Deletion
   const handleDeleteProduct = async () => {
     if (!product) return;
     setIsDeletingProduct(true);
@@ -206,7 +207,7 @@ export default function ProductDetails() {
       );
       if (res.ok) {
         toast.success("Product deleted permanently");
-        navigate("/admin"); // Kick them back to dashboard
+        navigate("/admin");
       } else {
         toast.error("Failed to delete product");
       }
@@ -300,11 +301,11 @@ export default function ProductDetails() {
 
         {/* ── ADMIN MEDIA MANAGER OVERLAY ── */}
         {isMediaManagerOpen && (
-          <div className="fixed inset-0 z-[100] bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md overflow-y-auto pt-20 pb-10 px-10">
+          <div className="fixed inset-0 z-[100] bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md overflow-y-auto pt-16 pb-10 px-6 md:pt-20 md:px-10">
             <div className="max-w-7xl mx-auto">
-              <div className="flex justify-between items-end mb-8 border-b border-borderLight dark:border-borderLight-dark pb-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8 border-b border-borderLight dark:border-borderLight-dark pb-4">
                 <div>
-                  <h2 className="font-heading text-3xl font-light text-textPrimary dark:text-textPrimary-dark">
+                  <h2 className="font-heading text-2xl md:text-3xl font-light text-textPrimary dark:text-textPrimary-dark">
                     Manage Media
                   </h2>
                   <p className="font-sans text-[10px] tracking-widest uppercase text-textMuted mt-2">
@@ -316,7 +317,7 @@ export default function ProductDetails() {
                   <button
                     onClick={handleDeleteSelectedMedia}
                     disabled={selectedMedia.length === 0 || isDeletingMedia}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-3 font-sans text-[10px] tracking-widest uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 md:px-5 py-3 font-sans text-[10px] tracking-widest uppercase transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                   >
                     {isDeletingMedia
                       ? "Deleting..."
@@ -335,7 +336,7 @@ export default function ProductDetails() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-4">
                 {allMedia.map((url, idx) => {
                   const isSelected = selectedMedia.includes(url);
                   const isVid = url.toLowerCase().includes(".mp4");
@@ -431,24 +432,25 @@ export default function ProductDetails() {
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
 
+          {/* ✅ FIX: Responsive positioning for buttons */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               navigate(-1);
             }}
-            className="absolute top-8 left-8 z-20 font-sans text-[9px] tracking-editorial uppercase text-white/60 hover:text-white/100 transition-colors duration-200 bg-transparent border-none cursor-pointer"
+            className="absolute top-6 left-6 md:top-8 md:left-8 z-20 font-sans text-[9px] tracking-editorial uppercase text-white/60 hover:text-white/100 transition-colors duration-200 bg-transparent border-none cursor-pointer"
           >
             ← Back
           </button>
 
           {isOnSale && (
-            <div className="absolute top-8 right-8 z-20 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-3 py-1.5">
+            <div className="absolute top-6 right-6 md:top-8 md:right-8 z-20 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-3 py-1.5">
               −{discount}%
             </div>
           )}
 
           {hasVideo && (
-            <div className="absolute top-1/2 right-12 -translate-y-1/2 z-20 pointer-events-none">
+            <div className="absolute top-1/2 right-6 md:right-12 -translate-y-1/2 z-20 pointer-events-none">
               <div className="w-12 h-12 rounded-full border border-white/30 flex items-center justify-center">
                 <span className="text-white/60 text-xs">▶</span>
               </div>
@@ -457,7 +459,7 @@ export default function ProductDetails() {
 
           <div
             className={[
-              "absolute bottom-12 left-12 z-20 pointer-events-none transition-all duration-700 ease-elegant",
+              "absolute bottom-8 left-6 md:bottom-12 md:left-12 z-20 pointer-events-none transition-all duration-700 ease-elegant pr-6",
               heroLoaded
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-6",
@@ -467,7 +469,7 @@ export default function ProductDetails() {
               {product.brand}
               {product.color && <span className="ml-3">· {product.color}</span>}
             </p>
-            <h1 className="font-heading font-light italic text-[clamp(32px,4vw,64px)] leading-none text-white max-w-2xl">
+            <h1 className="font-heading font-light italic text-[clamp(28px,8vw,64px)] leading-[1.1] text-white max-w-2xl">
               {toTitleCase(product.name)}
             </h1>
             <div className="flex items-baseline gap-3 mt-4">
@@ -489,7 +491,7 @@ export default function ProductDetails() {
 
           <div
             className={[
-              "absolute bottom-8 right-12 z-20 pointer-events-none transition-all duration-700 delay-500 ease-elegant",
+              "hidden md:block absolute bottom-8 right-12 z-20 pointer-events-none transition-all duration-700 delay-500 ease-elegant",
               heroLoaded
                 ? "opacity-100 translate-y-0"
                 : "opacity-0 translate-y-4",
@@ -502,11 +504,12 @@ export default function ProductDetails() {
         </div>
 
         {/* ══════════════════════════════════════════════════════════
-          SECTION 2 — Two-column: mixed grid left + sticky info right
+          SECTION 2 — Stack on mobile, Two-column sticky on desktop
           ══════════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-[55%_45%] items-start border-t border-borderLight dark:border-borderLight-dark">
+        {/* ✅ FIX: Stacks columns on mobile, splits on desktop */}
+        <div className="flex flex-col md:grid md:grid-cols-[55%_45%] lg:grid-cols-[60%_40%] items-start border-t border-borderLight dark:border-borderLight-dark">
           {/* ── LEFT: Asymmetric mixed media grid ── */}
-          <div className="grid grid-cols-2 gap-[3px] bg-borderLight dark:bg-borderLight-dark border-r border-borderLight dark:border-borderLight-dark">
+          <div className="w-full grid grid-cols-2 gap-[3px] bg-borderLight dark:bg-borderLight-dark md:border-r border-borderLight dark:border-borderLight-dark">
             {gridMedia.map((media, idx) => {
               const { colSpan, aspect } = getGridClasses(idx);
               const isImage = media.type === "image";
@@ -565,10 +568,11 @@ export default function ProductDetails() {
           </div>
 
           {/* ── RIGHT: Sticky info panel ── */}
+          {/* ✅ FIX: Allowed to flow naturally on mobile, sticky only on md+ */}
+          {/* ✅ FIX: Replaced hardcoded style={{padding}} with responsive Tailwind padding */}
           <div
             ref={panelRef}
-            className="sticky top-0 h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            style={{ padding: "52px 48px 52px 52px" }}
+            className="w-full relative md:sticky top-0 md:h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-6 py-10 md:p-12 lg:p-16"
           >
             <div className="flex justify-between items-start mb-4">
               <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
@@ -578,26 +582,25 @@ export default function ProductDetails() {
                 )}
               </p>
 
-              {/* 👈 ADMIN: Manage Media & Delete Product Buttons */}
               {isAdmin && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => setIsMediaManagerOpen(true)}
                     className="font-sans text-[9px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark border border-borderLight dark:border-borderLight-dark px-3 py-1 hover:bg-borderLight dark:hover:bg-borderLight-dark transition-colors"
                   >
-                    Manage Media
+                    Media
                   </button>
                   <button
                     onClick={() => setIsDeleteModalOpen(true)}
                     className="font-sans text-[9px] tracking-widest uppercase text-accentRed border border-accentRed/30 px-3 py-1 hover:bg-accentRed/10 transition-colors"
                   >
-                    Delete Product
+                    Delete
                   </button>
                 </div>
               )}
             </div>
 
-            <h2 className="font-heading font-light text-[clamp(24px,2.8vw,36px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark tracking-[-0.01em] mb-5">
+            <h2 className="font-heading font-light text-[clamp(24px,6vw,36px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark tracking-[-0.01em] mb-5">
               {toTitleCase(product.name)}
             </h2>
 
@@ -748,14 +751,15 @@ export default function ProductDetails() {
         {/* ══════════════════════════════════════════════════════════
           SECTION 3 — Related products
           ══════════════════════════════════════════════════════════ */}
+        {/* ✅ FIX: Responsive padding on the Related Products section */}
         {relatedProducts.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-16 py-20 border-t border-borderLight dark:border-borderLight-dark">
-            <div className="flex justify-between items-baseline mb-10 border-b border-borderLight dark:border-borderLight-dark pb-5">
-              <div className="flex items-baseline gap-4">
-                <h2 className="font-heading font-light text-[28px] text-textPrimary dark:text-textPrimary-dark">
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 md:px-16 py-12 md:py-20 border-t border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-baseline mb-8 md:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 md:pb-5">
+              <div className="flex items-baseline gap-2 md:gap-4">
+                <h2 className="font-heading font-light text-2xl md:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                   You may also like
                 </h2>
-                <span className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+                <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
                   Related pieces
                 </span>
               </div>
@@ -763,7 +767,7 @@ export default function ProductDetails() {
                 onClick={() => navigate(-1)}
                 className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
               >
-                ← Back to results
+                ← Back
               </button>
             </div>
             <div className={CAROUSEL}>

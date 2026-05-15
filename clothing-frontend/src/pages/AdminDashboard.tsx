@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom"; // 👈 Added useNavigate
+import { useNavigate } from "react-router-dom";
 import {
   AreaChart,
   Area,
@@ -164,15 +164,15 @@ function ChartTooltip({ active, payload, label, isDark }: any) {
 
 function KpiCard({ item }: { item: KpiItem }) {
   return (
-    <div className="border border-borderLight dark:border-borderLight-dark p-5 flex flex-col gap-3 bg-bgPrimary dark:bg-bgPrimary-dark">
-      <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+    <div className="border border-borderLight dark:border-borderLight-dark p-4 md:p-5 flex flex-col gap-2 md:gap-3 bg-bgPrimary dark:bg-bgPrimary-dark">
+      <p className="font-sans text-[8px] md:text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
         {item.label}
       </p>
-      <p className="font-heading font-light text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
+      <p className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
         {item.value}
       </p>
       <p
-        className={`font-sans text-[9px] tracking-widest uppercase ${item.up ? "text-textPrimary dark:text-textPrimary-dark" : "text-textMuted dark:text-textMuted-dark"}`}
+        className={`font-sans text-[8px] md:text-[9px] tracking-widest uppercase ${item.up ? "text-textPrimary dark:text-textPrimary-dark" : "text-textMuted dark:text-textMuted-dark"}`}
       >
         {item.delta}
       </p>
@@ -191,13 +191,13 @@ function ScraperCard({
 }) {
   const isRunning = s.status === "running";
   return (
-    <div className="border border-borderLight dark:border-borderLight-dark p-6 flex flex-col gap-5 bg-bgPrimary dark:bg-bgPrimary-dark">
+    <div className="border border-borderLight dark:border-borderLight-dark p-5 md:p-6 flex flex-col gap-4 md:gap-5 bg-bgPrimary dark:bg-bgPrimary-dark">
       <div className="flex items-start justify-between">
-        <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+        <h3 className="font-heading font-light text-xl md:text-2xl text-textPrimary dark:text-textPrimary-dark">
           {s.brand}
         </h3>
         <span
-          className={`font-sans text-[9px] tracking-widest uppercase ${isRunning ? "text-textPrimary dark:text-textPrimary-dark" : s.status === "error" ? "text-accentRed" : "text-textMuted dark:text-textMuted-dark"}`}
+          className={`font-sans text-[8px] md:text-[9px] tracking-widest uppercase ${isRunning ? "text-textPrimary dark:text-textPrimary-dark" : s.status === "error" ? "text-accentRed" : "text-textMuted dark:text-textMuted-dark"}`}
         >
           {isRunning ? "● running" : s.status}
         </span>
@@ -211,12 +211,12 @@ function ScraperCard({
         ].map(({ label, value }) => (
           <div
             key={label}
-            className="bg-bgPrimary dark:bg-bgPrimary-dark px-4 py-3"
+            className="bg-bgPrimary dark:bg-bgPrimary-dark px-3 py-2 md:px-4 md:py-3"
           >
             <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
               {label}
             </p>
-            <p className="font-heading font-light text-lg leading-none text-textPrimary dark:text-textPrimary-dark">
+            <p className="font-heading font-light text-base md:text-lg leading-none text-textPrimary dark:text-textPrimary-dark">
               {value}
             </p>
           </div>
@@ -226,7 +226,7 @@ function ScraperCard({
         <button
           onClick={() => onRun(s.brand)}
           disabled={isRunning}
-          className={`flex-1 py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
+          className={`flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
             isRunning
               ? "border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark cursor-wait opacity-50"
               : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"
@@ -237,7 +237,7 @@ function ScraperCard({
         {isRunning && (
           <button
             onClick={() => onStop(s.brand)}
-            className="px-6 py-3 font-sans text-[9px] tracking-widest uppercase border border-accentRed text-accentRed hover:bg-accentRed hover:text-white transition-all duration-300"
+            className="px-4 md:px-6 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border border-accentRed text-accentRed hover:bg-accentRed hover:text-white transition-all duration-300"
           >
             Stop
           </button>
@@ -247,7 +247,6 @@ function ScraperCard({
   );
 }
 
-// 👈 Updated CampaignCard: Clickable container, removed Delete button
 function CampaignCard({
   product,
   onToggle,
@@ -354,7 +353,7 @@ function CampaignCard({
                 href={product.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()} // 👈 Prevent card click when clicking link
+                onClick={(e) => e.stopPropagation()}
                 className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-200"
               >
                 View ↗
@@ -364,7 +363,7 @@ function CampaignCard({
         </div>
         <button
           onClick={(e) => {
-            e.stopPropagation(); // 👈 Prevent card click when toggling
+            e.stopPropagation();
             onToggle(product.id);
           }}
           disabled={isToggling}
@@ -384,7 +383,7 @@ function CampaignCard({
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [activeNav, setActiveNav] = useState("overview");
-  const navigate = useNavigate(); // 👈 Added navigation for card clicks
+  const navigate = useNavigate();
   const [isDarkMode] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
@@ -548,26 +547,31 @@ export default function AdminDashboard() {
 
   return (
     <PageTransition>
-      <div className="flex min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
-        {/* ── Sidebar ─────────────────────────────────────────────────────────── */}
-        <aside className="w-[220px] flex-shrink-0 border-r border-borderLight dark:border-borderLight-dark flex flex-col sticky top-0 h-screen">
-          <div className="px-8 py-8 border-b border-borderLight dark:border-borderLight-dark">
-            <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
-              Control Room
-            </p>
-            <h1 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
-              Dope
-            </h1>
+      {/* ── Stack on mobile (flex-col), side-by-side on desktop (md:flex-row) ── */}
+      <div className="flex flex-col md:flex-row min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
+        {/* ── Sidebar (Converts to Top Nav on Mobile) ────────────────────────── */}
+        <aside className="w-full md:w-[220px] flex-shrink-0 border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark flex flex-col relative md:sticky top-0 md:h-screen z-20 bg-bgPrimary dark:bg-bgPrimary-dark">
+          <div className="px-6 py-5 md:px-8 md:py-8 border-b border-borderLight dark:border-borderLight-dark flex justify-between items-center md:block">
+            <div>
+              <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                Control Room
+              </p>
+              <h1 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                Dope
+              </h1>
+            </div>
           </div>
-          <nav className="flex flex-col px-4 py-6 gap-1 flex-1">
+
+          {/* ── Horizontal scrolling navigation on mobile ── */}
+          <nav className="flex flex-row md:flex-col px-4 py-3 md:px-4 md:py-6 gap-2 md:gap-1 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveNav(item.id)}
-                className={`text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 border ${
+                className={`whitespace-nowrap flex-1 md:w-full text-center md:text-left px-5 py-2.5 md:px-4 md:py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 border ${
                   activeNav === item.id
                     ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
-                    : "border-transparent text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
+                    : "border-borderLight dark:border-transparent text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
                 }`}
               >
                 {item.label}
@@ -576,7 +580,7 @@ export default function AdminDashboard() {
           </nav>
 
           {heroCount > 0 && (
-            <div className="px-8 py-6 border-t border-borderLight dark:border-borderLight-dark">
+            <div className="hidden md:block px-8 py-6 border-t border-borderLight dark:border-borderLight-dark">
               <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
                 Live on Homepage
               </p>
@@ -587,10 +591,11 @@ export default function AdminDashboard() {
           )}
         </aside>
 
-        {/* ── Main ────────────────────────────────────────────────────────────── */}
+        {/* ── Main Content ────────────────────────────────────────────────────── */}
         <main className="flex-1 overflow-y-auto">
-          <div className="px-12 py-10 border-b border-borderLight dark:border-borderLight-dark flex items-baseline justify-between">
-            <h2 className="font-heading font-light text-4xl text-textPrimary dark:text-textPrimary-dark">
+          {/* ── Tighter padding on mobile headers ── */}
+          <div className="px-6 py-6 md:px-12 md:py-10 border-b border-borderLight dark:border-borderLight-dark flex flex-col sm:flex-row items-start sm:items-baseline justify-between gap-2">
+            <h2 className="font-heading font-light text-3xl md:text-4xl text-textPrimary dark:text-textPrimary-dark">
               {NAV_ITEMS.find((n) => n.id === activeNav)?.label}
             </h2>
             {activeNav === "campaign" && (
@@ -600,7 +605,7 @@ export default function AdminDashboard() {
             )}
           </div>
 
-          <div className="px-12 py-10 flex flex-col gap-12">
+          <div className="px-6 py-6 md:px-12 md:py-10 flex flex-col gap-8 md:gap-12">
             {/* ══════════════════════════════════ OVERVIEW ══════════════════ */}
             {activeNav === "overview" && (
               <>
@@ -615,8 +620,8 @@ export default function AdminDashboard() {
                 )}
 
                 <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
-                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6 min-w-0">
-                    <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-5 md:p-7 flex flex-col gap-6 min-w-0">
+                    <h3 className="font-heading font-light text-xl md:text-2xl text-textPrimary dark:text-textPrimary-dark">
                       Price Drops
                     </h3>
                     <div className="w-full h-[200px] min-w-0">
@@ -660,8 +665,8 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-7 flex flex-col gap-6">
-                    <h3 className="font-heading font-light text-2xl text-textPrimary dark:text-textPrimary-dark">
+                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-5 md:p-7 flex flex-col gap-6">
+                    <h3 className="font-heading font-light text-xl md:text-2xl text-textPrimary dark:text-textPrimary-dark">
                       Brand Distribution
                     </h3>
                     <div className="flex flex-col gap-4">
@@ -694,7 +699,7 @@ export default function AdminDashboard() {
             {/* ══════════════════════════════════ SCRAPERS ══════════════════ */}
             {activeNav === "scrapers" && (
               <section>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
                   {data.scraperStatus?.map((s) => (
                     <ScraperCard
                       key={s.brand}
@@ -709,10 +714,11 @@ export default function AdminDashboard() {
 
             {/* ══════════════════════════════════ CAMPAIGN ══════════════════ */}
             {activeNav === "campaign" && (
-              <section className="flex flex-col gap-8">
-                <div className="flex items-center justify-between">
+              <section className="flex flex-col gap-6 md:gap-8">
+                {/* ── Wrap flex items on mobile to prevent stretching ── */}
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-baseline gap-3">
-                    <span className="font-heading font-light text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
+                    <span className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
                       {heroCount}
                     </span>
                     <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
@@ -720,7 +726,7 @@ export default function AdminDashboard() {
                     </span>
                   </div>
 
-                  <div className="flex gap-px border border-borderLight dark:bg-borderLight-dark">
+                  <div className="flex flex-wrap gap-px border border-borderLight dark:bg-borderLight-dark w-full md:w-auto">
                     {(
                       [
                         { key: "all", label: "All" },
@@ -731,7 +737,7 @@ export default function AdminDashboard() {
                       <button
                         key={key}
                         onClick={() => setCampaignFilter(key)}
-                        className={`px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 ${
+                        className={`flex-1 md:flex-none px-3 md:px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase transition-all duration-200 ${
                           campaignFilter === key
                             ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
                             : "bg-bgPrimary dark:bg-bgPrimary-dark text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
@@ -744,7 +750,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {filteredCampaign.length === 0 ? (
-                  <div className="border border-borderLight dark:border-borderLight-dark p-16 text-center">
+                  <div className="border border-borderLight dark:border-borderLight-dark p-10 md:p-16 text-center">
                     <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
                       {campaignFilter === "live"
                         ? "No active heroes — add some below"
@@ -752,14 +758,14 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
                     {filteredCampaign.map((product) => (
                       <CampaignCard
                         key={product.id}
                         product={product}
                         onToggle={handleToggleCampaign}
                         isToggling={togglingIds.has(product.id)}
-                        onClick={() => navigate(`/product/${product.id}`)} // 👈 Navigation added here
+                        onClick={() => navigate(`/product/${product.id}`)}
                       />
                     ))}
                   </div>

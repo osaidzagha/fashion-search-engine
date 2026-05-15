@@ -1,7 +1,7 @@
 import { Product } from "../types";
 import { ProductCard } from "./ProductCard";
 import { ProductSkeleton } from "./ProductSkeleton";
-import { AnimatedGrid, AnimatedGridItem } from "./AnimatedGrid"; // 👈 IMPORT ADDED
+import { AnimatedGrid, AnimatedGridItem } from "./AnimatedGrid";
 
 interface ProductGridProps {
   products: Product[];
@@ -14,25 +14,24 @@ export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
   const getGridClass = (index: number) => {
     const position = index % 10;
 
-    // Huge spread on the LEFT (Index 0, 10, 20...)
-    if (position === 0) return "lg:col-span-2 lg:row-span-2 col-span-2";
-
-    // Huge spread on the RIGHT (Index 7, 17, 27...)
-    if (position === 7) return "lg:col-span-2 lg:row-span-2 col-span-2";
+    // ✅ FIX: Stays 1 column on mobile, expands to 2 on md/lg screens
+    if (position === 0)
+      return "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
+    if (position === 7)
+      return "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
 
     // Standard card
     return "col-span-1";
   };
 
-  // Common Grid Wrapper Classes
+  // ✅ FIX: Tighter gap on mobile (gap-x-3 gap-y-6), wider on desktop
   const gridWrapperClasses =
-    "grid grid-cols-2 lg:grid-cols-4 gap-x-4 md:gap-x-6 gap-y-10 md:gap-y-16 grid-flow-row-dense transition-colors duration-500 ease-smooth";
+    "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 md:gap-x-6 gap-y-6 md:gap-y-16 grid-flow-row-dense transition-colors duration-500 ease-smooth";
 
   // ── 1. THE LOADING STATE ──
   if (isLoading) {
     return (
       <div className={gridWrapperClasses}>
-        {/* We render exactly 10 to match our magazine pattern loop */}
         {Array.from({ length: 10 }).map((_, index) => (
           <div key={`skeleton-${index}`} className={getGridClass(index)}>
             <ProductSkeleton isCardMode={false} />
@@ -45,8 +44,8 @@ export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
   // ── 2. EMPTY STATE ──
   if (products.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 w-full animate-fade-in">
-        <p className="font-heading italic text-2xl text-textSecondary dark:text-textSecondary-dark">
+      <div className="flex flex-col items-center justify-center py-20 md:py-32 w-full animate-fade-in">
+        <p className="font-heading italic text-xl md:text-2xl text-textSecondary dark:text-textSecondary-dark">
           No items found
         </p>
         <p className="font-sans text-[10px] tracking-widest uppercase text-textMuted mt-2">
@@ -58,10 +57,8 @@ export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
 
   // ── 3. THE LOADED STATE ──
   return (
-    // 👈 Replaced the div with AnimatedGrid
     <AnimatedGrid className={gridWrapperClasses}>
       {products.map((product, index) => (
-        // 👈 Replaced the div with AnimatedGridItem and passed your custom classes!
         <AnimatedGridItem key={product.id} className={getGridClass(index)}>
           <ProductCard product={product} />
         </AnimatedGridItem>

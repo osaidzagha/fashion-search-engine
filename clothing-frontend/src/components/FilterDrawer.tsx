@@ -71,7 +71,7 @@ const getColorHex = (colorName: string) => {
 // ─── Sub-Components ───
 function SectionHeader({ index, title }: { index: string; title: string }) {
   return (
-    <div className="flex gap-4 mb-6 transition-colors duration-500">
+    <div className="flex gap-4 mb-4 md:mb-6 transition-colors duration-500">
       <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark uppercase">
         |{index}|
       </span>
@@ -96,11 +96,11 @@ function FilterOption({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-4 w-full text-left group py-1 bg-transparent border-none cursor-pointer"
+      className="flex items-center gap-4 w-full text-left group py-2 md:py-1 bg-transparent border-none cursor-pointer"
     >
       {colorSwatch ? (
         <div
-          className="w-3 h-3 border border-borderLight dark:border-borderLight-dark flex-shrink-0 transition-colors"
+          className="w-4 h-4 md:w-3 md:h-3 border border-borderLight dark:border-borderLight-dark flex-shrink-0 transition-colors"
           style={{ backgroundColor: colorSwatch }}
         />
       ) : (
@@ -115,7 +115,7 @@ function FilterOption({
         </span>
       )}
       <span
-        className={`font-sans text-[10px] tracking-widest uppercase transition-all duration-300 ${
+        className={`font-sans text-[11px] md:text-[10px] tracking-widest uppercase transition-all duration-300 ${
           active
             ? "text-textPrimary dark:text-textPrimary-dark font-medium"
             : "text-textSecondary dark:text-textSecondary-dark group-hover:text-textPrimary dark:group-hover:text-textPrimary-dark"
@@ -161,7 +161,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
         }`}
       >
         {/* Header */}
-        <div className="flex justify-between items-center p-8 border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500">
+        <div className="flex justify-between items-center p-6 md:p-8 border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500">
           <h2 className="font-sans text-[11px] tracking-[0.2em] uppercase text-textPrimary dark:text-textPrimary-dark">
             Filters
           </h2>
@@ -173,12 +173,12 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-12 space-y-16 scrollbar-hide">
+        {/* Scrollable Content (Responsive padding applied here) */}
+        <div className="flex-1 overflow-y-auto p-6 md:p-12 space-y-10 md:space-y-16 scrollbar-hide">
           {/* Curator Section */}
           <div>
             <SectionHeader index="01" title="Curator" />
-            <div className="flex flex-col gap-2 pl-10">
+            <div className="flex flex-col gap-2 pl-6 md:pl-10">
               {["Zara", "Massimo Dutti", "Pull & Bear"].map((brand) => (
                 <FilterOption
                   key={brand}
@@ -194,7 +194,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           {availableColors.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="02" title="Colour" />
-              <div className="flex flex-col gap-3 pl-10">
+              <div className="flex flex-col gap-3 pl-6 md:pl-10">
                 {availableColors.slice(0, 8).map((color) => (
                   <FilterOption
                     key={color}
@@ -216,7 +216,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           {/* Price Section */}
           <div>
             <SectionHeader index="03" title="Price" />
-            <div className="pl-10 pr-4">
+            <div className="pl-6 md:pl-10 pr-4">
               <input
                 type="range"
                 min={0}
@@ -251,7 +251,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           {availableSizes.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="04" title="Size" />
-              <div className="flex flex-col gap-2 pl-10">
+              <div className="flex flex-col gap-2 pl-6 md:pl-10">
                 {[...letterSizes, ...numericSizes, ...otherSizes].map(
                   (size) => (
                     <FilterOption
@@ -268,7 +268,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
         </div>
 
         {/* Sticky Footer */}
-        <div className="p-8 border-t border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark flex gap-4 transition-colors duration-500">
+        <div className="p-6 md:p-8 border-t border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark flex gap-4 transition-colors duration-500">
           <button
             onClick={() => dispatch(clearFilters())}
             className="flex-1 py-4 border border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:text-textPrimary dark:hover:text-textPrimary-dark transition-all duration-300 bg-transparent cursor-pointer"

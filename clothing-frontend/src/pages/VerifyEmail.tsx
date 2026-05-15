@@ -6,6 +6,8 @@ import { setCredentials } from "../store/authSlice";
 import { Spinner } from "../components/Spinner";
 import PageTransition from "../components/PageTransition";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
 const VerifyEmail = () => {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -17,8 +19,9 @@ const VerifyEmail = () => {
   useEffect(() => {
     const verifyUser = async () => {
       try {
+        // ✅ FIX: Use dynamic API_BASE instead of hardcoded localhost
         const response = await axios.get(
-          `http://localhost:5000/api/auth/verify/${token}`,
+          `${API_BASE}/api/auth/verify/${token}`,
         );
 
         const {

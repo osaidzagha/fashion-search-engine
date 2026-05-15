@@ -181,8 +181,8 @@ export const SearchBar = ({
             caret-textPrimary dark:caret-textPrimary-dark
             placeholder:font-heading placeholder:italic
             placeholder:text-textMuted dark:placeholder:text-textMuted-dark
-            transition-colors duration-200 ease-smooth
-            ${isHero ? "text-[26px] py-3.5 pl-7" : "text-[20px] py-2.5 pl-6"}
+            transition-colors duration-200 ease-smooth text-ellipsis
+            ${isHero ? "text-[16px] md:text-[26px] py-3.5 pl-6 md:pl-7" : "text-[14px] md:text-[20px] py-2.5 pl-6"}
             ${inputValue ? "not-italic" : "italic"}
             ${
               focused

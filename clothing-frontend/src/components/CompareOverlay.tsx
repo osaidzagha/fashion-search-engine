@@ -3,47 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
 import { Product } from "../types";
 import PriceHistoryChart from "./PriceHistoryChart";
-import { theme } from "../styles/theme"; // 👈 Your new Design System!
-
-// ─── CSS ──────────────────────────────────────────────────────────────────────
-if (typeof document !== "undefined" && !document.getElementById("cov-styles")) {
-  const s = document.createElement("style");
-  s.id = "cov-styles";
-  s.textContent = `
-    @keyframes cov-in {
-      from { opacity: 0; transform: translateY(32px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes cov-imgIn {
-      from { opacity: 0; transform: scale(1.06); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-    @keyframes cov-lineGrow {
-      from { height: 0; opacity: 0; }
-      to   { height: 100%; opacity: 1; }
-    }
-    @keyframes cov-rowIn {
-      from { opacity: 0; transform: translateX(-8px); }
-      to   { opacity: 1; transform: translateX(0); }
-    }
-    .cov-close:hover { background: ${theme.colors.bgHover} !important; }
-    .cov-view-btn:hover { opacity: 0.7 !important; }
-    .cov-scroll::-webkit-scrollbar { display: none; }
-    .cov-scroll { -ms-overflow-style: none; scrollbar-width: none; }
-    .cov-winner-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: rgba(240,237,230,0.08);
-      border: 1px solid ${theme.colors.borderLight};
-      padding: 2px 8px;
-      border-radius: 0;
-    }
-    .cov-win { color: ${theme.colors.accentGreen} !important; }
-    .cov-lose { color: ${theme.colors.textMuted} !important; }
-  `;
-  document.head.appendChild(s);
-}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function toTitleCase(str: string) {
@@ -73,119 +32,52 @@ function StatRow({
 }) {
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr auto 1fr",
-        alignItems: "center",
-        gap: "0",
-        padding: "18px 0",
-        borderBottom: `1px solid ${theme.colors.bgSecondary}`,
-        animation: `cov-rowIn 0.5s ease ${delay}s both`,
-      }}
+      className="grid grid-cols-[1fr_auto_1fr] items-center gap-0 py-3 md:py-4 border-b border-bgSecondary dark:border-bgSecondary-dark"
+      style={{ animation: `cov-rowIn 0.5s ease ${delay}s both` }}
     >
       {/* Left value */}
-      <div
-        style={{
-          paddingRight: "32px",
-          textAlign: "right",
-        }}
-      >
+      <div className="pr-2 md:pr-8 text-right">
         <span
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontSize: "16px",
-            color:
-              winner === "A"
-                ? theme.colors.textPrimary
-                : theme.colors.textMuted,
-            fontWeight: winner === "A" ? 400 : 300,
-            transition: "color 0.3s ease",
-          }}
+          className={`font-heading text-xs md:text-base transition-colors duration-300 ${
+            winner === "A"
+              ? "text-textPrimary dark:text-textPrimary-dark font-normal"
+              : "text-textMuted dark:text-textMuted-dark font-light"
+          }`}
         >
           {valueA}
         </span>
         {winner === "A" && (
-          <span
-            style={{
-              display: "block",
-              fontFamily: theme.fonts.sans,
-              fontSize: "7px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: theme.colors.accentGreen,
-              marginTop: "3px",
-            }}
-          >
+          <span className="block font-sans text-[6px] md:text-[7px] tracking-[0.18em] uppercase text-green-600 dark:text-green-400 mt-1">
             ✓ Better
           </span>
         )}
       </div>
 
       {/* Center label */}
-      <div
-        style={{
-          padding: "0 20px",
-          textAlign: "center",
-          borderLeft: `1px solid ${theme.colors.bgSecondary}`,
-          borderRight: `1px solid ${theme.colors.bgSecondary}`,
-          minWidth: "96px",
-        }}
-      >
-        <span
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "8px",
-            letterSpacing: "0.22em",
-            textTransform: "uppercase",
-            color: theme.colors.textMuted,
-          }}
-        >
+      <div className="px-2 md:px-5 text-center border-x border-bgSecondary dark:border-bgSecondary-dark min-w-[60px] md:min-w-[96px]">
+        <span className="font-sans text-[6px] md:text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark">
           {label}
         </span>
         {winner === "tie" && (
-          <p
-            style={{
-              fontFamily: theme.fonts.sans,
-              fontSize: "7px",
-              letterSpacing: "0.14em",
-              textTransform: "uppercase",
-              color: theme.colors.textTertiary,
-              margin: "3px 0 0",
-            }}
-          >
+          <p className="font-sans text-[6px] md:text-[7px] tracking-[0.14em] uppercase text-textTertiary dark:text-textTertiary-dark m-0 mt-1">
             Tie
           </p>
         )}
       </div>
 
       {/* Right value */}
-      <div style={{ paddingLeft: "32px" }}>
+      <div className="pl-2 md:pl-8">
         <span
-          style={{
-            fontFamily: theme.fonts.heading,
-            fontSize: "16px",
-            color:
-              winner === "B"
-                ? theme.colors.textPrimary
-                : theme.colors.textMuted,
-            fontWeight: winner === "B" ? 400 : 300,
-            transition: "color 0.3s ease",
-          }}
+          className={`font-heading text-xs md:text-base transition-colors duration-300 ${
+            winner === "B"
+              ? "text-textPrimary dark:text-textPrimary-dark font-normal"
+              : "text-textMuted dark:text-textMuted-dark font-light"
+          }`}
         >
           {valueB}
         </span>
         {winner === "B" && (
-          <span
-            style={{
-              display: "block",
-              fontFamily: theme.fonts.sans,
-              fontSize: "7px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              color: theme.colors.accentGreen,
-              marginTop: "3px",
-            }}
-          >
+          <span className="block font-sans text-[6px] md:text-[7px] tracking-[0.18em] uppercase text-green-600 dark:text-green-400 mt-1">
             ✓ Better
           </span>
         )}
@@ -196,8 +88,7 @@ function StatRow({
 
 // ─── Main overlay ─────────────────────────────────────────────────────────────
 export function CompareOverlay() {
-  const { compareList, overlayOpen, closeOverlay, removeFromCompare } =
-    useCompare();
+  const { compareList, overlayOpen, closeOverlay } = useCompare();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -237,7 +128,7 @@ export function CompareOverlay() {
   const brandWinner: "A" | "B" | "tie" | null =
     A.brand !== B.brand ? null : "tie";
 
-  // ── Overall winner (who wins more categories) ──
+  // ── Overall winner ──
   let scoreA = 0;
   let scoreB = 0;
   if (priceWinner === "A") scoreA++;
@@ -251,78 +142,27 @@ export function CompareOverlay() {
 
   return (
     <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 900,
-        background: theme.colors.bgPrimary,
-        display: "flex",
-        flexDirection: "column",
-        animation: "cov-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both",
-      }}
+      className="fixed inset-0 z-[900] bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col"
+      style={{ animation: "cov-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both" }}
     >
       {/* ── Top bar ── */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "20px 48px",
-          borderBottom: `1px solid ${theme.colors.bgSecondary}`,
-          flexShrink: 0,
-        }}
-      >
+      <div className="flex justify-between items-center p-4 md:py-5 md:px-12 border-b border-bgSecondary dark:border-bgSecondary-dark flex-shrink-0">
         <div>
-          <p
-            style={{
-              fontFamily: theme.fonts.sans,
-              fontSize: "8px",
-              letterSpacing: "0.3em",
-              textTransform: "uppercase",
-              color: theme.colors.textMuted,
-              margin: "0 0 2px",
-            }}
-          >
+          <p className="font-sans text-[7px] md:text-[8px] tracking-[0.3em] uppercase text-textMuted dark:text-textMuted-dark mb-0.5 md:mb-1">
             Side by Side
           </p>
-          <h2
-            style={{
-              fontFamily: theme.fonts.heading,
-              fontWeight: 300,
-              fontSize: "20px",
-              color: theme.colors.textPrimary,
-              margin: 0,
-              letterSpacing: "0.02em",
-            }}
-          >
-            Product Comparison
+          <h2 className="font-heading font-light text-lg md:text-xl text-textPrimary dark:text-textPrimary-dark m-0 tracking-[0.02em]">
+            Compare
           </h2>
         </div>
 
         {/* Overall verdict */}
         {overallWinner && (
-          <div style={{ textAlign: "center" }}>
-            <p
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.24em",
-                textTransform: "uppercase",
-                color: theme.colors.textMuted,
-                margin: "0 0 4px",
-              }}
-            >
+          <div className="hidden md:block text-center">
+            <p className="font-sans text-[8px] tracking-[0.24em] uppercase text-textMuted dark:text-textMuted-dark mb-1">
               Better value
             </p>
-            <p
-              style={{
-                fontFamily: theme.fonts.heading,
-                fontStyle: "italic",
-                fontSize: "16px",
-                color: theme.colors.accentGreen,
-                margin: 0,
-              }}
-            >
+            <p className="font-heading italic text-base text-green-600 dark:text-green-400 m-0">
               {toTitleCase(overallWinner === "A" ? A.name : B.name)
                 .split(" ")
                 .slice(0, 4)
@@ -332,56 +172,23 @@ export function CompareOverlay() {
         )}
 
         <button
-          className="cov-close"
+          className="font-sans text-[8px] md:text-[9px] tracking-[0.2em] uppercase text-textSecondary dark:text-textSecondary-dark bg-bgSecondary dark:bg-bgSecondary-dark border-none cursor-pointer px-3 py-2 md:px-5 md:py-2.5 flex items-center gap-2 hover:bg-bgHover dark:hover:bg-bgHover-dark transition-colors"
           onClick={closeOverlay}
-          style={{
-            fontFamily: theme.fonts.sans,
-            fontSize: "9px",
-            letterSpacing: "0.2em",
-            textTransform: "uppercase",
-            color: theme.colors.textSecondary,
-            background: theme.colors.bgSecondary,
-            border: "none",
-            cursor: "pointer",
-            padding: "10px 20px",
-            transition: "background 0.2s ease",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-          }}
         >
-          <span>✕</span> Close
+          <span>✕</span> <span className="hidden sm:inline">Close</span>
         </button>
       </div>
 
       {/* ── Scrollable content ── */}
       <div
         ref={scrollRef}
-        className="cov-scroll"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-        }}
+        className="flex-1 overflow-y-auto grid grid-cols-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {/* ══ PRODUCT A ══ */}
-        <div
-          style={{
-            borderRight: `1px solid ${theme.colors.bgSecondary}`,
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+        <div className="border-r border-bgSecondary dark:border-bgSecondary-dark flex flex-col">
           {/* Hero image */}
           <div
-            style={{
-              position: "relative",
-              aspectRatio: "3 / 4",
-              overflow: "hidden",
-              background: theme.colors.bgSecondary,
-              cursor: "pointer",
-            }}
+            className="relative aspect-[3/4] overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark cursor-pointer group"
             onClick={() => {
               closeOverlay();
               navigate(`/product/${A.id}`);
@@ -391,146 +198,53 @@ export function CompareOverlay() {
               <img
                 src={A.images[0]}
                 alt={A.name}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  animation: "cov-imgIn 0.8s ease 0.2s both",
-                  transition: "transform 0.6s ease",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.transform = "scale(1.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.transform = "scale(1)")
-                }
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                style={{ animation: "cov-imgIn 0.8s ease 0.2s both" }}
               />
             )}
-            {/* Overlay tag */}
             <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                left: "16px",
-                background:
-                  overallWinner === "A"
-                    ? theme.colors.accentGreen
-                    : "transparent",
-                border:
-                  overallWinner === "A"
-                    ? "none"
-                    : `1px solid ${theme.colors.borderDark}`,
-                color:
-                  overallWinner === "A" ? "#0f2010" : theme.colors.textMuted,
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                padding: "4px 10px",
-                fontWeight: overallWinner === "A" ? 600 : 400,
-              }}
+              className={`absolute top-2 left-2 md:top-4 md:left-4 font-sans text-[6px] md:text-[8px] tracking-[0.18em] uppercase px-1.5 py-0.5 md:px-2.5 md:py-1 ${
+                overallWinner === "A"
+                  ? "bg-green-600 text-white font-semibold border-none"
+                  : "bg-transparent text-textMuted dark:text-textMuted-dark border border-borderDark dark:border-borderDark-dark"
+              }`}
             >
               {overallWinner === "A" ? "✓ Better value" : A.brand}
             </div>
-            {/* Sale badge */}
             {discA > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "16px",
-                  right: "16px",
-                  background: theme.colors.accentRed,
-                  color: "#fff",
-                  fontFamily: theme.fonts.sans,
-                  fontSize: "9px",
-                  letterSpacing: "0.08em",
-                  padding: "4px 8px",
-                }}
-              >
+              <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-accentRed text-white font-sans text-[7px] md:text-[9px] tracking-[0.08em] px-1.5 py-0.5 md:px-2 md:py-1">
                 −{discA}%
               </div>
             )}
-            <div
-              style={{
-                position: "absolute",
-                bottom: "16px",
-                right: "16px",
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.4)",
-              }}
-            >
-              Tap to view →
-            </div>
           </div>
 
           {/* Info */}
-          <div style={{ padding: "28px 40px", flex: 1 }}>
-            <p
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.26em",
-                textTransform: "uppercase",
-                color: theme.colors.textMuted,
-                margin: "0 0 8px",
-              }}
-            >
+          <div className="p-3 md:p-7 md:px-10 flex flex-col flex-1">
+            <p className="font-sans text-[7px] md:text-[8px] tracking-[0.26em] uppercase text-textMuted dark:text-textMuted-dark mb-1 md:mb-2">
               {A.brand} {A.color && `· ${A.color}`}
             </p>
-            <h3
-              style={{
-                fontFamily: theme.fonts.heading,
-                fontWeight: 300,
-                fontSize: "22px",
-                color: theme.colors.textPrimary,
-                margin: "0 0 16px",
-                lineHeight: 1.15,
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 className="font-heading font-light text-[15px] md:text-[22px] text-textPrimary dark:text-textPrimary-dark mb-2 md:mb-4 leading-[1.15] tracking-[-0.01em]">
               {toTitleCase(A.name)}
             </h3>
 
-            {/* Price */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: "10px",
-                marginBottom: "24px",
-              }}
-            >
+            <div className="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-2.5 mb-4 md:mb-6">
               <span
-                style={{
-                  fontFamily: theme.fonts.heading,
-                  fontSize: "24px",
-                  color:
-                    priceWinner === "A"
-                      ? theme.colors.textPrimary
-                      : theme.colors.textSecondary,
-                }}
+                className={`font-heading text-lg md:text-2xl ${
+                  priceWinner === "A"
+                    ? "text-textPrimary dark:text-textPrimary-dark"
+                    : "text-textSecondary dark:text-textSecondary-dark"
+                }`}
               >
                 {A.price.toLocaleString("tr-TR")} {A.currency}
               </span>
               {A.originalPrice && (
-                <span
-                  style={{
-                    fontFamily: theme.fonts.heading,
-                    fontSize: "15px",
-                    color: theme.colors.borderDark,
-                    textDecoration: "line-through",
-                  }}
-                >
+                <span className="font-heading text-[11px] md:text-[15px] text-borderDark dark:text-borderDark-dark line-through">
                   {A.originalPrice.toLocaleString("tr-TR")}
                 </span>
               )}
             </div>
 
-            {/* Price chart */}
-            <div style={{ marginBottom: "24px", opacity: 0.8 }}>
+            <div className="hidden md:block mb-6 opacity-80">
               <PriceHistoryChart
                 history={A.priceHistory}
                 currentPrice={A.price}
@@ -540,32 +254,16 @@ export function CompareOverlay() {
               />
             </div>
 
-            {/* Sizes */}
             {A.sizes && A.sizes.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "8px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: theme.colors.textMuted,
-                    margin: "0 0 8px",
-                  }}
-                >
-                  Available sizes
+              <div className="mb-4 md:mb-5">
+                <p className="font-sans text-[7px] md:text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5 md:mb-2">
+                  Sizes
                 </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                <div className="flex flex-wrap gap-1 md:gap-1.5">
                   {A.sizes.map((sz, i) => (
                     <span
                       key={i}
-                      style={{
-                        fontFamily: theme.fonts.sans,
-                        fontSize: "10px",
-                        padding: "4px 9px",
-                        border: `1px solid ${theme.colors.borderLight}`,
-                        color: theme.colors.textSecondary,
-                      }}
+                      className="font-sans text-[8px] md:text-[10px] px-1.5 py-0.5 md:px-2 md:py-1 border border-borderLight dark:border-borderLight-dark text-textSecondary dark:text-textSecondary-dark"
                     >
                       {sz}
                     </span>
@@ -574,90 +272,22 @@ export function CompareOverlay() {
               </div>
             )}
 
-            {/* Description */}
-            {A.description && (
-              <p
-                style={{
-                  fontFamily: theme.fonts.heading,
-                  fontStyle: "italic",
-                  fontSize: "14px",
-                  lineHeight: 1.7,
-                  color: theme.colors.textTertiary,
-                  margin: 0,
-                }}
-              >
-                {A.description.slice(0, 180)}
-                {A.description.length > 180 ? "…" : ""}
-              </p>
-            )}
-
-            {/* Composition */}
-            {A.composition && (
-              <div style={{ marginTop: "16px" }}>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "8px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: theme.colors.textMuted,
-                    margin: "0 0 6px",
-                  }}
-                >
-                  Composition
-                </p>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "11px",
-                    color: theme.colors.textTertiary,
-                    margin: 0,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {A.composition}
-                </p>
-              </div>
-            )}
-
-            {/* CTA */}
             <a
               href={A.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="cov-view-btn"
-              style={{
-                display: "block",
-                marginTop: "28px",
-                padding: "12px",
-                background: theme.colors.textPrimary,
-                color: "#0f0f0d",
-                fontFamily: theme.fonts.sans,
-                fontSize: "9px",
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                textAlign: "center",
-                textDecoration: "none",
-                fontWeight: 500,
-                transition: "opacity 0.2s ease",
-              }}
+              className="mt-auto block p-2 md:p-3 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[7px] md:text-[9px] tracking-[0.22em] uppercase text-center font-medium hover:opacity-80 transition-opacity"
             >
-              View on {A.brand} →
+              View <span className="hidden sm:inline">on {A.brand} </span>→
             </a>
           </div>
         </div>
 
         {/* ══ PRODUCT B ══ */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div className="flex flex-col">
           {/* Hero image */}
           <div
-            style={{
-              position: "relative",
-              aspectRatio: "3 / 4",
-              overflow: "hidden",
-              background: theme.colors.bgSecondary,
-              cursor: "pointer",
-            }}
+            className="relative aspect-[3/4] overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark cursor-pointer group"
             onClick={() => {
               closeOverlay();
               navigate(`/product/${B.id}`);
@@ -667,143 +297,53 @@ export function CompareOverlay() {
               <img
                 src={B.images[0]}
                 alt={B.name}
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  animation: "cov-imgIn 0.8s ease 0.35s both",
-                  transition: "transform 0.6s ease",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.transform = "scale(1.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.transform = "scale(1)")
-                }
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                style={{ animation: "cov-imgIn 0.8s ease 0.35s both" }}
               />
             )}
             <div
-              style={{
-                position: "absolute",
-                top: "16px",
-                left: "16px",
-                background:
-                  overallWinner === "B"
-                    ? theme.colors.accentGreen
-                    : "transparent",
-                border:
-                  overallWinner === "B"
-                    ? "none"
-                    : `1px solid ${theme.colors.borderDark}`,
-                color:
-                  overallWinner === "B" ? "#0f2010" : theme.colors.textMuted,
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.18em",
-                textTransform: "uppercase",
-                padding: "4px 10px",
-                fontWeight: overallWinner === "B" ? 600 : 400,
-              }}
+              className={`absolute top-2 left-2 md:top-4 md:left-4 font-sans text-[6px] md:text-[8px] tracking-[0.18em] uppercase px-1.5 py-0.5 md:px-2.5 md:py-1 ${
+                overallWinner === "B"
+                  ? "bg-green-600 text-white font-semibold border-none"
+                  : "bg-transparent text-textMuted dark:text-textMuted-dark border border-borderDark dark:border-borderDark-dark"
+              }`}
             >
               {overallWinner === "B" ? "✓ Better value" : B.brand}
             </div>
             {discB > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "16px",
-                  right: "16px",
-                  background: theme.colors.accentRed,
-                  color: "#fff",
-                  fontFamily: theme.fonts.sans,
-                  fontSize: "9px",
-                  letterSpacing: "0.08em",
-                  padding: "4px 8px",
-                }}
-              >
+              <div className="absolute top-2 right-2 md:top-4 md:right-4 bg-accentRed text-white font-sans text-[7px] md:text-[9px] tracking-[0.08em] px-1.5 py-0.5 md:px-2 md:py-1">
                 −{discB}%
               </div>
             )}
-            <div
-              style={{
-                position: "absolute",
-                bottom: "16px",
-                right: "16px",
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.14em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.4)",
-              }}
-            >
-              Tap to view →
-            </div>
           </div>
 
           {/* Info */}
-          <div style={{ padding: "28px 40px", flex: 1 }}>
-            <p
-              style={{
-                fontFamily: theme.fonts.sans,
-                fontSize: "8px",
-                letterSpacing: "0.26em",
-                textTransform: "uppercase",
-                color: theme.colors.textMuted,
-                margin: "0 0 8px",
-              }}
-            >
+          <div className="p-3 md:p-7 md:px-10 flex flex-col flex-1">
+            <p className="font-sans text-[7px] md:text-[8px] tracking-[0.26em] uppercase text-textMuted dark:text-textMuted-dark mb-1 md:mb-2">
               {B.brand} {B.color && `· ${B.color}`}
             </p>
-            <h3
-              style={{
-                fontFamily: theme.fonts.heading,
-                fontWeight: 300,
-                fontSize: "22px",
-                color: theme.colors.textPrimary,
-                margin: "0 0 16px",
-                lineHeight: 1.15,
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 className="font-heading font-light text-[15px] md:text-[22px] text-textPrimary dark:text-textPrimary-dark mb-2 md:mb-4 leading-[1.15] tracking-[-0.01em]">
               {toTitleCase(B.name)}
             </h3>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: "10px",
-                marginBottom: "24px",
-              }}
-            >
+            <div className="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-2.5 mb-4 md:mb-6">
               <span
-                style={{
-                  fontFamily: theme.fonts.heading,
-                  fontSize: "24px",
-                  color:
-                    priceWinner === "B"
-                      ? theme.colors.textPrimary
-                      : theme.colors.textSecondary,
-                }}
+                className={`font-heading text-lg md:text-2xl ${
+                  priceWinner === "B"
+                    ? "text-textPrimary dark:text-textPrimary-dark"
+                    : "text-textSecondary dark:text-textSecondary-dark"
+                }`}
               >
                 {B.price.toLocaleString("tr-TR")} {B.currency}
               </span>
               {B.originalPrice && (
-                <span
-                  style={{
-                    fontFamily: theme.fonts.heading,
-                    fontSize: "15px",
-                    color: theme.colors.borderDark,
-                    textDecoration: "line-through",
-                  }}
-                >
+                <span className="font-heading text-[11px] md:text-[15px] text-borderDark dark:text-borderDark-dark line-through">
                   {B.originalPrice.toLocaleString("tr-TR")}
                 </span>
               )}
             </div>
 
-            {/* Price chart */}
-            <div style={{ marginBottom: "24px", opacity: 0.8 }}>
+            <div className="hidden md:block mb-6 opacity-80">
               <PriceHistoryChart
                 history={B.priceHistory}
                 currentPrice={B.price}
@@ -814,30 +354,15 @@ export function CompareOverlay() {
             </div>
 
             {B.sizes && B.sizes.length > 0 && (
-              <div style={{ marginBottom: "20px" }}>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "8px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: theme.colors.textMuted,
-                    margin: "0 0 8px",
-                  }}
-                >
-                  Available sizes
+              <div className="mb-4 md:mb-5">
+                <p className="font-sans text-[7px] md:text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5 md:mb-2">
+                  Sizes
                 </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                <div className="flex flex-wrap gap-1 md:gap-1.5">
                   {B.sizes.map((sz, i) => (
                     <span
                       key={i}
-                      style={{
-                        fontFamily: theme.fonts.sans,
-                        fontSize: "10px",
-                        padding: "4px 9px",
-                        border: `1px solid ${theme.colors.borderLight}`,
-                        color: theme.colors.textSecondary,
-                      }}
+                      className="font-sans text-[8px] md:text-[10px] px-1.5 py-0.5 md:px-2 md:py-1 border border-borderLight dark:border-borderLight-dark text-textSecondary dark:text-textSecondary-dark"
                     >
                       {sz}
                     </span>
@@ -846,138 +371,33 @@ export function CompareOverlay() {
               </div>
             )}
 
-            {B.description && (
-              <p
-                style={{
-                  fontFamily: theme.fonts.heading,
-                  fontStyle: "italic",
-                  fontSize: "14px",
-                  lineHeight: 1.7,
-                  color: theme.colors.textTertiary,
-                  margin: 0,
-                }}
-              >
-                {B.description.slice(0, 180)}
-                {B.description.length > 180 ? "…" : ""}
-              </p>
-            )}
-
-            {B.composition && (
-              <div style={{ marginTop: "16px" }}>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "8px",
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    color: theme.colors.textMuted,
-                    margin: "0 0 6px",
-                  }}
-                >
-                  Composition
-                </p>
-                <p
-                  style={{
-                    fontFamily: theme.fonts.sans,
-                    fontSize: "11px",
-                    color: theme.colors.textTertiary,
-                    margin: 0,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {B.composition}
-                </p>
-              </div>
-            )}
-
             <a
               href={B.link}
               target="_blank"
               rel="noopener noreferrer"
-              className="cov-view-btn"
-              style={{
-                display: "block",
-                marginTop: "28px",
-                padding: "12px",
-                background: theme.colors.textPrimary,
-                color: "#0f0f0d",
-                fontFamily: theme.fonts.sans,
-                fontSize: "9px",
-                letterSpacing: "0.22em",
-                textTransform: "uppercase",
-                textAlign: "center",
-                textDecoration: "none",
-                fontWeight: 500,
-                transition: "opacity 0.2s ease",
-              }}
+              className="mt-auto block p-2 md:p-3 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[7px] md:text-[9px] tracking-[0.22em] uppercase text-center font-medium hover:opacity-80 transition-opacity"
             >
-              View on {B.brand} →
+              View <span className="hidden sm:inline">on {B.brand} </span>→
             </a>
           </div>
         </div>
       </div>
 
       {/* ── Bottom stat bar ── */}
-      <div
-        style={{
-          borderTop: `1px solid ${theme.colors.bgSecondary}`,
-          background: theme.colors.bgPrimary,
-          padding: "0 0 4px",
-          flexShrink: 0,
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
-            padding: "12px 40px 0",
-            borderBottom: `1px solid ${theme.colors.bgSecondary}`,
-          }}
-        >
-          <p
-            style={{
-              fontFamily: theme.fonts.heading,
-              fontStyle: "italic",
-              fontSize: "13px",
-              color: theme.colors.textMuted,
-              margin: 0,
-              textAlign: "right",
-              paddingRight: "20px",
-            }}
-          >
+      <div className="border-t border-bgSecondary dark:border-bgSecondary-dark bg-bgPrimary dark:bg-bgPrimary-dark pb-2 flex-shrink-0">
+        <div className="grid grid-cols-[1fr_auto_1fr] px-2 md:px-10 pt-3 border-b border-bgSecondary dark:border-bgSecondary-dark">
+          <p className="font-heading italic text-[10px] md:text-[13px] text-textMuted dark:text-textMuted-dark m-0 text-right pr-2 md:pr-5">
             {toTitleCase(A.name).split(" ").slice(0, 3).join(" ")}
           </p>
-          <p
-            style={{
-              fontFamily: theme.fonts.sans,
-              fontSize: "8px",
-              letterSpacing: "0.22em",
-              textTransform: "uppercase",
-              color: theme.colors.borderDark,
-              margin: 0,
-              padding: "0 20px",
-              textAlign: "center",
-              minWidth: "96px",
-            }}
-          >
+          <p className="font-sans text-[6px] md:text-[8px] tracking-[0.22em] uppercase text-borderDark dark:text-borderDark-dark m-0 px-2 md:px-5 text-center min-w-[60px] md:min-w-[96px]">
             Stats
           </p>
-          <p
-            style={{
-              fontFamily: theme.fonts.heading,
-              fontStyle: "italic",
-              fontSize: "13px",
-              color: theme.colors.textMuted,
-              margin: 0,
-              paddingLeft: "20px",
-            }}
-          >
+          <p className="font-heading italic text-[10px] md:text-[13px] text-textMuted dark:text-textMuted-dark m-0 pl-2 md:pl-5">
             {toTitleCase(B.name).split(" ").slice(0, 3).join(" ")}
           </p>
         </div>
 
-        <div style={{ padding: "0 40px" }}>
+        <div className="px-2 md:px-10">
           <StatRow
             label="Price"
             valueA={`${A.price.toLocaleString("tr-TR")} ${A.currency}`}
@@ -996,8 +416,8 @@ export function CompareOverlay() {
           )}
           <StatRow
             label="Sizes"
-            valueA={`${sizesA} options`}
-            valueB={`${sizesB} options`}
+            valueA={`${sizesA} opts`}
+            valueB={`${sizesB} opts`}
             winner={sizesWinner}
             delay={0.8}
           />

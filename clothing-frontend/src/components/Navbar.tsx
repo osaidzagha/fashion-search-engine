@@ -4,8 +4,8 @@ import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { setDepartments } from "../store/productSlice";
-import toast from "react-hot-toast"; // 👈 Added toast
-import ConfirmModal from "./ConfirmModal"; // 👈 Added modal
+import toast from "react-hot-toast";
+import ConfirmModal from "./ConfirmModal";
 
 const Navbar = () => {
   const dispatch = useDispatch();
@@ -18,7 +18,13 @@ const Navbar = () => {
   );
 
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); // 👈 Added state
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -38,13 +44,14 @@ const Navbar = () => {
     if (html.classList.contains("dark")) {
       html.classList.remove("dark");
       localStorage.setItem("theme", "light");
+      setIsDarkMode(false);
     } else {
       html.classList.add("dark");
       localStorage.setItem("theme", "dark");
+      setIsDarkMode(true);
     }
   };
 
-  // 👈 Updated Logout Handler
   const handleConfirmLogout = () => {
     setIsLogoutModalOpen(false);
     dispatch(logout());
@@ -52,11 +59,13 @@ const Navbar = () => {
     navigate("/login");
   };
 
-  const isMen =
-    selectDepartments?.includes("Men") || selectDepartments?.includes("MEN");
-  const isWomen =
+  const isMen = Boolean(
+    selectDepartments?.includes("Men") || selectDepartments?.includes("MEN"),
+  );
+  const isWomen = Boolean(
     selectDepartments?.includes("Women") ||
-    selectDepartments?.includes("WOMEN");
+    selectDepartments?.includes("WOMEN"),
+  );
 
   const handleDepartmentToggle = (dept: string) => {
     const isActive =
@@ -76,108 +85,226 @@ const Navbar = () => {
     const newSearchString = currentParams.toString();
     const finalUrl = newSearchString ? `?${newSearchString}` : "";
     navigate(`${location.pathname}${finalUrl}`);
+    setIsMobileMenuOpen(false);
   };
 
-  const navLinkBaseStyles =
+  const navLinkBase =
     "font-sans text-[10px] tracking-widest uppercase transition-colors duration-300";
-  const navLinkInactiveStyles =
+  const navLinkInactive =
     "text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark";
+
+  const deptButtonStyle = (isActive: boolean) =>
+    `font-sans text-[11px] tracking-widest uppercase pb-1 border-b transition-all duration-300 ease-smooth ${
+      isActive
+        ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+        : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
+    }`;
 
   return (
     <>
-      <nav className="sticky top-0 z-[100] flex justify-between items-center px-6 md:px-12 py-4 bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500 w-full">
-        {/* LEFT SIDE: Department Toggle */}
-        <div className="flex gap-6">
-          <button
-            onClick={() => handleDepartmentToggle("Men")}
-            className={`font-sans text-[11px] tracking-widest uppercase pb-1 border-b transition-all duration-300 ease-smooth ${
-              isMen
-                ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
-                : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
-            }`}
+      <nav className="sticky top-0 z-[100] bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500 w-full">
+        {/* ── Main bar ── */}
+        <div className="flex justify-between items-center px-6 md:px-12 py-4 relative">
+          {/* LEFT — desktop: dept toggles | mobile: hamburger */}
+          <div className="flex items-center">
+            {/* Desktop dept toggles */}
+            <div className="hidden md:flex gap-6">
+              <button
+                onClick={() => handleDepartmentToggle("Men")}
+                className={deptButtonStyle(isMen)}
+              >
+                Men
+              </button>
+              <button
+                onClick={() => handleDepartmentToggle("Women")}
+                className={deptButtonStyle(isWomen)}
+              >
+                Women
+              </button>
+            </div>
+
+            {/* Mobile hamburger → animated X */}
+            <button
+              onClick={() => setIsMobileMenuOpen((o) => !o)}
+              className="md:hidden flex flex-col justify-center gap-[5px] w-6 h-6"
+              aria-label="Toggle menu"
+              aria-expanded={isMobileMenuOpen}
+            >
+              <span
+                className={`block h-px bg-textPrimary dark:bg-textPrimary-dark origin-center transition-transform duration-300 ease-elegant ${
+                  isMobileMenuOpen ? "rotate-45 translate-y-[3px]" : ""
+                }`}
+              />
+              <span
+                className={`block h-px bg-textPrimary dark:bg-textPrimary-dark transition-opacity duration-300 ${
+                  isMobileMenuOpen ? "opacity-0" : ""
+                }`}
+              />
+              <span
+                className={`block h-px bg-textPrimary dark:bg-textPrimary-dark origin-center transition-transform duration-300 ease-elegant ${
+                  isMobileMenuOpen ? "-rotate-45 -translate-y-[9px]" : ""
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* CENTER — Logo (always centered) */}
+          <Link
+            to="/"
+            className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"
           >
-            Men
-          </button>
-          <button
-            onClick={() => handleDepartmentToggle("Women")}
-            className={`font-sans text-[11px] tracking-widest uppercase pb-1 border-b transition-all duration-300 ease-smooth ${
-              isWomen
-                ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
-                : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
-            }`}
-          >
-            Women
-          </button>
+            Dope
+          </Link>
+
+          {/* RIGHT — desktop: full links | mobile: theme icon only */}
+          <div className="flex items-center gap-6">
+            {/* Desktop-only links */}
+            <div className="hidden md:flex items-center gap-6">
+              <button
+                onClick={toggleTheme}
+                className={`${navLinkBase} ${navLinkInactive}`}
+                aria-label="Toggle dark mode"
+              >
+                {isDarkMode ? "Light" : "Dark"}
+              </button>
+
+              {!userInfo ? (
+                <>
+                  <Link
+                    to="/login"
+                    className={`${navLinkBase} ${navLinkInactive}`}
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/register"
+                    className={`${navLinkBase} bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark px-4 py-2 hover:opacity-80 transition-opacity`}
+                  >
+                    Register
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => navigate("/watchlist")}
+                    className={`${navLinkBase} ${navLinkInactive}`}
+                  >
+                    Watchlist
+                  </button>
+                  <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                    Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
+                  </span>
+                  {userInfo.role === "admin" && (
+                    <Link
+                      to="/admin"
+                      className="font-sans text-[10px] tracking-widest uppercase text-accentRed hover:opacity-80 transition-opacity"
+                    >
+                      Admin
+                    </Link>
+                  )}
+                  <button
+                    onClick={() => setIsLogoutModalOpen(true)}
+                    className={`${navLinkBase} ${navLinkInactive}`}
+                  >
+                    Logout
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Mobile-only: theme toggle as a small symbol */}
+            <button
+              onClick={toggleTheme}
+              className={`md:hidden ${navLinkBase} ${navLinkInactive}`}
+              aria-label="Toggle dark mode"
+            >
+              {isDarkMode ? "○" : "●"}
+            </button>
+          </div>
         </div>
 
-        {/* CENTER: Minimalist Logo */}
-        <Link
-          to="/"
-          className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"
+        {/* ── Mobile dropdown menu ── */}
+        <div
+          className={`md:hidden overflow-hidden transition-[max-height,opacity] duration-300 ease-elegant border-t border-borderLight dark:border-borderLight-dark ${
+            isMobileMenuOpen ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
+          }`}
         >
-          Dope
-        </Link>
-
-        {/* RIGHT SIDE: Dynamic Auth & Theme Links */}
-        <div className="flex items-center gap-6">
-          <button
-            onClick={toggleTheme}
-            className={`${navLinkBaseStyles} ${navLinkInactiveStyles} flex items-center gap-1`}
-            aria-label="Toggle Dark Mode"
-          >
-            {isDarkMode ? "Light" : "Dark"}
-          </button>
-
-          {!userInfo ? (
-            <>
-              <Link
-                to="/login"
-                className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/register"
-                className={`${navLinkBaseStyles} bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark px-4 py-2 hover:bg-bgHover dark:hover:bg-bgSecondary-dark`}
-              >
-                Register
-              </Link>
-            </>
-          ) : (
-            <>
+          <div className="px-6 py-6 flex flex-col gap-6 bg-bgPrimary dark:bg-bgPrimary-dark">
+            {/* Dept toggles */}
+            <div className="flex gap-6">
               <button
-                onClick={() => navigate("/watchlist")}
-                className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
+                onClick={() => handleDepartmentToggle("Men")}
+                className={deptButtonStyle(isMen)}
               >
-                Watchlist
+                Men
               </button>
+              <button
+                onClick={() => handleDepartmentToggle("Women")}
+                className={deptButtonStyle(isWomen)}
+              >
+                Women
+              </button>
+            </div>
 
-              <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hidden md:inline-block">
-                Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
-              </span>
+            {/* Divider */}
+            <div className="h-px w-full bg-borderLight dark:bg-borderLight-dark" />
 
-              {userInfo.role === "admin" && (
+            {/* Auth section */}
+            {!userInfo ? (
+              <div className="flex flex-col gap-4">
                 <Link
-                  to="/admin"
-                  className="font-sans text-[10px] tracking-widest uppercase text-accentRed hover:opacity-80 transition-opacity"
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`${navLinkBase} ${navLinkInactive}`}
                 >
-                  Admin
+                  Sign In
                 </Link>
-              )}
-
-              {/* 👈 Trigger Modal Instead of Direct Logout */}
-              <button
-                onClick={() => setIsLogoutModalOpen(true)}
-                className={`${navLinkBaseStyles} ${navLinkInactiveStyles}`}
-              >
-                Logout
-              </button>
-            </>
-          )}
+                <Link
+                  to="/register"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`${navLinkBase} bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark px-4 py-3 text-center block`}
+                >
+                  Register
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                  Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
+                </span>
+                <button
+                  onClick={() => {
+                    navigate("/watchlist");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`${navLinkBase} ${navLinkInactive} text-left`}
+                >
+                  Watchlist
+                </button>
+                {userInfo.role === "admin" && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="font-sans text-[10px] tracking-widest uppercase text-accentRed hover:opacity-80 transition-opacity"
+                  >
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={() => {
+                    setIsLogoutModalOpen(true);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`${navLinkBase} ${navLinkInactive} text-left`}
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </nav>
 
-      {/* 🍞 LOGOUT CONFIRMATION MODAL */}
       <ConfirmModal
         isOpen={isLogoutModalOpen}
         title="Sign Out"

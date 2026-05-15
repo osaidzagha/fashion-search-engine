@@ -219,7 +219,7 @@ export const TAXONOMY: TopCategory[] = [
     items: [
       { label: "Zara", type: "brand", q: "Zara" },
       { label: "Massimo Dutti", type: "brand", q: "Massimo Dutti" },
-      { label: "Pull & Bear", type: "brand", q: "Pull & Bear" },
+      { label: "Mango", type: "brand", q: "Mango" },
     ],
   },
 ];
