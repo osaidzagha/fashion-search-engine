@@ -32,7 +32,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
-    // ✅ 2. LOG IMMEDIATELY (The Debug Backdoor)
+    // ✅ 2. LOG IMMEDIATELY - Look for this in your Render Logs!
     console.log("-----------------------------------------");
     console.log(`DEBUG OTP FOR ${email}: ${otp}`);
     console.log("-----------------------------------------");
@@ -50,15 +50,14 @@ export const registerUser = async (req: Request, res: Response) => {
       // 3. Attempt email (Non-Fatal)
       try {
         await sendVerificationEmail(user.email, otp);
-        console.log(`📧 OTP successfully passed to mailer for ${user.email}`);
+        console.log(`📧 Email delivered to queue for ${user.email}`);
       } catch (mailError) {
-        console.error("CRITICAL: User created, but SMTP failed:", mailError);
+        // We log the error but we DON'T crash, so the user reaches the OTP page
+        console.error("CRITICAL: SMTP Connection failed:", mailError);
       }
 
-      // 4. Always respond to unfreeze the frontend
       return res.status(201).json({
-        message:
-          "Registration successful. Please check your email for your OTP.",
+        message: "Registration successful. Please check your email.",
         email: user.email,
       });
     } else {
