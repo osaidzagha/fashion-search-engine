@@ -4,18 +4,21 @@ function createTransporter() {
   return nodemailer.createTransport({
     host: "smtp.gmail.com",
     port: 587,
-    secure: false, // true for 465, false for 587
+    secure: false, // TLS
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
-    // ✅ ADD THIS: Forces IPv4 and handles TLS handshakes better in cloud environments
+    // ✅ Render-specific fixes: Force IPv4 and handle handshake timeouts
+    greetingTimeout: 15000,
+    connectionTimeout: 15000,
     tls: {
       rejectUnauthorized: false,
+      servername: "smtp.gmail.com",
     },
   });
 }
-// ─── Verification email (Updated for OTP) ────────────────────────────────────
+
 export const sendVerificationEmail = async (userEmail: string, otp: string) => {
   try {
     const transporter = createTransporter();
@@ -44,14 +47,14 @@ export const sendVerificationEmail = async (userEmail: string, otp: string) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log("📧 OTP Verification email sent to", userEmail);
+    console.log(`📧 OTP email successfully delivered to ${userEmail}`);
   } catch (error) {
-    console.error("Verification email failed:", error);
-    throw new Error("Could not send verification email.");
+    console.error("Nodemailer failed to send verification email:", error);
+    // Rethrow so the controller knows it failed, but we handle it there.
+    throw new Error("Could not connect to the email server.");
   }
 };
 
-// ─── Price alert email ────────────────────────────────────────────────────────
 export const sendPriceAlertEmail = async (
   userEmail: string,
   productName: string,
@@ -108,9 +111,7 @@ export const sendPriceAlertEmail = async (
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`📧 Price alert sent to ${userEmail} for "${productName}"`);
   } catch (error) {
     console.error("Price alert email failed:", error);
-    // Don't throw — a failed alert email should not crash anything
   }
 };

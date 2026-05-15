@@ -16,6 +16,7 @@ export const registerUser = async (req: Request, res: Response) => {
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
+
   try {
     const { name, email, password } = req.body;
 
@@ -27,7 +28,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 👈 Generate a 6-digit OTP
+    // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
 
@@ -41,19 +42,34 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     if (user) {
-      // 👈 Send the OTP instead of a URL
-      await sendVerificationEmail(user.email, otp);
-      res.status(201).json({
+      // ✅ NON-FATAL EMAIL SENDING
+      // We wrap this in a separate try/catch so the user is still created
+      // and the frontend unfreezes even if the SMTP connection hangs.
+      try {
+        await sendVerificationEmail(user.email, otp);
+        console.log(`📧 OTP [${otp}] sent to ${user.email}`);
+      } catch (mailError) {
+        console.error(
+          "CRITICAL: User created but email failed to send:",
+          mailError,
+        );
+        // Note: In production, you might want to log this to a service like Sentry
+      }
+
+      // ALWAYS return a success response if the user was created in the DB
+      return res.status(201).json({
         message:
           "Registration successful. Please check your email for your OTP.",
-        email: user.email, // Send email back so frontend knows who to verify
+        email: user.email,
       });
     } else {
-      res.status(400).json({ message: "Invalid user data" });
+      return res.status(400).json({ message: "Invalid user data" });
     }
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ message: "Server error during registration." });
+    return res
+      .status(500)
+      .json({ message: "Server error during registration." });
   }
 };
 
@@ -69,7 +85,7 @@ export const loginUser = async (req: Request, res: Response) => {
     if (user && !user.isVerified) {
       return res
         .status(401)
-        .json({ message: "Please verify your email before logging in." });
+        .json({ message: "Please verify your account before logging in." });
     }
     if (user && (await bcrypt.compare(password, user.password))) {
       res.status(200).json({
@@ -90,7 +106,6 @@ export const loginUser = async (req: Request, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
   try {
-    // 👈 Now expects a POST body with email and the 6-digit OTP
     const { email, otp } = req.body;
 
     if (!email || !otp) {
@@ -122,7 +137,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
       email: user.email,
       role: user.role,
       token: accessToken,
-      message: "Email verified successfully! Welcome to DOPE.",
+      message: "Account verified successfully! Welcome to DOPE.",
     });
   } catch (error) {
     console.error("Verification error:", error);
