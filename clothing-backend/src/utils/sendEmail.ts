@@ -22,8 +22,12 @@ const createTransporter = async () => {
     );
   }
 
+  // ✅ Force port 587 + TLS + IPv4 family to bypass Render's IPv6/port 465 block
   const transporter = nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 587,
+    secure: false,
+    family: 4,
     auth: {
       type: "OAuth2",
       user: process.env.GMAIL_USER,
