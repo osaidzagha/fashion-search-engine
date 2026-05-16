@@ -93,10 +93,11 @@ export const triggerScraper = async (
     browser = await puppeteer.launch({
       headless: true,
       args: [
-        "--ignore-certificate-errors",
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--single-process",
       ],
     });
 
