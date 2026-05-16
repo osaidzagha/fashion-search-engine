@@ -11,16 +11,44 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
+// ✅ Resolves video from ALL brand field shapes:
+// Zara uses: video, videoUrl
+// Massimo uses: media[].url (type=video)
+// Mango uses: videos[]
+function resolveVideo(product: Product): string {
+  if (product.videos?.[0]) return product.videos[0];
+  if (product.video) return product.video;
+  if (product.videoUrl) return product.videoUrl;
+  if (product.media?.length) {
+    const hit = (product.media as any[]).find(
+      (m) => m.type === "video" || m.url?.includes(".mp4"),
+    );
+    if (hit?.url) return hit.url;
+  }
+  return "";
+}
+
 export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   const navigate = useNavigate();
   const [currentDeck, setCurrentDeck] = useState<Product[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  // ✅ Don't use window.innerWidth for mobile detection —
+  // use pointer/hover media query which is more reliable across Android/iOS
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   const heroIds = heroes
     .map((h) => h.id)
     .sort()
     .join(",");
+
+  useEffect(() => {
+    // Touch detection — works on Android Chrome, iOS Safari, tablets
+    const hasTouch = window.matchMedia(
+      "(hover: none) and (pointer: coarse)",
+    ).matches;
+    setIsTouchDevice(hasTouch);
+  }, []);
 
   useEffect(() => {
     if (heroes.length > 0) {
@@ -30,15 +58,9 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroIds]);
 
+  // Touch device: auto-advance with timer (video won't autoplay reliably)
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
-  // Mobile auto-advance timer
-  useEffect(() => {
-    if (!isMobile || currentDeck.length === 0) return;
+    if (!isTouchDevice || currentDeck.length === 0) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => {
         if (prev >= currentDeck.length - 1) {
@@ -49,7 +71,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
       });
     }, 4000);
     return () => clearInterval(timer);
-  }, [isMobile, currentDeck.length]);
+  }, [isTouchDevice, currentDeck.length]);
 
   const handleVideoEnd = useCallback(() => {
     setCurrentIndex((prev) => {
@@ -61,8 +83,6 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     });
   }, [currentDeck.length]);
 
-  // ✅ Use React Router navigate instead of window.location.href
-  // This prevents Vercel 404 and handles encoded IDs correctly
   const handleProductClick = (heroId: string) => {
     navigate(`/product/${encodeURIComponent(heroId)}`);
   };
@@ -74,7 +94,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
       {currentDeck.map((hero, index) => {
         const isActive = index === currentIndex;
         const heroImage = hero.images?.[0] || "";
-        const heroVideo = hero.videos?.[0] || hero.video || hero.videoUrl || "";
+        const heroVideo = resolveVideo(hero);
 
         return (
           <div
@@ -86,13 +106,15 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
                 : "opacity-0 z-0 pointer-events-none"
             }`}
           >
-            {isMobile ? (
+            {isTouchDevice ? (
+              // Touch devices: image slideshow (video autoplay blocked)
               <img
                 src={heroImage}
                 alt={hero.name}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : (
+              // Desktop: video with image poster fallback
               <HeroVideo
                 src={heroVideo}
                 poster={heroImage}
@@ -110,9 +132,17 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
               <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-10 md:pr-16">
                 {hero.name}
               </h3>
-              <span className="font-sans text-[9px] tracking-widest uppercase text-white/80 mt-1">
-                Discover →
-              </span>
+              <div className="flex items-center gap-3 mt-1">
+                <span className="font-sans text-[9px] tracking-widest uppercase text-white/80">
+                  Discover →
+                </span>
+                {!isTouchDevice && heroVideo && (
+                  <span className="font-sans text-[8px] tracking-widest uppercase text-white/40 flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-white/40" />
+                    Video
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         );
