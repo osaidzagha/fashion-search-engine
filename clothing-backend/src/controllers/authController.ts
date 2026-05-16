@@ -155,3 +155,29 @@ export const verifyEmail = async (
       .json({ message: "Server error during verification." });
   }
 };
+
+export const resendOTP = async (
+  req: Request,
+  res: Response,
+): Promise<Response> => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Email is required." });
+
+    const user = await UserModel.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found." });
+    if (user.isVerified)
+      return res.status(400).json({ message: "Account already verified." });
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationToken = otp;
+    user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+    await user.save();
+
+    await sendVerificationEmail(email, otp);
+    return res.status(200).json({ message: "New verification code sent." });
+  } catch (error) {
+    console.error("❌ [resendOTP] Error:", error);
+    return res.status(500).json({ message: "Server error." });
+  }
+};

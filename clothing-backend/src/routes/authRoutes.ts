@@ -4,6 +4,7 @@ import {
   registerUser,
   loginUser,
   verifyEmail,
+  resendOTP,
 } from "../controllers/authController";
 
 const router = express.Router();
@@ -23,8 +24,8 @@ router.post(
   [body("email").isEmail().normalizeEmail(), body("password").notEmpty()],
   loginUser,
 );
-
 // 👈 Changed to POST, no longer uses a URL parameter
 router.post("/verify", verifyEmail);
+router.post("/resend-otp", resendOTP);
 
 export default router;
