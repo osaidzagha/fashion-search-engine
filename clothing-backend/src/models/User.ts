@@ -13,7 +13,7 @@ export interface IUser extends Document {
   role: "user" | "admin";
   savedItems: string[];
   isVerified: boolean;
-  verificationToken?: string; // 👈 Now stores the 6-digit OTP
+  verificationToken?: string;
   verificationExpires?: Date;
   watchlist: IWatchlistItem[];
 }
@@ -30,8 +30,14 @@ const UserSchema: Schema = new Schema(
     },
     savedItems: [{ type: String }],
     isVerified: { type: Boolean, default: false },
-    verificationToken: { type: String }, // 👈 OTP stored here
+    verificationToken: { type: String },
+
+    // ✅ TTL index: MongoDB automatically deletes the document when
+    // verificationExpires is reached AND isVerified is still false.
+    // Verified users have verificationExpires cleared (set to undefined)
+    // so the TTL never fires on them.
     verificationExpires: { type: Date },
+
     watchlist: [
       {
         productId: { type: String, required: true },
@@ -42,6 +48,17 @@ const UserSchema: Schema = new Schema(
   },
   {
     timestamps: true,
+  },
+);
+
+// ✅ TTL Index — MongoDB checks this every 60 seconds.
+// Documents where verificationExpires has passed get auto-deleted.
+// Verified users are safe because we clear verificationExpires on verification.
+UserSchema.index(
+  { verificationExpires: 1 },
+  {
+    expireAfterSeconds: 0,
+    partialFilterExpression: { isVerified: false },
   },
 );
 
