@@ -92,8 +92,11 @@ const Register = () => {
         return;
       }
 
-      toast.success("Account created! Check your email for the code.");
-      navigate("/verify-otp", { state: { email } });
+      // ✅ FIX: Use data.email from the backend response to prevent trailing space bugs
+      toast.success(
+        data.message || "Account created! Check your email for the code.",
+      );
+      navigate("/verify-otp", { state: { email: data.email || email } });
     } catch (err) {
       console.error("Registration error:", err);
       toast.error("Something went wrong. Please try again.");

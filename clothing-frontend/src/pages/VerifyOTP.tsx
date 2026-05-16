@@ -40,6 +40,20 @@ export default function VerifyOTP() {
 
   const handleChange = (index: number, value: string) => {
     if (isNaN(Number(value))) return;
+
+    // ✅ FIX: Handle mobile keyboard OTP auto-suggestion
+    if (value.length > 1) {
+      const pastedData = value.slice(0, 6).split("");
+      const newOtp = [...otp];
+      pastedData.forEach((char, i) => {
+        if (i < 6) newOtp[i] = char;
+      });
+      setOtp(newOtp);
+      // Move focus to the end or next empty box
+      inputRefs.current[Math.min(pastedData.length, 5)]?.focus();
+      return;
+    }
+
     const newOtp = [...otp];
     newOtp[index] = value.substring(value.length - 1);
     setOtp(newOtp);
