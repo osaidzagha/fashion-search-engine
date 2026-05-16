@@ -7,12 +7,6 @@ import { setSearchTerm } from "../store/productSlice";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SearchIcon extracted: was copy-pasted identically inside the input row AND
-// inside every single suggestion row. Now defined once, used everywhere.
-// aria-hidden="true" because it's decorative — the input/listitem text carries
-// the semantic meaning.
-// ─────────────────────────────────────────────────────────────────────────────
 const SearchIcon = ({ className = "" }: { className?: string }) => (
   <svg
     width="14"
@@ -56,8 +50,6 @@ export const SearchBar = ({
   const { selectDepartments } = useSelector(
     (state: RootState) => state.products,
   );
-
-  // ── All logic blocks below are untouched ─────────────────────────────────
 
   useEffect(() => {
     setInputValue(initialValue);
@@ -127,21 +119,16 @@ export const SearchBar = ({
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
-
   const isHero = variant === "hero";
 
   return (
     <div
       className={`
-        w-full relative z-[100] mx-auto
+        w-full relative z-[9999] mx-auto
         ${isHero ? "max-w-[680px]" : "max-w-[560px]"}
       `}
     >
-      {/* ── Input Row ── */}
       <div className="relative flex items-center">
-        {/* Icon — color reacts to JS focus state, not CSS :focus,
-            because the icon sits outside the input element */}
         <SearchIcon
           className={`
             absolute left-0 flex-shrink-0
@@ -193,7 +180,6 @@ export const SearchBar = ({
         />
       </div>
 
-      {/* ── Suggestions Dropdown ── */}
       {showDropdown && suggestions.length > 0 && (
         <ul
           role="listbox"
@@ -204,7 +190,7 @@ export const SearchBar = ({
             bg-bgPrimary dark:bg-bgPrimary-dark
             border border-borderLight dark:border-borderLight-dark
             shadow-premium dark:shadow-premium-dark
-            py-2 z-[999]
+            py-2 z-[99999]
             transition-colors duration-300 ease-smooth
           "
         >
