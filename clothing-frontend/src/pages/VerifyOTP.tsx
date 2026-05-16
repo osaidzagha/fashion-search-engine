@@ -13,6 +13,7 @@ export default function VerifyOTP() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const submitLock = useRef(false); // ✅ Prevent double submission
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -24,10 +25,13 @@ export default function VerifyOTP() {
     if (!email) {
       toast.error("No email found. Please register again.");
       navigate("/register");
+    } else {
+      // Auto-focus first input
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
     }
   }, [email, navigate]);
 
-  // Cooldown timer for resend button
+  // Cooldown countdown
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
@@ -39,9 +43,7 @@ export default function VerifyOTP() {
     const newOtp = [...otp];
     newOtp[index] = value.substring(value.length - 1);
     setOtp(newOtp);
-    if (value && index < 5 && inputRefs.current[index + 1]) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    if (value && index < 5) inputRefs.current[index + 1]?.focus();
   };
 
   const handleKeyDown = (
@@ -65,8 +67,7 @@ export default function VerifyOTP() {
       if (index < 6) newOtp[index] = char;
     });
     setOtp(newOtp);
-    const focusIndex = Math.min(pastedData.length, 5);
-    inputRefs.current[focusIndex]?.focus();
+    inputRefs.current[Math.min(pastedData.length, 5)]?.focus();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,16 +77,34 @@ export default function VerifyOTP() {
       toast.error("Please enter all 6 digits");
       return;
     }
+
+    // ✅ Prevent double submission from slow network / double tap
+    if (submitLock.current) return;
+    submitLock.current = true;
     setLoading(true);
+
     try {
       const response = await fetch(`${API_BASE}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, otp: otpCode }),
       });
+
       const data = await response.json();
-      if (!response.ok)
+
+      if (!response.ok) {
+        // ✅ If account expired (TTL deleted it), send them back to register
+        if (
+          response.status === 400 &&
+          data.message?.includes("register again")
+        ) {
+          toast.error("Your session expired. Please register again.");
+          navigate("/register");
+          return;
+        }
         throw new Error(data.message || "Invalid verification code");
+      }
+
       const { token, message, ...userData } = data;
       dispatch(setCredentials({ user: userData, token }));
       toast.success("Account verified. Welcome to DOPE.");
@@ -96,26 +115,38 @@ export default function VerifyOTP() {
       inputRefs.current[0]?.focus();
     } finally {
       setLoading(false);
+      submitLock.current = false;
     }
   };
 
-  // ✅ Real resend — calls the register endpoint again with just the email
   const handleResend = async () => {
     if (resendCooldown > 0 || resendLoading) return;
     setResendLoading(true);
+
     try {
       const response = await fetch(`${API_BASE}/api/auth/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
+
       const data = await response.json();
-      if (!response.ok)
+
+      // ✅ Account was TTL-deleted — send back to register
+      if (response.status === 404) {
+        toast.error("Your session expired. Please register again.");
+        navigate("/register");
+        return;
+      }
+
+      if (!response.ok) {
         throw new Error(data.message || "Failed to resend code");
-      toast.success("New code sent to your email");
+      }
+
+      toast.success("New code sent to your email.");
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
-      setResendCooldown(60); // 60 second cooldown
+      setResendCooldown(60);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -141,9 +172,12 @@ export default function VerifyOTP() {
                 {email}
               </span>
             </p>
+            <p className="font-sans text-[10px] text-textMuted dark:text-textMuted-dark mt-2">
+              Code expires in 30 minutes
+            </p>
           </div>
 
-          {/* Form */}
+          {/* OTP inputs */}
           <form
             onSubmit={handleSubmit}
             className="flex flex-col gap-6 sm:gap-8"
@@ -192,6 +226,17 @@ export default function VerifyOTP() {
                 : resendCooldown > 0
                   ? `Resend in ${resendCooldown}s`
                   : "Resend"}
+            </button>
+          </p>
+
+          {/* Back to register */}
+          <p className="mt-4 font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark text-center">
+            Wrong email?{" "}
+            <button
+              onClick={() => navigate("/register")}
+              className="bg-transparent border-none text-textPrimary dark:text-textPrimary-dark underline underline-offset-4 decoration-borderLight hover:decoration-textPrimary cursor-pointer transition-colors duration-200"
+            >
+              Start over
             </button>
           </p>
         </div>

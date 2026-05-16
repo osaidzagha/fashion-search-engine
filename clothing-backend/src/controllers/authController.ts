@@ -14,7 +14,13 @@ const generateToken = (id: string, role: string): string => {
 
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
-const otpExpiry = () => new Date(Date.now() + 15 * 60 * 1000);
+
+// ✅ 30 minutes — gives users enough time to check email and verify
+const OTP_EXPIRY_MS = 30 * 60 * 1000;
+const otpExpiry = () => new Date(Date.now() + OTP_EXPIRY_MS);
+
+// ✅ Resend cooldown — prevent spamming resend (60 seconds)
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 export const registerUser = async (
   req: Request,
@@ -30,7 +36,7 @@ export const registerUser = async (
 
     const existingUser = await UserModel.findOne({ email });
 
-    // ── Already registered but NOT verified → resend a fresh OTP ──
+    // ── Already registered but NOT verified → resend fresh OTP ──
     if (existingUser && !existingUser.isVerified) {
       const otp = generateOTP();
       existingUser.verificationToken = otp;
@@ -38,7 +44,7 @@ export const registerUser = async (
       await existingUser.save();
 
       console.log(
-        `♻️  [registerUser] Unverified user re-registered: ${email} | OTP: ${otp}`,
+        `♻️  [registerUser] Unverified re-register: ${email} | OTP: ${otp}`,
       );
 
       try {
@@ -47,7 +53,6 @@ export const registerUser = async (
         console.error("⚠️  Email failed for re-register:", mailError);
       }
 
-      // Return same shape as normal register so frontend navigates to OTP page
       return res.status(200).json({
         message: "A new verification code has been sent to your email.",
         email,
@@ -149,51 +154,53 @@ export const verifyEmail = async (
       return res.status(400).json({ message: "Email and OTP are required." });
     }
 
-    // First check if user exists at all
     const userExists = await UserModel.findOne({ email });
     if (!userExists) {
-      return res
-        .status(400)
-        .json({ message: "No account found for this email." });
-    }
-
-    // Check if OTP is expired specifically
-    const expiredUser = await UserModel.findOne({
-      email,
-      verificationToken: otp,
-      verificationExpires: { $lte: Date.now() },
-    });
-    if (expiredUser) {
       return res.status(400).json({
-        message: "Verification code has expired. Please request a new one.",
+        message: "No account found. Please register again.",
       });
     }
 
-    // Check OTP is valid and not expired
-    const user = await UserModel.findOne({
-      email,
-      verificationToken: otp,
-      verificationExpires: { $gt: Date.now() },
-    });
-
-    if (!user) {
+    if (userExists.isVerified) {
       return res
         .status(400)
-        .json({ message: "Invalid verification code. Please try again." });
+        .json({ message: "Account already verified. Please sign in." });
     }
 
-    user.isVerified = true;
-    user.verificationToken = undefined;
-    user.verificationExpires = undefined;
+    // Check if OTP expired specifically
+    if (
+      userExists.verificationToken === otp &&
+      userExists.verificationExpires &&
+      userExists.verificationExpires < new Date()
+    ) {
+      return res.status(400).json({
+        message: "Code expired. Please click Resend to get a new one.",
+      });
+    }
 
-    const accessToken = generateToken(user.id, user.role);
-    await user.save();
+    // Validate OTP
+    if (
+      userExists.verificationToken !== otp ||
+      !userExists.verificationExpires ||
+      userExists.verificationExpires < new Date()
+    ) {
+      return res.status(400).json({
+        message: "Invalid code. Please check your email or click Resend.",
+      });
+    }
+
+    userExists.isVerified = true;
+    userExists.verificationToken = undefined;
+    userExists.verificationExpires = undefined;
+
+    const accessToken = generateToken(userExists.id, userExists.role);
+    await userExists.save();
 
     return res.status(200).json({
-      _id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
+      _id: userExists.id,
+      name: userExists.name,
+      email: userExists.email,
+      role: userExists.role,
       token: accessToken,
       message: "Account verified successfully! Welcome to DOPE.",
     });
@@ -214,9 +221,32 @@ export const resendOTP = async (
     if (!email) return res.status(400).json({ message: "Email is required." });
 
     const user = await UserModel.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found." });
-    if (user.isVerified)
-      return res.status(400).json({ message: "Account already verified." });
+
+    // ✅ If user not found (TTL deleted them), re-create is needed
+    if (!user) {
+      return res.status(404).json({
+        message:
+          "Account not found. Please register again — your session may have expired.",
+      });
+    }
+
+    if (user.isVerified) {
+      return res
+        .status(400)
+        .json({ message: "Account already verified. Please sign in." });
+    }
+
+    // ✅ Cooldown check — prevent resend spam
+    if (user.verificationExpires) {
+      const timeLeft = user.verificationExpires.getTime() - Date.now();
+      const remainingExpiry = OTP_EXPIRY_MS - RESEND_COOLDOWN_MS;
+      if (timeLeft > remainingExpiry) {
+        const secondsLeft = Math.ceil((timeLeft - remainingExpiry) / 1000);
+        return res.status(429).json({
+          message: `Please wait ${secondsLeft} seconds before requesting a new code.`,
+        });
+      }
+    }
 
     const otp = generateOTP();
     user.verificationToken = otp;

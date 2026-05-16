@@ -23,21 +23,11 @@ const UserSchema: Schema = new Schema(
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
     password: { type: String, required: true },
-    role: {
-      type: String,
-      enum: ["user", "admin"],
-      default: "user",
-    },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
     savedItems: [{ type: String }],
     isVerified: { type: Boolean, default: false },
     verificationToken: { type: String },
-
-    // ✅ TTL index: MongoDB automatically deletes the document when
-    // verificationExpires is reached AND isVerified is still false.
-    // Verified users have verificationExpires cleared (set to undefined)
-    // so the TTL never fires on them.
     verificationExpires: { type: Date },
-
     watchlist: [
       {
         productId: { type: String, required: true },
@@ -46,14 +36,11 @@ const UserSchema: Schema = new Schema(
       },
     ],
   },
-  {
-    timestamps: true,
-  },
+  { timestamps: true },
 );
 
-// ✅ TTL Index — MongoDB checks this every 60 seconds.
-// Documents where verificationExpires has passed get auto-deleted.
-// Verified users are safe because we clear verificationExpires on verification.
+// ✅ TTL: auto-delete unverified users 30 minutes after verificationExpires
+// Verified users are safe — verificationExpires is cleared on verification
 UserSchema.index(
   { verificationExpires: 1 },
   {
