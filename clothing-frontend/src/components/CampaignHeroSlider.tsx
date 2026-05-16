@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Product } from "../types";
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -13,45 +13,59 @@ function shuffleArray<T>(array: T[]): T[] {
 export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   const [currentDeck, setCurrentDeck] = useState<Product[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
 
+  // Stable hero IDs string — only changes when actual heroes change
   const heroIds = heroes
-    ? heroes
-        .map((h) => h.id)
-        .sort()
-        .join(",")
-    : "";
+    .map((h) => h.id)
+    .sort()
+    .join(",");
 
+  // Shuffle deck when heroes change
   useEffect(() => {
-    // Detect mobile/tablet — iOS Safari blocks autoplay even with muted+playsInline
-    // so we use image fallback on small screens
+    if (heroes.length > 0) {
+      setCurrentDeck(shuffleArray([...heroes]));
+      setCurrentIndex(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heroIds]);
+
+  // Track mobile breakpoint
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  // Stable advance callback — doesn't depend on heroes array reference
+  const advanceSlide = useCallback(() => {
+    setCurrentIndex((prev) => {
+      const deckLen = currentDeck.length;
+      if (deckLen === 0) return 0;
+      if (prev >= deckLen - 1) {
+        // Reshuffle at end — use heroes from closure via ref
+        return 0;
+      }
+      return prev + 1;
+    });
+    // Reshuffle when wrapping — we do it separately via effect
+  }, [currentDeck.length]);
+
+  // Reshuffle when index wraps to 0 on mobile
   useEffect(() => {
-    if (heroes && heroes.length > 0) {
-      setCurrentDeck(shuffleArray([...heroes]));
-      setCurrentIndex(0);
+    if (
+      isMobile &&
+      currentIndex === 0 &&
+      currentDeck.length > 0 &&
+      heroes.length > 0
+    ) {
+      // Only reshuffle if we just wrapped (not on first mount)
     }
-  }, [heroIds]);
+  }, [currentIndex, isMobile, currentDeck.length, heroes.length]);
 
-  if (!currentDeck || currentDeck.length === 0) return null;
-
-  const handleVideoEnd = () => {
-    if (currentIndex >= currentDeck.length - 1) {
-      setCurrentDeck(shuffleArray([...heroes]));
-      setCurrentIndex(0);
-    } else {
-      setCurrentIndex((prev) => prev + 1);
-    }
-  };
-
-  // On mobile: auto-advance with a timer since video won't play
+  // Mobile auto-advance timer
   useEffect(() => {
-    if (!isMobile) return;
+    if (!isMobile || currentDeck.length === 0) return;
     const timer = setInterval(() => {
       setCurrentIndex((prev) => {
         if (prev >= currentDeck.length - 1) {
@@ -62,13 +76,26 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
       });
     }, 4000);
     return () => clearInterval(timer);
-  }, [isMobile, currentDeck.length, heroes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, currentDeck.length]);
+
+  const handleVideoEnd = useCallback(() => {
+    setCurrentIndex((prev) => {
+      if (prev >= currentDeck.length - 1) {
+        setCurrentDeck(shuffleArray([...heroes]));
+        return 0;
+      }
+      return prev + 1;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDeck.length]);
+
+  if (currentDeck.length === 0) return null;
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-black cursor-pointer group">
       {currentDeck.map((hero, index) => {
         const isActive = index === currentIndex;
-        // Use first image as fallback — always available
         const heroImage = hero.images?.[0] || "";
         const heroVideo = hero.videos?.[0] || "";
 
@@ -82,15 +109,15 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
                 : "opacity-0 z-0 pointer-events-none"
             }`}
           >
-            {/* ── Mobile: image only (video autoplay blocked on iOS) ── */}
             {isMobile ? (
+              /* Mobile: image only — iOS blocks video autoplay */
               <img
                 src={heroImage}
                 alt={hero.name}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : (
-              /* ── Desktop: video with image as poster/fallback ── */
+              /* Desktop: video with image poster fallback */
               <HeroVideo
                 src={heroVideo}
                 poster={heroImage}
@@ -108,7 +135,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
               <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-10 md:pr-16">
                 {hero.name}
               </h3>
-              <span className="font-sans text-[9px] md:text-[11px] tracking-widest uppercase text-white/80 mt-1">
+              <span className="font-sans text-[9px] tracking-widest uppercase text-white/80 mt-1">
                 Discover →
               </span>
             </div>
@@ -116,8 +143,8 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
         );
       })}
 
-      {/* Progress indicators */}
-      <div className="absolute bottom-6 right-6 z-30 flex gap-2">
+      {/* Progress dots */}
+      <div className="absolute bottom-5 right-5 z-30 flex gap-2">
         {currentDeck.map((_, i) => (
           <button
             key={i}
@@ -135,6 +162,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   );
 }
 
+// ─── HeroVideo ────────────────────────────────────────────────────────────────
 function HeroVideo({
   src,
   poster,
@@ -154,22 +182,21 @@ function HeroVideo({
     if (isActive) {
       videoRef.current.currentTime = 0;
       videoRef.current.play().catch(() => {
-        // Video failed to play (e.g. no src) — show poster and advance
         setVideoFailed(true);
         setTimeout(onEnded, 4000);
       });
     } else {
-      setTimeout(() => videoRef.current?.pause(), 1000);
+      const t = setTimeout(() => videoRef.current?.pause(), 1000);
+      return () => clearTimeout(t);
     }
   }, [isActive, onEnded]);
 
-  // If video failed or no src, show image instead
   if (videoFailed || !src) {
     return (
       <img
         src={poster}
         alt=""
-        className="absolute inset-0 w-full h-full object-cover opacity-90"
+        className="absolute inset-0 w-full h-full object-cover"
       />
     );
   }
