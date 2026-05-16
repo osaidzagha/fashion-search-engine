@@ -12,6 +12,10 @@ const generateToken = (id: string, role: string): string => {
   });
 };
 
+const generateOTP = () =>
+  Math.floor(100000 + Math.random() * 900000).toString();
+const otpExpiry = () => new Date(Date.now() + 15 * 60 * 1000);
+
 export const registerUser = async (
   req: Request,
   res: Response,
@@ -24,18 +28,42 @@ export const registerUser = async (
   try {
     const { name, email, password } = req.body;
 
-    const userExists = await UserModel.findOne({ email });
-    if (userExists) {
+    const existingUser = await UserModel.findOne({ email });
+
+    // ── Already registered but NOT verified → resend a fresh OTP ──
+    if (existingUser && !existingUser.isVerified) {
+      const otp = generateOTP();
+      existingUser.verificationToken = otp;
+      existingUser.verificationExpires = otpExpiry();
+      await existingUser.save();
+
+      console.log(
+        `♻️  [registerUser] Unverified user re-registered: ${email} | OTP: ${otp}`,
+      );
+
+      try {
+        await sendVerificationEmail(email, otp);
+      } catch (mailError) {
+        console.error("⚠️  Email failed for re-register:", mailError);
+      }
+
+      // Return same shape as normal register so frontend navigates to OTP page
+      return res.status(200).json({
+        message: "A new verification code has been sent to your email.",
+        email,
+      });
+    }
+
+    // ── Already registered AND verified → reject ──
+    if (existingUser && existingUser.isVerified) {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    // ── New user ──
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
+    const otp = generateOTP();
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const tokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
-
-    // ✅ Always log OTP so you can verify manually if email fails
     console.log("-----------------------------------------");
     console.log(`DEBUG OTP FOR ${email}: ${otp}`);
     console.log("-----------------------------------------");
@@ -46,7 +74,7 @@ export const registerUser = async (
       password: hashedPassword,
       isVerified: false,
       verificationToken: otp,
-      verificationExpires: tokenExpiry,
+      verificationExpires: otpExpiry(),
     });
 
     if (!user) {
@@ -84,13 +112,13 @@ export const loginUser = async (
 
   try {
     const { email, password } = req.body;
-
     const user = await UserModel.findOne({ email });
 
     if (user && !user.isVerified) {
-      return res
-        .status(401)
-        .json({ message: "Please verify your account before logging in." });
+      return res.status(401).json({
+        message:
+          "Please verify your account before logging in. Check your email for the code.",
+      });
     }
 
     if (user && (await bcrypt.compare(password, user.password))) {
@@ -121,6 +149,27 @@ export const verifyEmail = async (
       return res.status(400).json({ message: "Email and OTP are required." });
     }
 
+    // First check if user exists at all
+    const userExists = await UserModel.findOne({ email });
+    if (!userExists) {
+      return res
+        .status(400)
+        .json({ message: "No account found for this email." });
+    }
+
+    // Check if OTP is expired specifically
+    const expiredUser = await UserModel.findOne({
+      email,
+      verificationToken: otp,
+      verificationExpires: { $lte: Date.now() },
+    });
+    if (expiredUser) {
+      return res.status(400).json({
+        message: "Verification code has expired. Please request a new one.",
+      });
+    }
+
+    // Check OTP is valid and not expired
     const user = await UserModel.findOne({
       email,
       verificationToken: otp,
@@ -130,7 +179,7 @@ export const verifyEmail = async (
     if (!user) {
       return res
         .status(400)
-        .json({ message: "Invalid or expired verification code." });
+        .json({ message: "Invalid verification code. Please try again." });
     }
 
     user.isVerified = true;
@@ -169,12 +218,19 @@ export const resendOTP = async (
     if (user.isVerified)
       return res.status(400).json({ message: "Account already verified." });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = generateOTP();
     user.verificationToken = otp;
-    user.verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+    user.verificationExpires = otpExpiry();
     await user.save();
 
-    await sendVerificationEmail(email, otp);
+    console.log(`🔁 [resendOTP] New OTP for ${email}: ${otp}`);
+
+    try {
+      await sendVerificationEmail(email, otp);
+    } catch (mailError) {
+      console.error("⚠️  [resendOTP] Email failed:", mailError);
+    }
+
     return res.status(200).json({ message: "New verification code sent." });
   } catch (error) {
     console.error("❌ [resendOTP] Error:", error);
