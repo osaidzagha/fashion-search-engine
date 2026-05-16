@@ -66,7 +66,7 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Activewear",
         type: "search",
-        q: "activewear legging sportsbra tracksuit", // Removed 'active sport gym training'
+        q: "activewear sport",
       },
       {
         label: "Tops",

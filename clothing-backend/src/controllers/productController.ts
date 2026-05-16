@@ -31,6 +31,11 @@ const synonymMap: Record<string, string> = {
   // ── ONE-PIECES ──
   dress: "dress gown",
 
+  // ── ACTIVEWEAR (NEW) ──
+  activewear:
+    "sport sports training running gym fitness ski legging tracksuit yoga",
+  sport: "activewear training running gym fitness ski active",
+
   // ── FOOTWEAR & ACCESSORIES ──
   shoes: "sneaker boot trainer loafer shoe sandal",
   bag: "bag purse tote clutch crossbody backpack",
@@ -157,16 +162,37 @@ export const getProducts = async (req: Request, res: Response) => {
       const cleanSearch = rawSearch.replace(/[-&|©]/g, " ");
 
       if (isCategoryMode) {
-        // ── CATEGORY NAV: precise regex against name + category only ──────────
-        // Split the taxonomy q string into individual terms and match with word boundaries
-        const terms = cleanSearch
+        // ── CATEGORY NAV: Inject Synonyms into the Regex ──────────
+        const rawTerms = cleanSearch
           .toLowerCase()
           .split(/\s+/)
-          .filter((w) => w.length > 1)
-          .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")); // escape regex chars
+          .filter((w) => w.length > 1);
 
-        if (terms.length > 0) {
-          const regexPattern = `\\b(${terms.join("|")})\\b`;
+        let expandedTerms: string[] = [];
+
+        rawTerms.forEach((word) => {
+          // Handle basic plurals
+          const isPlural =
+            word.endsWith("s") &&
+            !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+          const singular = isPlural ? word.slice(0, -1) : word;
+
+          expandedTerms.push(word);
+
+          // Inject mapped synonyms for the category
+          const mappedSynonyms = synonymMap[word] || synonymMap[singular];
+          if (mappedSynonyms) {
+            expandedTerms.push(...mappedSynonyms.split(/\s+/));
+          }
+        });
+
+        // Remove duplicates and escape for Regex
+        const uniqueTerms = Array.from(new Set(expandedTerms)).map((w) =>
+          w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        );
+
+        if (uniqueTerms.length > 0) {
+          const regexPattern = `\\b(${uniqueTerms.join("|")})\\b`;
           const regex = new RegExp(regexPattern, "i");
 
           filter.$or = [{ category: regex }, { name: regex }];
