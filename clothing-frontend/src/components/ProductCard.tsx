@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useCallback } from "react";
 import { Product } from "../types";
 import { Link } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
@@ -28,7 +28,7 @@ function resolveVideoSrc(p: any): string | undefined {
 export const ProductCard = ({ product }: ProductCardProps) => {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
-  const [hovered, setHovered] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const { compareList, addToCompare, removeFromCompare, isInCompare } =
@@ -46,24 +46,43 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
-  const handleMouseEnter = () => {
-    setHovered(true);
+  // ── Desktop hover ──
+  const handleMouseEnter = useCallback(() => {
+    setIsPlaying(true);
     if (videoRef.current) videoRef.current.play().catch(() => {});
-  };
+  }, []);
 
-  const handleMouseLeave = () => {
-    setHovered(false);
+  const handleMouseLeave = useCallback(() => {
+    setIsPlaying(false);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
-  };
+  }, []);
+
+  // ── Mobile: tap the video badge to play/pause ──
+  const handleVideoToggle = useCallback(
+    (e: React.TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!videoRef.current) return;
+      if (isPlaying) {
+        videoRef.current.pause();
+        videoRef.current.currentTime = 0;
+        setIsPlaying(false);
+      } else {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    },
+    [isPlaying],
+  );
 
   const showHoverImage = hasHoverImage && !videoSrc;
 
   return (
     <Link
-      to={`/product/${product.id}`}
+      to={`/product/${encodeURIComponent(product.id)}`}
       className="group block no-underline cursor-pointer"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -82,7 +101,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               isImageLoaded
                 ? "opacity-100 scale-100 blur-0"
                 : "opacity-0 scale-[1.06] blur-md",
-              (videoSrc && videoReady && hovered) || (showHoverImage && hovered)
+              (videoSrc && videoReady && isPlaying) ||
+              (showHoverImage && isPlaying)
                 ? "opacity-0"
                 : "",
             ]
@@ -98,11 +118,11 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             muted
             loop
             playsInline
-            preload="metadata"
+            preload="none" // ← don't preload on mobile — saves bandwidth
             onLoadedData={() => setVideoReady(true)}
             className={[
               "absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-elegant",
-              videoReady && hovered ? "opacity-100" : "opacity-0",
+              videoReady && isPlaying ? "opacity-100" : "opacity-0",
             ].join(" ")}
           />
         )}
@@ -153,11 +173,38 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
 
-        {/* Hover overlay — desktop only meaningful, fine on mobile */}
-        <div className="absolute bottom-0 left-0 right-0 pt-6 pb-3 px-3 bg-gradient-to-t from-black/30 to-transparent flex items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        {/* ── Mobile video play button — tap to play ── */}
+        {videoSrc && (
+          <button
+            onTouchStart={handleVideoToggle}
+            onClick={(e) => e.preventDefault()}
+            className="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 px-2 py-1 bg-black/60 backdrop-blur-sm font-sans text-[8px] tracking-widest uppercase text-white md:hidden"
+          >
+            {isPlaying ? (
+              <>
+                <span className="w-1.5 h-1.5 rounded-full bg-accentRed animate-pulse" />
+                Playing
+              </>
+            ) : (
+              <>
+                <span>▶</span>
+                Video
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Desktop hover overlay */}
+        <div className="hidden md:flex absolute bottom-0 left-0 right-0 pt-6 pb-3 px-3 bg-gradient-to-t from-black/30 to-transparent items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
           <span className="font-sans text-[8px] tracking-widest uppercase text-white/90">
             View →
           </span>
+          {videoSrc && isPlaying && (
+            <span className="font-sans text-[8px] tracking-widest uppercase text-white/70 flex items-center gap-1">
+              <span className="w-1 h-1 rounded-full bg-accentRed animate-pulse" />
+              Video
+            </span>
+          )}
         </div>
       </div>
 
