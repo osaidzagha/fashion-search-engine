@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Product } from "../types";
 
-// ─── The Shuffle Algorithm (Fisher-Yates) ─────────────────────────────────────
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -14,6 +13,7 @@ function shuffleArray<T>(array: T[]): T[] {
 export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   const [currentDeck, setCurrentDeck] = useState<Product[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
 
   const heroIds = heroes
     ? heroes
@@ -21,6 +21,15 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
         .sort()
         .join(",")
     : "";
+
+  useEffect(() => {
+    // Detect mobile/tablet — iOS Safari blocks autoplay even with muted+playsInline
+    // so we use image fallback on small screens
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     if (heroes && heroes.length > 0) {
@@ -40,10 +49,28 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     }
   };
 
+  // On mobile: auto-advance with a timer since video won't play
+  useEffect(() => {
+    if (!isMobile) return;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => {
+        if (prev >= currentDeck.length - 1) {
+          setCurrentDeck(shuffleArray([...heroes]));
+          return 0;
+        }
+        return prev + 1;
+      });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [isMobile, currentDeck.length, heroes]);
+
   return (
     <div className="relative w-full h-full overflow-hidden bg-black cursor-pointer group">
       {currentDeck.map((hero, index) => {
         const isActive = index === currentIndex;
+        // Use first image as fallback — always available
+        const heroImage = hero.images?.[0] || "";
+        const heroVideo = hero.videos?.[0] || "";
 
         return (
           <div
@@ -55,39 +82,51 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
                 : "opacity-0 z-0 pointer-events-none"
             }`}
           >
-            <HeroVideo
-              src={hero.videos?.[0] || ""}
-              isActive={isActive}
-              onEnded={handleVideoEnd}
-            />
+            {/* ── Mobile: image only (video autoplay blocked on iOS) ── */}
+            {isMobile ? (
+              <img
+                src={heroImage}
+                alt={hero.name}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              /* ── Desktop: video with image as poster/fallback ── */
+              <HeroVideo
+                src={heroVideo}
+                poster={heroImage}
+                isActive={isActive}
+                onEnded={handleVideoEnd}
+              />
+            )}
 
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
 
-            {/* ✅ FIX: Responsive padding and responsive typography scale */}
-            <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 flex flex-col gap-2 md:gap-3 transform translate-y-2 md:translate-y-4 transition-transform duration-700 md:group-hover:translate-y-0 z-20">
-              <span className="font-sans text-[8px] md:text-[10px] tracking-[0.3em] uppercase text-white/70 drop-shadow-md">
+            <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 flex flex-col gap-2 z-20">
+              <span className="font-sans text-[8px] md:text-[10px] tracking-[0.3em] uppercase text-white/70">
                 {hero.brand}
               </span>
-              <h3 className="font-heading font-light text-3xl md:text-5xl text-white leading-tight drop-shadow-xl pr-12">
+              <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-10 md:pr-16">
                 {hero.name}
               </h3>
-              <span className="font-sans text-[9px] md:text-[11px] tracking-widest uppercase text-white opacity-80 md:opacity-0 transition-opacity duration-700 md:group-hover:opacity-100 mt-1 md:mt-2 drop-shadow-md">
-                Discover Campaign →
+              <span className="font-sans text-[9px] md:text-[11px] tracking-widest uppercase text-white/80 mt-1">
+                Discover →
               </span>
             </div>
           </div>
         );
       })}
 
-      {/* Progress Line Indicators */}
-      <div className="absolute bottom-6 right-6 md:bottom-8 md:right-12 z-30 flex gap-2">
+      {/* Progress indicators */}
+      <div className="absolute bottom-6 right-6 z-30 flex gap-2">
         {currentDeck.map((_, i) => (
-          <div
+          <button
             key={i}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCurrentIndex(i);
+            }}
             className={`h-[2px] transition-all duration-700 ${
-              i === currentIndex
-                ? "w-6 md:w-8 bg-white"
-                : "w-3 md:w-4 bg-white/30"
+              i === currentIndex ? "w-6 bg-white" : "w-3 bg-white/30"
             }`}
           />
         ))}
@@ -96,43 +135,57 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   );
 }
 
-// ─── Sub-Component: Manages the actual video play state ──────────────
 function HeroVideo({
   src,
+  poster,
   isActive,
   onEnded,
 }: {
   src: string;
+  poster: string;
   isActive: boolean;
   onEnded: () => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const [videoFailed, setVideoFailed] = useState(false);
 
   useEffect(() => {
     if (!videoRef.current) return;
-
     if (isActive) {
       videoRef.current.currentTime = 0;
-      videoRef.current.play().catch((e) => {
-        console.error("Autoplay prevented or failed:", e);
-        onEnded();
+      videoRef.current.play().catch(() => {
+        // Video failed to play (e.g. no src) — show poster and advance
+        setVideoFailed(true);
+        setTimeout(onEnded, 4000);
       });
     } else {
-      const timeout = setTimeout(() => {
-        videoRef.current?.pause();
-      }, 1000);
-      return () => clearTimeout(timeout);
+      setTimeout(() => videoRef.current?.pause(), 1000);
     }
   }, [isActive, onEnded]);
+
+  // If video failed or no src, show image instead
+  if (videoFailed || !src) {
+    return (
+      <img
+        src={poster}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover opacity-90"
+      />
+    );
+  }
 
   return (
     <video
       ref={videoRef}
       src={src}
+      poster={poster}
       muted
       playsInline
       onEnded={onEnded}
-      onError={onEnded}
+      onError={() => {
+        setVideoFailed(true);
+        setTimeout(onEnded, 4000);
+      }}
       className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-1000"
     />
   );

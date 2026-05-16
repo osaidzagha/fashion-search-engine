@@ -9,11 +9,10 @@ import ProductCard from "../components/ProductCard";
 import ProductMosaic from "../components/ProductMosaic";
 import { setSearchTerm, clearFilters } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
-// Put this at the top with your other imports
 import CinematicHeroCard from "../components/CinematicHeroCard";
+
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface FeaturedData {
   onSale: Product[];
   newIn: Product[];
@@ -26,7 +25,7 @@ interface FeaturedData {
     knitwear: Product | null;
   };
 }
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function getMosaicImages(featured: FeaturedData): Product[] {
   if (!featured?.newIn) return [];
   return [...featured.newIn]
@@ -43,14 +42,13 @@ function isClothing(p: Product): boolean {
   return !NON_CLOTHING_RE.test(text);
 }
 
-// ─── Shared carousel classes ──────────────────────────────────────────────────
+// Carousel styles — tighter on mobile
 const CAROUSEL =
-  "flex gap-4 lg:gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
+  "flex gap-3 md:gap-5 lg:gap-6 overflow-x-auto pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
 
 const CARD_WRAPPER =
-  "min-w-[220px] lg:min-w-[260px] max-w-[220px] lg:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
+  "min-w-[160px] max-w-[160px] sm:min-w-[200px] sm:max-w-[200px] md:min-w-[240px] md:max-w-[240px] lg:min-w-[260px] lg:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -97,21 +95,23 @@ export default function Home() {
         ? "Women's Collection"
         : "Zara · Massimo Dutti";
 
+  const hasCampaign =
+    featured?.campaignHeroes && featured.campaignHeroes.length > 0;
+  const hasMosaic = mosaicProducts.length >= 4;
+
   return (
     <PageTransition>
       <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark overflow-x-hidden">
         {/* ══ HERO ══════════════════════════════════════════════════════════════ */}
-        {/* ✅ FIX: Stacks on mobile, Grid on desktop */}
-        <section className="flex flex-col lg:grid lg:grid-cols-[40%_60%] min-h-[calc(100vh-57px)] relative">
+        {/* Mobile: stacked vertically. Desktop: two-column grid */}
+        <section className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)] relative">
           {/* LEFT — editorial text + search */}
-          {/* ✅ FIX: px-6 for mobile, px-20 for desktop */}
-          <div className="relative flex flex-col justify-center px-6 lg:px-20 py-12 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
+          <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-8 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
             <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4 lg:mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
               {deptLabel}
             </p>
 
-            {/* ✅ FIX: More aggressive text scaling for mobile */}
-            <h1 className="font-heading font-light text-[clamp(36px,10vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-4 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
+            <h1 className="font-heading font-light text-[clamp(42px,12vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-3 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
               Fashion,
               <br />
               <em className="italic text-textSecondary dark:text-textSecondary-dark">
@@ -119,7 +119,7 @@ export default function Home() {
               </em>
             </h1>
 
-            <p className="font-sans text-[13px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-8 lg:mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+            <p className="font-sans text-[12px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-6 lg:mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
               Compare prices across every brand. Track drops. Find the best time
               to buy.
             </p>
@@ -127,30 +127,25 @@ export default function Home() {
             <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
               <SearchBar variant="hero" />
             </div>
-
-            {/* ✅ FIX: Hidden on mobile so it doesn't overlap text, visible on lg */}
-            <span className="hidden lg:block absolute bottom-8 left-20 font-heading font-light text-xs tracking-editorial uppercase text-borderDark dark:text-borderDark-dark animate-fade-in [animation-delay:800ms] [animation-fill-mode:both]">
-              Dope
-            </span>
           </div>
 
-          {/* RIGHT — FULL BLEED Campaign Heroes */}
-          {/* ✅ FIX: Takes remaining height on mobile, full height on desktop */}
-          <div className="relative flex-1 min-h-[50vh] lg:min-h-full w-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
+          {/* RIGHT — Campaign hero: fixed height on mobile, full height on desktop */}
+          <div className="relative w-full h-[55vw] min-h-[260px] max-h-[420px] lg:max-h-none lg:h-auto lg:min-h-full bg-black overflow-hidden animate-fade-in [animation-delay:300ms] [animation-fill-mode:both]">
             {loading ? (
-              <div className="h-full w-full flex items-center justify-center">
-                <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
-                  Loading…
-                </p>
+              /* Skeleton shimmer instead of black void */
+              <div className="h-full w-full bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 animate-pulse flex items-end p-6">
+                <div className="space-y-2">
+                  <div className="h-2 w-16 bg-white/10 rounded" />
+                  <div className="h-6 w-48 bg-white/10 rounded" />
+                </div>
               </div>
-            ) : featured?.campaignHeroes &&
-              featured.campaignHeroes.length > 0 ? (
-              <CampaignHeroSlider heroes={featured.campaignHeroes} />
-            ) : mosaicProducts.length >= 4 ? (
+            ) : hasCampaign ? (
+              <CampaignHeroSlider heroes={featured!.campaignHeroes} />
+            ) : hasMosaic ? (
               <ProductMosaic products={mosaicProducts} />
             ) : (
-              <div className="h-full w-full flex items-center justify-center">
-                <p className="font-heading italic text-lg text-textMuted dark:text-textMuted-dark">
+              <div className="h-full w-full flex items-center justify-center bg-zinc-900">
+                <p className="font-heading italic text-lg text-white/30">
                   Start scraping to see products here
                 </p>
               </div>
@@ -159,12 +154,11 @@ export default function Home() {
         </section>
 
         {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════════ */}
-        {/* ✅ FIX: px-6 on mobile, px-16 on desktop */}
         {!loading && editorChoiceProducts.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-12 lg:py-20 border-b border-borderLight dark:border-borderLight-dark">
-            <div className="flex justify-between items-baseline mb-8 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 lg:pb-5">
+          <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-20 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-baseline mb-6 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4">
               <div className="flex items-baseline gap-2 lg:gap-4">
-                <h2 className="font-heading font-light text-2xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                   Editor's Choice
                 </h2>
                 <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
@@ -172,7 +166,6 @@ export default function Home() {
                 </span>
               </div>
             </div>
-
             <div className={CAROUSEL}>
               {editorChoiceProducts.map((p) => (
                 <div key={p.id} className={CARD_WRAPPER}>
@@ -185,19 +178,19 @@ export default function Home() {
 
         {/* ══ SALE STRIP ═══════════════════════════════════════════════════════ */}
         {!loading && featured?.onSale && featured.onSale.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-10 lg:py-12 border-b border-borderLight dark:border-borderLight-dark">
-            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-baseline mb-6 lg:mb-8 gap-4">
+          <section className="px-4 md:px-8 lg:px-16 py-8 lg:py-12 border-b border-borderLight dark:border-borderLight-dark">
+            <div className="flex justify-between items-center mb-6 lg:mb-8">
               <div>
-                <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-2">
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed mb-1">
                   Limited Time
                 </p>
-                <h2 className="font-heading font-light text-2xl lg:text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
+                <h2 className="font-heading font-light text-xl lg:text-3xl tracking-wide text-textPrimary dark:text-textPrimary-dark">
                   Price drops, right now.
                 </h2>
               </div>
               <button
                 onClick={() => navigate("/collection/sale")}
-                className="self-start sm:self-auto font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity duration-200 ease-smooth"
+                className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity"
               >
                 View all
               </button>
@@ -214,10 +207,10 @@ export default function Home() {
 
         {/* ══ NEW IN ════════════════════════════════════════════════════════════ */}
         {!loading && newInAll.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-12 lg:py-20">
-            <div className="flex justify-between items-baseline mb-8 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 lg:pb-5">
+          <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-20">
+            <div className="flex justify-between items-baseline mb-6 lg:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4">
               <div className="flex items-baseline gap-2 lg:gap-4">
-                <h2 className="font-heading font-light text-2xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                   New in
                 </h2>
                 <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
@@ -226,7 +219,7 @@ export default function Home() {
               </div>
               <button
                 onClick={() => navigate("/collection/new-in")}
-                className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
+                className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity"
               >
                 See all →
               </button>
@@ -242,17 +235,15 @@ export default function Home() {
         )}
 
         {/* ══ BRAND SPLIT ══════════════════════════════════════════════════════ */}
-        {/* ✅ FIX: Stacks on mobile, split on tablet/desktop */}
         {!loading && featured && (
-          <section className="grid grid-cols-1 md:grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
-            {/* Zara */}
+          <section className="grid grid-cols-1 sm:grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
             <div
               onClick={() => {
                 dispatch(clearFilters());
                 dispatch(setSearchTerm(""));
                 navigate("/collection/zara");
               }}
-              className="flex items-center justify-between px-6 lg:px-16 py-8 lg:py-12 border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+              className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
             >
               <div>
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
@@ -262,19 +253,16 @@ export default function Home() {
                   Zara
                 </h3>
               </div>
-              <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
-                →
-              </span>
+              <span className="text-textMuted dark:text-textMuted-dark">→</span>
             </div>
 
-            {/* Massimo Dutti */}
             <div
               onClick={() => {
                 dispatch(clearFilters());
                 dispatch(setSearchTerm(""));
                 navigate("/collection/massimo-dutti");
               }}
-              className="flex items-center justify-between px-6 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 ease-smooth hover:bg-bgHover dark:hover:bg-bgHover-dark"
+              className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
             >
               <div>
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
@@ -284,16 +272,13 @@ export default function Home() {
                   Massimo Dutti
                 </h3>
               </div>
-              <span className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark">
-                →
-              </span>
+              <span className="text-textMuted dark:text-textMuted-dark">→</span>
             </div>
           </section>
         )}
 
         {/* ══ FOOTER ════════════════════════════════════════════════════════════ */}
-        {/* ✅ FIX: Stack footer on mobile so text doesn't overlap */}
-        <footer className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 lg:px-16 py-6 lg:py-8 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-borderLight dark:border-borderLight-dark text-center md:text-left">
+        <footer className="px-6 lg:px-16 py-6 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-borderLight dark:border-borderLight-dark text-center sm:text-left">
           <span className="font-heading font-light text-[15px] tracking-editorial uppercase text-textSecondary dark:text-textSecondary-dark">
             Dope
           </span>
