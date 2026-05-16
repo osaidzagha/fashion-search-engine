@@ -82,7 +82,7 @@ export const runScraperPipeline = async (
     const shuffledCategories = shuffleArray(cleanCategories);
     const toScrape = testMode
       ? shuffledCategories.slice(0, 1)
-      : shuffledCategories.slice(0, 15);
+      : shuffledCategories.slice(0, 7);
 
     for (const categoryUrl of toScrape) {
       if (page.isClosed()) {
@@ -120,7 +120,7 @@ export const runScraperPipeline = async (
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 20);
+        : shuffledLinks.slice(0, 50);
 
       for (const link of toTest) {
         if (page.isClosed()) {
