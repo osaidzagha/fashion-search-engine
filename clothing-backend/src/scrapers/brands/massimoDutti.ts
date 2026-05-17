@@ -140,14 +140,14 @@ export async function getMassimoProductLinks(
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract links...`);
 
-      console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
+      console.log("   --> 📜 Auto-scrolling to trigger lazy load...");
       await page.evaluate(`
         (function() {
           return new Promise(function(resolve) {
             var totalHeight = 0;
-            var distance = 600; 
+            var distance = 800; // 👇 Increased scroll distance to hit lazy-load triggers faster
             var scrolls = 0;
-            var maxScrolls = 30; // Deep scrape
+            var maxScrolls = 8; // 👇 SLASHED FROM 30. 8 scrolls is plenty to get 50 items.
             
             var timer = setInterval(function() {
               var scrollHeight = document.body.scrollHeight;
@@ -159,12 +159,20 @@ export async function getMassimoProductLinks(
                 clearInterval(timer);
                 resolve(undefined);
               }
-            }, 800); 
+            }, 1200); // 👇 INCREASED from 800. Let Massimo's server breathe between scrolls!
           });
         })()
       `);
 
       await new Promise((r) => setTimeout(r, 2000));
+
+      try {
+        await page.waitForSelector('a[href*="-l"]', { timeout: 10000 });
+      } catch (e) {
+        console.log(
+          "   --> ⚠️ Product links took too long to render after scroll.",
+        );
+      }
 
       productLinks = (await page.evaluate(`
         (function() {

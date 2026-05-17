@@ -507,7 +507,7 @@ export async function getZaraCategories(
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
   try {
     await page.goto("https://www.zara.com/tr/en/", {
-      waitUntil: "domcontentloaded",
+      waitUntil: "networkidle2",
       timeout: 60_000,
     });
 
@@ -515,8 +515,17 @@ export async function getZaraCategories(
 
     const menuButtonSelector =
       '[data-qa-id="layout-desktop-open-menu-trigger"]';
-    await page.waitForSelector(menuButtonSelector);
-    await page.click(menuButtonSelector);
+
+    // 👇 FIX: Add visibility: true to ensure the animation is finished
+    await page.waitForSelector(menuButtonSelector, {
+      visible: true,
+      timeout: 15_000,
+    });
+
+    await page.evaluate((selector) => {
+      const btn = document.querySelector(selector) as HTMLElement;
+      if (btn) btn.click();
+    }, menuButtonSelector);
 
     await selectDepartment(page, department);
 
