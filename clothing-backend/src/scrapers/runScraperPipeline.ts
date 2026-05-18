@@ -47,12 +47,7 @@ export const runScraperPipeline = async (
     await p.setRequestInterception(true);
     p.on("request", (req) => {
       const rt = req.resourceType();
-      if (
-        rt === "image" ||
-        rt === "media" ||
-        rt === "font" ||
-        rt === "stylesheet"
-      ) {
+      if (rt === "image" || rt === "media" || rt === "font") {
         req.abort();
       } else {
         req.continue();
@@ -65,6 +60,11 @@ export const runScraperPipeline = async (
   let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
+    // 🛡️ THE MEMORY FIX: Force a fresh page for every department to survive massive sitemaps
+    console.log(`🧹 Wiping browser memory before starting ${dept} pipeline...`);
+    if (!page.isClosed()) await page.close().catch(() => {});
+    page = await setupPage(await browser.newPage());
+
     if (page.isClosed()) {
       console.log("🛑 Browser was closed. Halting pipeline gracefully.");
       break;
@@ -181,6 +181,7 @@ export const runScraperPipeline = async (
               $set: {
                 name: product.name,
                 price: product.price,
+                department: product.department,
                 originalPrice: product.originalPrice,
                 color: product.color,
                 description: product.description,
