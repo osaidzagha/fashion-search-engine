@@ -22,14 +22,21 @@ export const CategoryNav: React.FC = () => {
         break;
       case "sale":
         params.set("onSale", "true");
+        // 👇 FIX: Pass the keywords and mode for Sale items!
+        if (item.q) params.set("search", item.q);
+        params.set("mode", "category");
         break;
       case "newest":
         params.set("sort", "newest");
+        // 👇 FIX: Pass the keywords and mode for Newest items!
+        if (item.q) params.set("search", item.q);
+        params.set("mode", "category");
         break;
       case "brand":
         params.set("brands", item.q);
         break;
     }
+
     setActiveMenu(null);
     navigate(`/search?${params.toString()}`);
   };
@@ -64,7 +71,7 @@ export const CategoryNav: React.FC = () => {
         })}
       </nav>
 
-      {/* ─── THE BACKDROP OVERLAY (Changed w-screen to w-full) ─── */}
+      {/* ─── THE BACKDROP OVERLAY ─── */}
       <div
         className={`
           absolute top-full left-0 w-full h-[100vh] bg-black/20 dark:bg-black/40 backdrop-blur-sm transition-opacity duration-400 ease-elegant pointer-events-none
@@ -80,7 +87,6 @@ export const CategoryNav: React.FC = () => {
           ${activeMenu ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0 pointer-events-none"}
         `}
       >
-        {/* Adjusted padding for mobile */}
         <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-12 md:py-10">
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 md:gap-x-12">
             {activeCategoryData?.items.map((item, idx) => {
