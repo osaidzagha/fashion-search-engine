@@ -48,22 +48,43 @@ const synonymMap: Record<string, string> = {
 
 // ─── The Master Exclusion Map ─────────────────────────────────────────────────
 const excludeMap: Record<string, string> = {
+  // ── Bottoms ──────────────────────────────────────────────────────────────
   trousers: "short shorts suit blazer dress skirt",
   pant: "short shorts suit blazer dress skirt",
   pants: "short shorts suit blazer dress skirt",
   jeans: "short shorts skirt dress jacket shirt",
   short: "sleeve dress jacket coat boot boots skirt",
   shorts: "sleeve dress jacket coat boot boots skirt",
-  shirt: "jacket coat blazer overshirt dress skirt pant trousers",
+
+  // ── Tops ─────────────────────────────────────────────────────────────────
+  shirt: "jacket coat blazer dress skirt pant trousers",
   top: "jacket coat bag handle stitched shoe sneakers skirt pants",
   tops: "jacket coat bag handle stitched shoe sneakers skirt pants",
-  jacket: "shirt dress skirt pants blazer suit tuxedo waistcoat",
+
+  // ── Outerwear — THE KEY FIX ───────────────────────────────────────────────
+  // "jacket" already excluded blazer; now also exclude "sportcoat" and "tailored"
+  jacket:
+    "shirt dress skirt pants blazer suit tuxedo waistcoat sportcoat tailored",
+
+  // NEW: "blazer" key stops blazers from appearing in Jackets category.
+  // When taxonomy searches "blazer" (in Suits), exclude casual outerwear words
+  // so a "BLAZER JACKET" phrasing doesn't pull puffers/bombers into Suits.
+  blazer: "bomber puffer windbreaker anorak padded quilted gilet tracksuit",
+
   coat: "shirt dress skirt pants",
+
+  // ── Knitwear ─────────────────────────────────────────────────────────────
   sweater: "sweatpant sweatpants jogger joggers",
   sweatpant: "sweater cardigan",
   sweatpants: "sweater cardigan",
+
+  // ── One-pieces ───────────────────────────────────────────────────────────
   dress: "shirt pant pants trouser trousers shoe shoes boot boots sneaker",
+
+  // ── Suits — strip activewear/swimwear from suit results ──────────────────
   suit: "swimsuit tracksuit bodysuit jumpsuit playsuit romper",
+
+  // ── Footwear ─────────────────────────────────────────────────────────────
   boot: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   boots: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   shoe: "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
@@ -71,8 +92,12 @@ const excludeMap: Record<string, string> = {
     "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+
+  // ── Bags ─────────────────────────────────────────────────────────────────
   bag: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
   bags: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
+
+  // ── Misc ─────────────────────────────────────────────────────────────────
   trunk: "swimsuit swim boardshort",
   trunks: "luggage suitcase bag",
   belt: "jeans pant pants trousers trouser skirt dress shirt jacket coat",
@@ -82,7 +107,8 @@ const excludeMap: Record<string, string> = {
   chain: "bag handbag shoe shoes boot boots loafer loafers",
   ring: "zip zipper detail bag shoe neck",
   watch: "cap beanie hat",
-  // 👇 FIX: ADDED JEWELRY & ACCESSORY EXCLUSIONS
+
+  // ── Jewelry & Accessories ─────────────────────────────────────────────────
   jewelry:
     "shoe shoes boot boots clog clogs sneaker sneakers bag bags backpack crossbody socks jacket coat sweater",
   jewellery:
