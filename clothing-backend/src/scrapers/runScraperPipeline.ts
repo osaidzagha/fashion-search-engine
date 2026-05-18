@@ -1,4 +1,4 @@
-import { Page } from "puppeteer";
+import { Browser, Page } from "puppeteer";
 import { Product } from "./interface";
 import { ProductModel } from "../models/Product";
 
@@ -26,7 +26,7 @@ export interface PipelineResult {
 // ─── Pipeline ─────────────────────────────────────────────────────────────────
 
 export const runScraperPipeline = async (
-  page: Page,
+  browser: Browser, // 👈 CHANGED: Now takes the full browser instance
   brandName: string,
   departments: string[],
   getCategories: GetCategories,
@@ -37,6 +37,32 @@ export const runScraperPipeline = async (
   let newItems = 0;
   let updatedItems = 0;
   let errorCount = 0;
+
+  // 🛡️ THE ARMOR: Sets up viewport, user agent, and blocks heavy media
+  const setupPage = async (p: Page) => {
+    await p.setViewport({ width: 1920, height: 1080 });
+    await p.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    );
+    await p.setRequestInterception(true);
+    p.on("request", (req) => {
+      const rt = req.resourceType();
+      if (
+        rt === "image" ||
+        rt === "media" ||
+        rt === "font" ||
+        rt === "stylesheet"
+      ) {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+    return p;
+  };
+
+  // Create our initial protected page
+  let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
     if (page.isClosed()) {
@@ -69,14 +95,10 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    const cleanCategories = categories; // No filtering, take everything the crawler finds.
+    const cleanCategories = categories;
 
     console.log(
       `  --> 🛡️ Category filter disabled. Processing all ${cleanCategories.length} discovered links.`,
-    );
-
-    console.log(
-      `  --> 🛡️ Filtered out ${categories.length - cleanCategories.length} non-clothing categories.`,
     );
 
     const shuffledCategories = shuffleArray(cleanCategories);
@@ -122,10 +144,19 @@ export const runScraperPipeline = async (
         ? shuffledLinks.slice(0, 2)
         : shuffledLinks.slice(0, 50);
 
+      let productCount = 0; // Track products for recycling
+
       for (const link of toTest) {
         if (page.isClosed()) {
           console.log("🛑 Browser was closed. Halting pipeline gracefully.");
           break;
+        }
+
+        // ♻️ PAGE RECYCLING: Clear DOM memory leaks every 25 items
+        if (productCount > 0 && productCount % 25 === 0) {
+          console.log("   --> ♻️ Recycling page to free up RAM...");
+          await page.close().catch(() => {});
+          page = await setupPage(await browser.newPage());
         }
 
         const category =
@@ -183,7 +214,6 @@ export const runScraperPipeline = async (
               { upsert: true, returnDocument: "after" },
             );
 
-            // ── Track breakdown ──────────────────────────────────────────────
             if (isNewProduct) {
               newItems++;
             } else {
@@ -195,7 +225,6 @@ export const runScraperPipeline = async (
             );
           }
         } catch (err: any) {
-          // The Magic Check: Intercept shutdown errors and exit silently
           if (
             page.isClosed() ||
             err.message?.includes("detached Frame") ||
@@ -211,6 +240,8 @@ export const runScraperPipeline = async (
           errorCount++;
         }
 
+        productCount++;
+
         if (page.isClosed()) break;
         const delay = testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000;
         await new Promise((r) => setTimeout(r, delay));
@@ -225,5 +256,7 @@ export const runScraperPipeline = async (
     }
   }
 
+  // Cleanup our page when the whole pipeline is done
+  await page.close().catch(() => {});
   return { newItems, updatedItems, errorCount };
 };

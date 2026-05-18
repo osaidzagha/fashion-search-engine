@@ -21,7 +21,6 @@ import {
   scrapeMassimoProductData,
 } from "./brands/massimoDutti";
 import { ScraperRunModel } from "../models/ScraperRun";
-// ── CHANGE 1: Import the queue ────────────────────────────────────────────────
 import { priceAlertQueue } from "../queues/queues";
 
 // ─── Process Registry ─────────────────────────────────────────────────────────
@@ -41,18 +40,11 @@ const BRAND_JOBS: Record<string, any> = {
     scrapeProduct: scrapeMassimoProductData,
   },
   mango: {
-    // 👈 The New Mango Pipeline!
     brandName: "Mango",
     getCategories: getMangoCategories,
     getLinks: getMangoProductLinks,
     scrapeProduct: scrapeMangoProductData,
   },
-  //"pull-and-bear": {
-  //brandName: "Pull & Bear",
-  // getCategories: getPullAndBearCategories,
-  //   getLinks: getPullAndBearProductLinks,
-  // scrapeProduct: scrapePullAndBearProductData,
-  //},
 };
 
 export const knownBrandSlugs = () => Object.keys(BRAND_JOBS);
@@ -103,14 +95,9 @@ export const triggerScraper = async (
 
     activeBrowsers.set(brandSlug, browser);
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    );
-
+    // 👈 CHANGED: We removed the page generation here, the pipeline handles it now
     const result = await runScraperPipeline(
-      page,
+      browser,
       job.brandName,
       ["MAN", "WOMAN"],
       job.getCategories,
@@ -131,14 +118,13 @@ export const triggerScraper = async (
     });
 
     console.log(`✅ ${job.brandName} complete.`);
-    // ── CHANGE 2: Enqueue price alert check ──
+
     await priceAlertQueue.add(
       "check-price-drops",
       { brandName: job.brandName, runId: runDocId },
       { delay: 3_000 },
     );
     console.log(`🔔 Price alert job queued for ${job.brandName}.`);
-    // ─────────────────────────────────────────────────────────────────────────
   } catch (err) {
     console.error(`❌ ${job.brandName} failed:`, err);
     await ScraperRunModel.findByIdAndUpdate(runDocId, {
@@ -146,8 +132,6 @@ export const triggerScraper = async (
       durationMs: Date.now() - startedAt,
       completedAt: new Date(),
     });
-    // Note: we do NOT enqueue a price alert job on scraper failure.
-    // Partial/corrupt priceHistory writes should not trigger user emails.
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
@@ -155,8 +139,6 @@ export const triggerScraper = async (
     }
   }
 };
-
-// Add this to the bottom of src/scrapers/scraperManager.ts
 
 export const runAllScrapers = async (testMode = false): Promise<void> => {
   console.log(
@@ -167,7 +149,6 @@ export const runAllScrapers = async (testMode = false): Promise<void> => {
   for (const slug of brandSlugs) {
     const job = BRAND_JOBS[slug];
 
-    // 1. Create the database record for this specific run
     const runDoc = await ScraperRunModel.create({
       brand: job.brandName,
       status: "running",
@@ -176,7 +157,6 @@ export const runAllScrapers = async (testMode = false): Promise<void> => {
 
     console.log(`\n⏳ CRON: Queuing ${job.brandName}...`);
 
-    // 2. Await the scraper so the next one doesn't start until this one finishes
     await triggerScraper(slug, runDoc._id.toString(), testMode);
   }
 
