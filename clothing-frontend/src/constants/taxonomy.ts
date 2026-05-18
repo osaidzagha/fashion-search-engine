@@ -31,7 +31,7 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Jackets",
         type: "search",
-        q: "jacket blazer bomber puffer waistcoat overshirt",
+        q: "jacket bomber puffer overshirt",
       },
       { label: "Jeans", type: "search", q: "jeans jegging" },
       {
