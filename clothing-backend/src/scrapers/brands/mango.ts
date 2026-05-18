@@ -264,7 +264,12 @@ async function fetchEnglishContent(
 }
 
 // ── 4. PRODUCT SCRAPING ──────────────────────────────────────────────────────
-export async function scrapeMangoProductData(page: Page, url: string) {
+export async function scrapeMangoProductData(
+  page: Page,
+  url: string,
+  category: string = "",
+  department: string = "",
+) {
   let pricePayload: Record<string, any> = {};
 
   // FIX 1: Lock after first valid price capture to prevent cross-selling overwrites
@@ -562,6 +567,7 @@ export async function scrapeMangoProductData(page: Page, url: string) {
       currency: "TRY",
       brand: "Mango",
       category: finalCategory,
+      department: department,
       composition: finalComposition, // 👈 Saved to DB here!
       images: uniqueImages,
       videos: uniqueVideos,
