@@ -82,6 +82,17 @@ const excludeMap: Record<string, string> = {
   chain: "bag handbag shoe shoes boot boots loafer loafers",
   ring: "zip zipper detail bag shoe neck",
   watch: "cap beanie hat",
+  // 👇 FIX: ADDED JEWELRY & ACCESSORY EXCLUSIONS
+  jewelry:
+    "shoe shoes boot boots clog clogs sneaker sneakers bag bags backpack crossbody socks jacket coat sweater",
+  jewellery:
+    "shoe shoes boot boots clog clogs sneaker sneakers bag bags backpack crossbody socks jacket coat sweater",
+  jewel:
+    "shoe shoes boot boots clog clogs sneaker sneakers bag bags backpack crossbody socks jacket coat sweater",
+  accessory:
+    "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
+  accessories:
+    "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
 };
 
 // ─── Build a filter from query params ────────────────────────────────────────
@@ -169,9 +180,9 @@ export const getProducts = async (req: Request, res: Response) => {
           .filter((w) => w.length > 1);
 
         let expandedTerms: string[] = [];
+        let excludeTerms: string[] = []; // 👈 Keep track of exclusions
 
         rawTerms.forEach((word) => {
-          // Handle basic plurals
           const isPlural =
             word.endsWith("s") &&
             !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
@@ -179,14 +190,17 @@ export const getProducts = async (req: Request, res: Response) => {
 
           expandedTerms.push(word);
 
-          // Inject mapped synonyms for the category
           const mappedSynonyms = synonymMap[word] || synonymMap[singular];
           if (mappedSynonyms) {
             expandedTerms.push(...mappedSynonyms.split(/\s+/));
           }
+
+          const mappedExcludes = excludeMap[word] || excludeMap[singular];
+          if (mappedExcludes) {
+            excludeTerms.push(...mappedExcludes.split(/\s+/));
+          }
         });
 
-        // Remove duplicates and escape for Regex
         const uniqueTerms = Array.from(new Set(expandedTerms)).map((w) =>
           w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
         );
@@ -196,6 +210,16 @@ export const getProducts = async (req: Request, res: Response) => {
           const regex = new RegExp(regexPattern, "i");
 
           filter.$or = [{ category: regex }, { name: regex }];
+        }
+
+        // Apply Exclusions
+        const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
+        if (uniqueExcludeTerms.length > 0) {
+          const excludePattern = uniqueExcludeTerms.join("|");
+          const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
+          filter.$and = filter.$and || [];
+          filter.$and.push({ name: { $not: excludeRegex } });
+          filter.$and.push({ category: { $not: excludeRegex } });
         }
       } else {
         // ── USER SEARCH: existing $text + synonym + exclusion logic ───────────

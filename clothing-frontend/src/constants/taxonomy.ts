@@ -1,7 +1,7 @@
 export type SubCategory =
   | { label: string; type: "search"; q: string }
-  | { label: string; type: "sale" }
-  | { label: string; type: "newest" }
+  | { label: string; type: "sale"; q: string } // 👈 FIX: Added q
+  | { label: string; type: "newest"; q: string } // 👈 FIX: Added q
   | { label: string; type: "brand"; q: string };
 
 export interface TopCategory {
@@ -18,13 +18,12 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "All Clothing",
         type: "search",
-        // Removed dangerous adjectives like 'knit', 'denim', 'active'
-        q: "",
+        q: "coat dress hosiery jacket jeans jumpsuit sweater lingerie nightwear pants shorts skirt suit activewear top shirt",
       },
       {
         label: "Beachwear & Swimwear",
         type: "search",
-        q: "swimsuit bikini boardshort swimwear trunks", // Removed 'swim' and 'surf' (verbs)
+        q: "swimsuit bikini boardshort swimwear trunks",
       },
       { label: "Coats", type: "search", q: "coat trench parka overcoat" },
       { label: "Dresses", type: "search", q: "dress gown" },
@@ -32,9 +31,9 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Jackets",
         type: "search",
-        q: "jacket blazer bomber puffer waistcoat overshirt", // Removed 'waist'
+        q: "jacket blazer bomber puffer waistcoat overshirt",
       },
-      { label: "Jeans", type: "search", q: "jeans jegging" }, // Removed 'denim'
+      { label: "Jeans", type: "search", q: "jeans jegging" },
       {
         label: "Jumpsuits & Rompers",
         type: "search",
@@ -43,7 +42,7 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Knitwear",
         type: "search",
-        q: "sweater cardigan jumper pullover knitwear", // Removed 'knit'
+        q: "sweater cardigan jumper pullover knitwear",
       },
       {
         label: "Lingerie",
@@ -61,8 +60,8 @@ export const TAXONOMY: TopCategory[] = [
         q: "pants trousers chino jogger sweatpant",
       },
       { label: "Shorts", type: "search", q: "shorts bermuda" },
-      { label: "Skirts", type: "search", q: "skirt skort" }, // Removed 'midi maxi mini'
-      { label: "Suits", type: "search", q: "suit tuxedo blazer waistcoat" }, // Removed 'tailoring'
+      { label: "Skirts", type: "search", q: "skirt skort" },
+      { label: "Suits", type: "search", q: "suit tuxedo blazer waistcoat" },
       {
         label: "Activewear",
         type: "search",
@@ -73,8 +72,17 @@ export const TAXONOMY: TopCategory[] = [
         type: "search",
         q: "top shirt blouse t-shirt polo tank tunic camisole",
       },
-      { label: "New Arrivals in Clothing", type: "newest" },
-      { label: "Clothing on Sale", type: "sale" },
+      // 👇 FIX: Added q parameter to keep sale/newest scoped to clothing
+      {
+        label: "New Arrivals in Clothing",
+        type: "newest",
+        q: "coat dress hosiery jacket jeans jumpsuit sweater lingerie nightwear pants shorts skirt suit activewear top shirt",
+      },
+      {
+        label: "Clothing on Sale",
+        type: "sale",
+        q: "coat dress hosiery jacket jeans jumpsuit sweater lingerie nightwear pants shorts skirt suit activewear top shirt",
+      },
     ],
   },
   {
@@ -95,15 +103,24 @@ export const TAXONOMY: TopCategory[] = [
         label: "Flats",
         type: "search",
         q: "loafer moccasin ballerina mule slip-on",
-      }, // Removed 'flat' as it can be an adjective
+      },
       {
         label: "Heels",
         type: "search",
         q: "heel pump stiletto wedge platform",
       },
-      { label: "Sneakers", type: "search", q: "sneaker trainer" }, // Removed 'runner' (table runner)
-      { label: "New Arrivals in Shoes", type: "newest" },
-      { label: "Shoes on Sale", type: "sale" },
+      { label: "Sneakers", type: "search", q: "sneaker trainer" },
+      // 👇 FIX: Added q parameter
+      {
+        label: "New Arrivals in Shoes",
+        type: "newest",
+        q: "shoe boot sneaker trainer sandal flat heel pump loafer moccasin stiletto oxford slipper mule",
+      },
+      {
+        label: "Shoes on Sale",
+        type: "sale",
+        q: "shoe boot sneaker trainer sandal flat heel pump loafer moccasin stiletto oxford slipper mule",
+      },
     ],
   },
   {
@@ -120,13 +137,13 @@ export const TAXONOMY: TopCategory[] = [
         label: "Phone Cases",
         type: "search",
         q: "phonecase iphone smartphone",
-      }, // Removed 'case cover'
-      { label: "Face Masks", type: "search", q: "facemask mask" }, // Removed 'face'
+      },
+      { label: "Face Masks", type: "search", q: "facemask mask" },
       { label: "Gloves", type: "search", q: "glove mitten" },
       {
         label: "Hair Accessories",
         type: "search",
-        q: "headband scrunchie barrette hairpin", // Removed 'hair clip'
+        q: "headband scrunchie barrette hairpin",
       },
       { label: "Hats", type: "search", q: "hat cap beanie fedora visor beret" },
       {
@@ -134,7 +151,7 @@ export const TAXONOMY: TopCategory[] = [
         type: "search",
         q: "scarf muffler foulard pashmina snood",
       },
-      { label: "Sunglasses", type: "search", q: "sunglasses eyewear aviator" }, // Removed 'glasses'
+      { label: "Sunglasses", type: "search", q: "sunglasses eyewear aviator" },
       { label: "Umbrellas", type: "search", q: "umbrella parasol" },
       {
         label: "Wallets & Cardholders",
@@ -142,8 +159,17 @@ export const TAXONOMY: TopCategory[] = [
         q: "wallet cardholder purse coin",
       },
       { label: "Watches", type: "search", q: "watch timepiece chronograph" },
-      { label: "New Arrivals in Accessories", type: "newest" },
-      { label: "Accessories on Sale", type: "sale" },
+      // 👇 FIX: Added q parameter
+      {
+        label: "New Arrivals in Accessories",
+        type: "newest",
+        q: "accessory belt scarf hat cap beanie glove sunglasses eyewear wallet purse cardholder tie socks umbrella watch headband scrunchie",
+      },
+      {
+        label: "Accessories on Sale",
+        type: "sale",
+        q: "accessory belt scarf hat cap beanie glove sunglasses eyewear wallet purse cardholder tie socks umbrella watch headband scrunchie",
+      },
     ],
   },
   {
@@ -156,39 +182,48 @@ export const TAXONOMY: TopCategory[] = [
         q: "bag backpack rucksack tote shopper clutch crossbody messenger hobo duffel suitcase luggage satchel handbag",
       },
       { label: "Backpacks", type: "search", q: "backpack rucksack knapsack" },
-      { label: "Bag Accessories", type: "search", q: "bagstrap bagcharm" }, // Isolated to avoid dress straps
-      { label: "Beach Bags", type: "search", q: "beachbag basketbag" }, // Removed 'straw basket'
-      { label: "Belt Bags", type: "search", q: "fannypack bumbag" }, // Removed 'belt waist bag'
+      { label: "Bag Accessories", type: "search", q: "bagstrap bagcharm" },
+      { label: "Beach Bags", type: "search", q: "beachbag basketbag" },
+      { label: "Belt Bags", type: "search", q: "fannypack bumbag" },
       {
         label: "Briefcases & Work Bags",
         type: "search",
-        q: "briefcase laptop document", // Removed 'work'
+        q: "briefcase laptop document",
       },
       { label: "Bucket Bags", type: "search", q: "bucketbag bucket" },
       {
         label: "Clutches & Evening Bags",
         type: "search",
-        q: "clutch minaudiere pochette", // Removed 'evening'
+        q: "clutch minaudiere pochette",
       },
       { label: "Crossbody Bags", type: "search", q: "crossbody messenger" },
       { label: "Hobo Bags", type: "search", q: "hobo" },
       {
         label: "Duffel & Weekend Bags",
         type: "search",
-        q: "duffel weekender holdall", // Removed 'travel'
+        q: "duffel weekender holdall",
       },
-      { label: "Luggage", type: "search", q: "luggage suitcase trolley trunk" }, // Removed 'cabin'
+      { label: "Luggage", type: "search", q: "luggage suitcase trolley trunk" },
       {
         label: "Makeup & Cosmetic Cases",
         type: "search",
-        q: "cosmetic toiletry vanity", // Removed 'makeup wash'
+        q: "cosmetic toiletry vanity",
       },
       { label: "Satchel Bags", type: "search", q: "satchel" },
       { label: "Shoulder Bags", type: "search", q: "shoulderbag shoulder" },
-      { label: "Top-handle Bags", type: "search", q: "tophandle bowler" }, // Lethal trap removed: 'top handle'
+      { label: "Top-handle Bags", type: "search", q: "tophandle bowler" },
       { label: "Tote Bags", type: "search", q: "tote shopper" },
-      { label: "New Arrivals in Bags", type: "newest" },
-      { label: "Bags on Sale", type: "sale" },
+      // 👇 FIX: Added q parameter
+      {
+        label: "New Arrivals in Bags",
+        type: "newest",
+        q: "bag backpack rucksack tote shopper clutch crossbody messenger hobo duffel suitcase luggage satchel handbag",
+      },
+      {
+        label: "Bags on Sale",
+        type: "sale",
+        q: "bag backpack rucksack tote shopper clutch crossbody messenger hobo duffel suitcase luggage satchel handbag",
+      },
     ],
   },
   {
@@ -209,8 +244,17 @@ export const TAXONOMY: TopCategory[] = [
         q: "necklace pendant choker chain lariat",
       },
       { label: "Rings", type: "search", q: "ring signet band" },
-      { label: "New Arrivals in Jewelry", type: "newest" },
-      { label: "Jewelry on Sale", type: "sale" },
+      // 👇 FIX: Added q parameter
+      {
+        label: "New Arrivals in Jewelry",
+        type: "newest",
+        q: "jewelry ring necklace earring bracelet brooch pin cuff pendant choker",
+      },
+      {
+        label: "Jewelry on Sale",
+        type: "sale",
+        q: "jewelry ring necklace earring bracelet brooch pin cuff pendant choker",
+      },
     ],
   },
   {
