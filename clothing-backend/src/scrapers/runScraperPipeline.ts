@@ -181,7 +181,7 @@ export const runScraperPipeline = async (
               $set: {
                 name: product.name,
                 price: product.price,
-                department: product.department,
+                department: product.department, // ✅ KEEP IT HERE
                 originalPrice: product.originalPrice,
                 color: product.color,
                 description: product.description,
@@ -193,7 +193,7 @@ export const runScraperPipeline = async (
               $setOnInsert: {
                 timestamp: new Date(),
                 brand: product.brand,
-                department: product.department,
+                // ❌ REMOVE DEPARTMENT FROM HERE
                 category: product.category,
                 link: product.link,
                 currency: product.currency,
