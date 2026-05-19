@@ -40,7 +40,7 @@ async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
   const xpath = `::-p-xpath(//span[@class='layout-categories-category-name' and text()='${department}'])`;
   try {
-    const targetElement = await page.waitForSelector(xpath, { timeout: 5000 });
+    const targetElement = await page.waitForSelector(xpath, { timeout: 10000 });
     if (targetElement) {
       await page.evaluate((el) => {
         // @ts-ignore
@@ -82,9 +82,11 @@ export async function scrapeZaraProductData(
     }
     const productId = match[1];
 
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    // 👇 FIX: Added explicit 120s timeout
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
     try {
-      await page.waitForSelector("h1", { timeout: 5000 });
+      // 👇 FIX: Bumped timeout to 25s
+      await page.waitForSelector("h1", { timeout: 25000 });
     } catch {
       return null;
     }
@@ -93,21 +95,18 @@ export async function scrapeZaraProductData(
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var maxWait = 8000;
+          var maxWait = 25000; // 👇 FIX: Bumped to 25s to let Render CPU catch up
           var waited = 0;
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
             var colorEl = document.querySelector('.product-color-extended-name');
-            // 👇 FIX: Look for Zara's price element
             var priceEl = document.querySelector('.money-amount__main, .price__amount');
             
             var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length  > 0;
             var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
-            // 👇 FIX: Force the scraper to wait until a number actually exists!
             var priceReady = priceEl && /[0-9]/.test(priceEl.textContent);
             
             waited += 100;
-            // 👇 FIX: Require priceReady before advancing
             if ((descReady && colorReady && priceReady) || waited >= maxWait) {
               clearInterval(interval);
               resolve(undefined);
@@ -139,7 +138,6 @@ export async function scrapeZaraProductData(
           return el && el.textContent ? el.textContent.trim() : '';
         }
 
-        // 1. Try to grab prices using Zara's most stable QA tags and exact classes
         var originalRaw =
           getText2('[data-qa-qualifier="price-amount-old"] .money-amount__main') ||
           getText2('[data-qa-qualifier="price-amount-old"]') ||
@@ -151,7 +149,6 @@ export async function scrapeZaraProductData(
           getText2('.price-current .money-amount__main') ||
           getText2('.price__amount--on-sale .money-amount__main');
 
-        // 2. THE NUCLEAR FALLBACK
         if (!originalRaw || !currentRaw) {
           var allPrices = Array.from(document.querySelectorAll('.product-detail-info__price .money-amount__main'))
             .map(function(el) { return el.textContent ? el.textContent.trim() : ''; })
@@ -201,8 +198,9 @@ export async function scrapeZaraProductData(
       })()
     `);
 
+    // 👇 FIX: Bumped timeout to 20s
     await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .waitForNetworkIdle({ idleTime: 1500, timeout: 20000 })
       .catch(() => {});
 
     // ─── STEP 4: Read images after scroll & GHOST FRAME DEFENSE ──────────────
@@ -244,7 +242,6 @@ export async function scrapeZaraProductData(
         if (!gallery) return [];
         var clone = gallery.cloneNode(true);
 
-        // 👇 THE GHOST FRAME DEFENSE: Log video posters, then nuke the videos!
         var badPosters = [];
         clone.querySelectorAll('video').forEach(function(v) {
           var posterUrl = v.getAttribute('poster');
@@ -269,7 +266,6 @@ export async function scrapeZaraProductData(
           var rawUrl = pickHighestResFromSources(sources);
           var cleanUrl = sanitizeAndUpscale(rawUrl);
           
-          // 👇 Check against the badPosters array!
           if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
             seen.add(cleanUrl); 
             images.push(cleanUrl); 
@@ -281,7 +277,6 @@ export async function scrapeZaraProductData(
             var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
             var cleanUrl = sanitizeAndUpscale(rawUrl);
             
-            // 👇 Check against the badPosters array!
             if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
               seen.add(cleanUrl); 
               images.push(cleanUrl); 
@@ -303,7 +298,6 @@ export async function scrapeZaraProductData(
         for (var i = 0; i < videos.length; i++) {
           var v = videos[i];
 
-          // Ignore Zara's specific cross-sell and footer sections
           if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) {
             continue;
           }
@@ -316,11 +310,9 @@ export async function scrapeZaraProductData(
             }
           }
 
-          // 👇 STRICT DEFENSE: Reject blobs and all known non-product video types
           if (src && !src.startsWith('blob:')) {
             var lowerSrc = src.toLowerCase();
             
-            // 👇 ADDED 'editorial' and 'background' to the Zara armor!
             if (
               !lowerSrc.includes('campaign') && 
               !lowerSrc.includes('banner') && 
@@ -349,8 +341,9 @@ export async function scrapeZaraProductData(
         })()
       `);
       await new Promise((r) => setTimeout(r, 1000));
+      // 👇 FIX: Bumped timeout
       await page.waitForSelector(".size-selector-sizes-size__label", {
-        timeout: 3000,
+        timeout: 10000,
       });
     } catch (e) {}
 
@@ -410,18 +403,17 @@ export async function getProductLinksFromCategory(
   page: Page,
   url: string,
 ): Promise<string[]> {
-  console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
+  console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
 
   try {
-    // 👇 FIX 1: Reverted to domcontentloaded so tracking pixels don't cause a timeout
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    // 👇 FIX: Bumped timeout to 120s
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
 
-    // Give Zara's React frontend a few seconds to hydrate the DOM
     await new Promise((r) => setTimeout(r, 4000));
 
-    // 👇 FIX 2: Wait for at least one product link to appear before scrolling
     try {
-      await page.waitForSelector(".product-link", { timeout: 10000 });
+      // 👇 FIX: Bumped timeout to 25s
+      await page.waitForSelector(".product-link", { timeout: 25000 });
     } catch (e) {
       console.log(
         "  --> ⚠️ Initial grid didn't load immediately. Forcing scroll...",
@@ -492,7 +484,6 @@ export async function getProductLinksFromCategory(
 
     return productLinks;
   } catch (error: any) {
-    // 👇 FIX 3: Added the actual error message so we can see if anything else is breaking!
     console.log(
       `  --> ⚠️ Error finding links on this Zara page: ${error.message}`,
     );
@@ -506,9 +497,10 @@ export async function getZaraCategories(
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
   try {
+    // 👇 FIX: Bumped timeout to 120s
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "networkidle2",
-      timeout: 60_000,
+      timeout: 120000,
     });
 
     await handleGeoModal(page);
@@ -516,10 +508,10 @@ export async function getZaraCategories(
     const menuButtonSelector =
       '[data-qa-id="layout-desktop-open-menu-trigger"]';
 
-    // 👇 FIX: Add visibility: true to ensure the animation is finished
+    // 👇 FIX: Bumped menu timeout to 30s
     await page.waitForSelector(menuButtonSelector, {
       visible: true,
-      timeout: 15_000,
+      timeout: 30000,
     });
 
     await page.evaluate((selector) => {

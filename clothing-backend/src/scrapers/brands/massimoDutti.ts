@@ -62,7 +62,11 @@ export async function getMassimoCategories(
   const baseUrl = "https://www.massimodutti.com/tr/en/";
 
   try {
-    await page.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 90000 });
+    // 👇 BUMPED TIMEOUT TO 120s
+    await page.goto(baseUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 120000,
+    });
     await dismissModals(page);
 
     console.log(`  --> Opening Mega Menu...`);
@@ -100,7 +104,6 @@ export async function getMassimoCategories(
             // 1. Must be in the right department
             var isCorrectDept = href.includes('${deptPath}') || href.includes('${deptAlt}');
             
-            // 👇 THE FIX: Removed the accessory blocking!
             // We keep 'total-look' and '/product-l' out because those aren't category grids.
             var isNotProductOrLook = !href.includes('total-look') && !href.includes('/product-l');
             
@@ -128,8 +131,8 @@ export async function getMassimoProductLinks(
   console.log(`📂 Visiting Massimo Dutti category: ${url}`);
 
   try {
-    // 👇 FIX 1: Reverted to domcontentloaded to escape the NetworkIdle Trap!
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+    // 👇 BUMPED TIMEOUT TO 120s
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
 
     // Give the heavy React page a few seconds to hydrate
     await new Promise((r) => setTimeout(r, 4000));
@@ -145,9 +148,9 @@ export async function getMassimoProductLinks(
         (function() {
           return new Promise(function(resolve) {
             var totalHeight = 0;
-            var distance = 800; // 👇 Increased scroll distance to hit lazy-load triggers faster
+            var distance = 800; 
             var scrolls = 0;
-            var maxScrolls = 8; // 👇 SLASHED FROM 30. 8 scrolls is plenty to get 50 items.
+            var maxScrolls = 8; 
             
             var timer = setInterval(function() {
               var scrollHeight = document.body.scrollHeight;
@@ -159,7 +162,7 @@ export async function getMassimoProductLinks(
                 clearInterval(timer);
                 resolve(undefined);
               }
-            }, 1200); // 👇 INCREASED from 800. Let Massimo's server breathe between scrolls!
+            }, 1200); 
           });
         })()
       `);
@@ -167,7 +170,8 @@ export async function getMassimoProductLinks(
       await new Promise((r) => setTimeout(r, 2000));
 
       try {
-        await page.waitForSelector('a[href*="-l"]', { timeout: 10000 });
+        // 👇 BUMPED WAIT TIMEOUT
+        await page.waitForSelector('a[href*="-l"]', { timeout: 25000 });
       } catch (e) {
         console.log(
           "   --> ⚠️ Product links took too long to render after scroll.",
@@ -210,13 +214,13 @@ export async function getMassimoProductLinks(
 
     return productLinks;
   } catch (error: any) {
-    // 👇 FIX 2: Better error logging so we don't guess if it crashes
     console.log(
       `  --> ⚠️ Error finding links on this Massimo page: ${error.message}`,
     );
     return [];
   }
 }
+
 export async function scrapeMassimoProductData(
   page: Page,
   url: string,
@@ -238,7 +242,6 @@ export async function scrapeMassimoProductData(
   const rawId = match[1]; // e.g., '06695508'
   const productId = `md_${rawId}`;
 
-  // Create variations of the ID for strict matching
   const noZeroId = rawId.replace(/^0+/, ""); // '6695508'
   const baseId = rawId.substring(0, 4); // '0669'
 
@@ -256,7 +259,6 @@ export async function scrapeMassimoProductData(
 
           if (typeof obj === "string" && obj.includes(".mp4")) {
             const lowerStr = obj.toLowerCase();
-            // Block campaigns and editorial videos explicitly
             if (
               !lowerStr.includes("campaign") &&
               !lowerStr.includes("banner") &&
@@ -272,7 +274,6 @@ export async function scrapeMassimoProductData(
             for (const key of Object.keys(obj)) {
               const lowerKey = key.toLowerCase();
 
-              // THE IRON CURTAIN: Block cross-sells and "Total Looks"
               if (
                 lowerKey.includes("related") ||
                 lowerKey.includes("cross") ||
@@ -294,8 +295,6 @@ export async function scrapeMassimoProductData(
         extractMp4s(json);
 
         if (foundVideos.length > 0) {
-          // 👇 STRICT ENFORCEMENT: Only keep videos with matching IDs.
-          // We completely removed the `if (validVideos.length === 0)` fallback!
           let validVideos = foundVideos.filter(
             (v) =>
               v.includes(rawId) || v.includes(noZeroId) || v.includes(baseId),
@@ -324,12 +323,14 @@ export async function scrapeMassimoProductData(
   page.on("response", responseHandler);
 
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded" });
+    // 👇 BUMPED TIMEOUT TO 120s
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
     await dismissModals(page);
 
     try {
+      // 👇 BUMPED H1 TIMEOUT
       await page.waitForSelector("h1.md-product-heading-title-txt", {
-        timeout: 8000,
+        timeout: 25000,
       });
     } catch {
       console.log(`  --> ⚠️ Product H1 didn't load, skipping: ${url}`);
@@ -342,7 +343,7 @@ export async function scrapeMassimoProductData(
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var maxWait = 8000;
+          var maxWait = 25000; // 👇 BUMPED WAIT TO 25s
           var waited = 0;
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.md-pdp5-box--info-short, .md-pdp5-box--info');
@@ -419,8 +420,9 @@ export async function scrapeMassimoProductData(
       })()
     `);
 
+    // 👇 BUMPED IDLE TIMEOUT
     await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 10_000 })
+      .waitForNetworkIdle({ idleTime: 1500, timeout: 20000 })
       .catch(() => {});
 
     // ─── STEP 4: Images & GHOST FRAME DEFENSE ─────────────────────────────
@@ -534,7 +536,6 @@ export async function scrapeMassimoProductData(
 
           if (src && !src.startsWith("blob:")) {
             var lowerSrc = src.toLowerCase();
-            // 👇 STRICT ID CHECK: Even DOM videos must match the product ID!
             var hasId =
               lowerSrc.includes(id1.toLowerCase()) ||
               lowerSrc.includes(id2.toLowerCase()) ||
@@ -624,7 +625,6 @@ export async function scrapeMassimoProductData(
       ? parseUniversalPrice(textData.originalRaw)
       : undefined;
 
-    // Merge wiretap and DOM videos, remove duplicates!
     const finalVideos = [...new Set([...interceptedVideos, ...domVideos])];
 
     console.log(

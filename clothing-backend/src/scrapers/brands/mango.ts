@@ -17,34 +17,47 @@ export async function getMangoCategories(
   try {
     await page.goto("https://shop.mango.com/tr/tr", {
       waitUntil: "domcontentloaded",
-      timeout: 30000,
+      timeout: 120000, // 👈 INCREASED TIMEOUT
     });
 
-    // COMPILER CRASH FIX: Use standard function to prevent __name injection
-    const rawXml = await page.evaluate(function (url) {
-      return fetch(url, {
-        headers: { Accept: "text/xml,application/xml,*/*" },
-      }).then(function (res) {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.text();
-      });
-    }, sitemapUrl);
+    // 👇 THE MEMORY FIX: Parse XML inside the browser, not in Node.js RAM!
+    const categoryLinks = await page.evaluate(
+      async (url, slug) => {
+        try {
+          const res = await fetch(url, {
+            headers: { Accept: "text/xml,application/xml,*/*" },
+          });
+          if (!res.ok) return [];
+          const text = await res.text();
 
-    if (!rawXml) throw new Error("Sitemap body was empty");
+          // Parse it using the browser's native XML parser (Very memory efficient)
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(text, "text/xml");
+          const locs = Array.from(xmlDoc.querySelectorAll("loc"));
 
-    const locMatches = [
-      ...rawXml.matchAll(/<loc>(https:\/\/shop\.mango\.com[^<]+)<\/loc>/g),
-    ];
+          const validLinks = new Set<string>();
+          for (let i = 0; i < locs.length; i++) {
+            const locText = locs[i].textContent;
+            if (
+              locText &&
+              locText.includes(`/c/${slug}/`) &&
+              !locText.includes("/p/")
+            ) {
+              validLinks.add(locText);
+            }
+          }
+          return Array.from(validLinks);
+        } catch {
+          return [];
+        }
+      },
+      sitemapUrl,
+      deptSlug,
+    );
 
-    const categoryLinks = [
-      ...new Set(
-        locMatches
-          .map((m) => m[1])
-          .filter(
-            (url) => url.includes(`/c/${deptSlug}/`) && !url.includes("/p/"),
-          ),
-      ),
-    ];
+    if (!categoryLinks || categoryLinks.length === 0) {
+      throw new Error("Sitemap parsed but returned 0 links.");
+    }
 
     console.log(
       `   --> ✅ Sitemap returned ${categoryLinks.length} ${department.toUpperCase()} categories.`,
@@ -67,11 +80,11 @@ export async function getMangoProductLinks(
   try {
     await page.goto(categoryUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 60000,
+      timeout: 120000, // 👈 INCREASED TIMEOUT
     });
 
     try {
-      await page.waitForSelector('a[href*="/p/"]', { timeout: 10000 });
+      await page.waitForSelector('a[href*="/p/"]', { timeout: 15000 }); // Bumped slightly
     } catch {
       console.log(
         `   --> ⚠️  No products loaded in time on ${categoryUrl}. Moving on.`,
@@ -79,7 +92,6 @@ export async function getMangoProductLinks(
       return [];
     }
 
-    // FIX 7: Scroll until page height is stable (Catches large categories)
     let stableCount = 0;
     while (stableCount < 3) {
       const before = await page.evaluate(function () {
@@ -154,7 +166,6 @@ async function fetchEnglishContent(
             : "";
           if (!h1Text || h1Text === "Men" || h1Text === "Women") return null;
 
-          // 1. Clean Description
           var detailContainer =
             doc.querySelector('[class*="ProductDetail"][class*="detail"]') ||
             doc.querySelector('[class*="Qualities"]');
@@ -171,14 +182,12 @@ async function fetchEnglishContent(
               ? clone.textContent.replace(/\s+/g, " ").trim()
               : "";
 
-            // Nuke the Mango Stylist React widget text if it sneaks through
             description = description.replace(/Mango Stylist.*/i, "").trim();
             description = description
               .replace(/Ask about deliveries.*/i, "")
               .trim();
           }
 
-          // 2. English Category
           var breadcrumbItems = doc.querySelectorAll(
             '[class*="BreadcrumbBase"] [class*="listItem"] a',
           );
@@ -190,7 +199,6 @@ async function fetchEnglishContent(
           var category =
             breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : "";
 
-          // 3. English Composition (Smarter Sentence Parsing)
           var engComp = "";
           var fabricKeywords = [
             "cotton",
@@ -211,14 +219,12 @@ async function fetchEnglishContent(
           ];
 
           if (description) {
-            // Split the description into individual sentences by period or semicolon
             var sentences = description.split(/\.(?=\s|$)|;/);
 
             for (var s = 0; s < sentences.length; s++) {
               var sentence = sentences[s].trim();
               var lower = sentence.toLowerCase();
 
-              // Does this sentence contain a fabric?
               var hasFabric = false;
               for (var w = 0; w < fabricKeywords.length; w++) {
                 if (lower.indexOf(fabricKeywords[w]) !== -1) {
@@ -227,7 +233,6 @@ async function fetchEnglishContent(
                 }
               }
 
-              // If it contains a fabric AND (has a number like 100% OR the word blend/mix/fabric)
               if (
                 hasFabric &&
                 (/\d/.test(sentence) ||
@@ -235,7 +240,6 @@ async function fetchEnglishContent(
                   lower.indexOf("mix") !== -1 ||
                   lower.indexOf("fabric") !== -1)
               ) {
-                // We found the exact composition sentence!
                 engComp = sentence;
                 break;
               }
@@ -271,8 +275,6 @@ export async function scrapeMangoProductData(
   department: string = "",
 ) {
   let pricePayload: Record<string, any> = {};
-
-  // FIX 1: Lock after first valid price capture to prevent cross-selling overwrites
   let priceLocked = false;
 
   const turkishUrl = url.includes("/tr/tr/")
@@ -301,10 +303,9 @@ export async function scrapeMangoProductData(
 
     await page.goto(turkishUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 60000,
+      timeout: 120000, // 👈 INCREASED TIMEOUT
     });
 
-    // FIX 6: Bump timeout to 15s to prevent false hub-redirect detection
     try {
       await page.waitForFunction(
         function () {
@@ -317,7 +318,7 @@ export async function scrapeMangoProductData(
             text !== "Kadin"
           );
         },
-        { timeout: 15000 },
+        { timeout: 20000 }, // 👈 Bumped up as well
       );
     } catch {
       console.log(`   --> ⚠️  Hub redirect detected — skipping: ${turkishUrl}`);
@@ -331,7 +332,6 @@ export async function scrapeMangoProductData(
     const idMatch = turkishUrl.match(/_(\d{8})/);
     const productId = idMatch ? idMatch[1] : "UNKNOWN_ID";
 
-    // FIX 2: Accordion click with navigation guard
     const urlBeforeClick = page.url();
     try {
       const accordionTriggers = await page.$$('[class*="ProductDetailsLink"]');
@@ -343,7 +343,7 @@ export async function scrapeMangoProductData(
           console.log(
             `   --> ⚠️  Accordion click navigated away — recovering...`,
           );
-          await page.goBack({ waitUntil: "domcontentloaded", timeout: 15000 });
+          await page.goBack({ waitUntil: "domcontentloaded", timeout: 25000 });
           await new Promise((r) => setTimeout(r, 500));
         } else {
           console.log(`   --> 🪗 Accordion clicked — composition exposed.`);
@@ -366,7 +366,6 @@ export async function scrapeMangoProductData(
           titleTr = h1General.textContent.trim();
       }
 
-      // SAFE CLONE METHOD: Fixes Description Leak & __name crash
       var detailContainer =
         document.querySelector('[class*="ProductDetail"][class*="detail"]') ||
         document.querySelector('[class*="Qualities"]');
@@ -382,7 +381,6 @@ export async function scrapeMangoProductData(
           : "";
       }
 
-      // Images Fix
       var imageItems = document.querySelectorAll('[class*="ImageGridItem"]');
       var rawImages = [];
       for (var k = 0; k < imageItems.length; k++) {
@@ -403,14 +401,13 @@ export async function scrapeMangoProductData(
           if (fallbackSrc) rawImages.push(fallbackSrc);
         }
       }
-      // ── Video Extraction ──
+
       var videoItems = document.querySelectorAll(
         'video, [class*="video"] video, [data-testid*="video"]',
       );
       var rawVideos = [];
       for (var v = 0; v < videoItems.length; v++) {
         var vid = videoItems[v];
-        // Check for src directly on the video tag, or inside a <source> child
         var src = vid.getAttribute("src") || vid.getAttribute("data-src");
         if (!src) {
           var sourceTag = vid.querySelector('source[type="video/mp4"]');
@@ -418,7 +415,7 @@ export async function scrapeMangoProductData(
         }
         if (src) rawVideos.push(src);
       }
-      // Breadcrumbs
+
       var breadcrumbItems = document.querySelectorAll(
         '[class*="BreadcrumbBase"] [class*="listItem"] a',
       );
@@ -430,7 +427,6 @@ export async function scrapeMangoProductData(
       var categoryTr =
         breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1] : "";
 
-      // FIX 5: Composition bounds (Starts with digit/%, under 120 chars)
       var fabricKeywords = [
         "cotton",
         "polyester",
@@ -478,7 +474,6 @@ export async function scrapeMangoProductData(
         }
       }
 
-      // Sizes Fix
       var sizeItems = document.querySelectorAll('[class*="SizeItem"]');
       var sizes = [];
       for (var s = 0; s < sizeItems.length; s++) {
@@ -506,17 +501,12 @@ export async function scrapeMangoProductData(
       };
     });
 
-    // ── Fetch English name, description, category, and composition ────────────
     const english = await fetchEnglishContent(page, turkishUrl);
-
     const finalName = english.name || domData.titleTr;
     const finalDescription = english.description || domData.descriptionTr;
     const finalCategory = english.category || domData.categoryTr;
-
-    // 🛠️ USE THE ENGLISH COMPOSITION! (Fallback to Turkish if it absolutely fails)
     const finalComposition = english.composition || domData.composition;
 
-    // ── Clean images ──────────────────────────────────────────────────────────
     const cleanImages = domData.rawImages
       .filter(
         (src: string) =>
@@ -537,7 +527,6 @@ export async function scrapeMangoProductData(
       );
     const uniqueVideos = [...new Set(cleanVideos)];
 
-    // ── Resolve price ─────────────────────────────────────────────────────────
     let finalPrice = 0;
     if (Object.keys(pricePayload).length > 0) {
       if (colorCode && pricePayload[colorCode]?.price) {
@@ -568,7 +557,7 @@ export async function scrapeMangoProductData(
       brand: "Mango",
       category: finalCategory,
       department: department,
-      composition: finalComposition, // 👈 Saved to DB here!
+      composition: finalComposition,
       images: uniqueImages,
       videos: uniqueVideos,
       link: turkishUrl,
