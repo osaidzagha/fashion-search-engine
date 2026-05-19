@@ -553,7 +553,12 @@ export async function getZaraCategories(
   department: string,
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
-  const deptLower = department.toLowerCase();
+  const deptLower =
+    department.toLowerCase() === "women"
+      ? "woman"
+      : department.toLowerCase() === "men"
+        ? "man"
+        : department.toLowerCase();
 
   // ── STRATEGY 1: Node.js sitemap (pure HTTP, no browser context risk) ───────
   console.log("   --> 📋 [1/3] Sitemap strategy...");
@@ -642,17 +647,35 @@ export async function getZaraCategories(
   console.log("   --> 🌐 [2/3] Pre-rendered DOM extraction...");
   try {
     const preRenderedLinks = await page.evaluate((dept) => {
-      const patterns = [`/${dept}-`, dept === "man" ? "/men-" : "/women-"];
+      const patterns = [`/${dept}-`];
       return [
         ...new Set(
           Array.from(document.querySelectorAll("a"))
             .map((el) => (el as HTMLAnchorElement).href)
-            .filter(
-              (href) =>
-                href &&
-                !href.includes("-p") &&
-                patterns.some((p) => href.includes(p)),
-            ),
+            .filter((href) => {
+              if (!href) return false;
+              if (href.includes("-p")) return false;
+
+              const isDepartment = patterns.some((p) => href.includes(p));
+
+              const blockedWords = [
+                "mkt",
+                "beauty",
+                "editorial",
+                "campaign",
+                "newsletter",
+                "spring-getaway",
+                "best-sellers",
+                "collections",
+                "join-life",
+              ];
+
+              const isBlocked = blockedWords.some((w) =>
+                href.toLowerCase().includes(w),
+              );
+
+              return isDepartment && !isBlocked;
+            }),
         ),
       ];
     }, deptLower);
@@ -681,7 +704,9 @@ export async function getZaraCategories(
         ".layout-desktop-open-menu",
         ".layout-catalog-desktop-menu__open-menu",
         ".layout-open-menu-base",
+        "[data-qa-action='layout-desktop-open-menu-trigger']",
         "[data-qa-id='layout-desktop-open-menu-trigger']",
+        "button[aria-label='Open menu']",
         "button[aria-label='Menu']",
         "[aria-label='Menu']",
       ];
@@ -709,7 +734,7 @@ export async function getZaraCategories(
     await new Promise((r) => setTimeout(r, 4000));
 
     const links = await page.evaluate((dept) => {
-      const patterns = [`/${dept}-`, dept === "man" ? "/men-" : "/women-"];
+      const patterns = [`/${dept}-`];
       return [
         ...new Set(
           Array.from(document.querySelectorAll("a"))
