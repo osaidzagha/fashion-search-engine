@@ -499,7 +499,7 @@ export async function getZaraCategories(
   try {
     // 👇 FIX: Bumped timeout to 120s
     await page.goto("https://www.zara.com/tr/en/", {
-      waitUntil: "networkidle2",
+      waitUntil: "domcontentloaded",
       timeout: 120000,
     });
 
