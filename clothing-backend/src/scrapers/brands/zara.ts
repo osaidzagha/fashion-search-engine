@@ -39,15 +39,14 @@ export function parseUniversalPrice(rawPrice: string): number | undefined {
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
   try {
-    // 👇 FIX: Use JavaScript to find the exact text, ignoring flaky class names
     const clicked = await page.evaluate((dept) => {
       const elements = Array.from(
-        document.querySelectorAll("span, a, button, div"),
+        document.querySelectorAll("a, button, li, span"),
       );
       const target = elements.find(
         (el) =>
           el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
-          (el.className.includes("category") || el.className.includes("tab")),
+          (el as HTMLElement).offsetParent !== null, // visible only
       );
       if (target) {
         (target as HTMLElement).click();
@@ -58,7 +57,7 @@ async function selectDepartment(page: Page, department: string) {
 
     if (clicked) {
       console.log(`   --> ${department} Department Selected.`);
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 3000));
     } else {
       console.log(
         `   --> ⚠️ Failed to click ${department} department. Proceeding anyway...`,
