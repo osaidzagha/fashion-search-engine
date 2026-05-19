@@ -46,7 +46,7 @@ async function selectDepartment(page: Page, department: string) {
       const target = elements.find(
         (el) =>
           el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
-          (el as HTMLElement).offsetParent !== null, // visible only
+          (el as HTMLElement).offsetParent !== null, // must be visible, not hidden
       );
       if (target) {
         (target as HTMLElement).click();
