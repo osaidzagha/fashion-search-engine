@@ -57,8 +57,11 @@ export const cleanupStaleRuns = async (): Promise<void> => {
     { status: "running" },
     { status: "error", completedAt: new Date() },
   );
-};
+  await priceAlertQueue.drain();
+  await priceAlertQueue.obliterate({ force: true });
 
+  console.log("✅ Queue flushed and stale runs marked as error.");
+};
 // ─── Stop Engine ──────────────────────────────────────────────────────────────
 export const stopScraper = async (brandSlug: string): Promise<boolean> => {
   const browser = activeBrowsers.get(brandSlug);
