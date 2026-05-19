@@ -87,9 +87,11 @@ export const triggerScraper = async (
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
+        "--disable-dev-shm-usage", // 🚨 THIS IS THE LIFESAVER! It stops the /dev/shm crash.
         "--disable-gpu",
-        "--single-process",
+        "--no-zygote",
+        "--single-process", // 🚨 Forces Chrome to use less RAM footprint
+        "--js-flags=--max-old-space-size=256", // 🚨 Caps V8 JS engine memory
       ],
     });
 

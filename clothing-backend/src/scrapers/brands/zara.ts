@@ -38,17 +38,32 @@ export function parseUniversalPrice(rawPrice: string): number | undefined {
 
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
-  const xpath = `::-p-xpath(//span[@class='layout-categories-category-name' and text()='${department}'])`;
   try {
-    const targetElement = await page.waitForSelector(xpath, { timeout: 10000 });
-    if (targetElement) {
-      await page.evaluate((el) => {
-        // @ts-ignore
-        el.click();
-      }, targetElement);
+    // 👇 FIX: Use JavaScript to find the exact text, ignoring flaky class names
+    const clicked = await page.evaluate((dept) => {
+      const elements = Array.from(
+        document.querySelectorAll("span, a, button, div"),
+      );
+      const target = elements.find(
+        (el) =>
+          el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
+          (el.className.includes("category") || el.className.includes("tab")),
+      );
+      if (target) {
+        (target as HTMLElement).click();
+        return true;
+      }
+      return false;
+    }, department);
+
+    if (clicked) {
+      console.log(`   --> ${department} Department Selected.`);
+      await new Promise((r) => setTimeout(r, 2000));
+    } else {
+      console.log(
+        `   --> ⚠️ Failed to click ${department} department. Proceeding anyway...`,
+      );
     }
-    await new Promise((r) => setTimeout(r, 2000));
-    console.log(`   --> ${department} Department Selected.`);
   } catch (error) {
     console.log(`   --> ⚠️ Failed to click ${department} department.`);
   }
@@ -497,40 +512,47 @@ export async function getZaraCategories(
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
   try {
-    // 👇 FIX: Bumped timeout to 120s
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
       timeout: 120000,
     });
 
+    await new Promise((r) => setTimeout(r, 4000));
     await handleGeoModal(page);
 
+    // 👇 FIX: Use a multi-selector fallback including aria-labels
     const menuButtonSelector =
-      '[data-qa-id="layout-desktop-open-menu-trigger"]';
+      'button[aria-label="Menu"], [aria-label="Menu"], [data-qa-id="layout-desktop-open-menu-trigger"], .layout-header-menu-icon';
 
-    // 👇 FIX: Bumped menu timeout to 30s
-    await page.waitForSelector(menuButtonSelector, {
-      visible: true,
-      timeout: 30000,
-    });
+    await page
+      .waitForSelector(menuButtonSelector, {
+        visible: true,
+        timeout: 30000,
+      })
+      .catch(() =>
+        console.log(
+          "   --> ⚠️ Menu button not visible immediately, trying anyway...",
+        ),
+      );
 
     await page.evaluate((selector) => {
       const btn = document.querySelector(selector) as HTMLElement;
       if (btn) btn.click();
     }, menuButtonSelector);
 
+    await new Promise((r) => setTimeout(r, 2000));
     await selectDepartment(page, department);
-
-    const linkSelector = ".layout-categories-category-wrapper";
-    await page.waitForSelector(linkSelector);
 
     const deptLower = department.toLowerCase();
 
+    // 👇 FIX: Wait a few seconds for the links to generate in the DOM
+    await new Promise((r) => setTimeout(r, 3000));
+
     const links = (await page.evaluate(`
       (function() {
-        return Array.from(document.querySelectorAll('.layout-categories-category-wrapper'))
+        return Array.from(document.querySelectorAll('a'))
           .map(function(el) { return el.href; })
-          .filter(function(href) { return href && href.includes('/${deptLower}-'); });
+          .filter(function(href) { return href && href.includes('/${deptLower}-') && !href.includes('-p'); });
       })()
     `)) as string[];
 
