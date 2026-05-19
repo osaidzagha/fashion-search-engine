@@ -417,13 +417,10 @@ export async function getProductLinksFromCategory(
   console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
 
   try {
-    // 👇 FIX: Bumped timeout to 120s
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
-
     await new Promise((r) => setTimeout(r, 4000));
 
     try {
-      // 👇 FIX: Bumped timeout to 25s
       await page.waitForSelector(".product-link", { timeout: 25000 });
     } catch (e) {
       console.log(
@@ -431,7 +428,51 @@ export async function getProductLinksFromCategory(
       );
     }
 
+    // scroll first...
+    await page.evaluate(`
+      (function() {
+        return new Promise(function(resolve) {
+          var totalHeight = 0;
+          var distance = 600;
+          var scrolls = 0;
+          var maxScrolls = 30;
+          var timer = setInterval(function() {
+            var scrollHeight = document.body.scrollHeight;
+            window.scrollBy(0, distance);
+            totalHeight += distance;
+            scrolls++;
+            if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
+              clearInterval(timer);
+              resolve(undefined);
+            }
+          }, 800);
+        });
+      })()
+    `);
+
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // ── TEMPORARY DEBUG: place HERE, after goto + scroll ──
+    const debugInfo = await page.evaluate(() => ({
+      title: document.title,
+      url: window.location.href,
+      bodyLength: document.body.innerHTML.length,
+      hasProductLink: document.querySelectorAll(".product-link").length,
+      hasProductCard: document.querySelectorAll(
+        '[class*="product-grid-product"]',
+      ).length,
+      hasArticle: document.querySelectorAll("article").length,
+      firstBodyClass: document.body.className,
+      sampleLinks: Array.from(document.querySelectorAll("a"))
+        .map((a) => (a as HTMLAnchorElement).href)
+        .filter((h) => h.includes("zara.com/tr/en/") && h.includes("-p"))
+        .slice(0, 3),
+    }));
+    console.log("  --> 🔍 DEBUG:", JSON.stringify(debugInfo));
+
+    // then extract...
     let productLinks: string[] = [];
+
     const maxRetries = 3;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
