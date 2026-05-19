@@ -418,99 +418,56 @@ export async function getProductLinksFromCategory(
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
-    await new Promise((r) => setTimeout(r, 4000));
+
+    // Wait longer for JS hydration on Render's slow CPU
+    await new Promise((r) => setTimeout(r, 6000)); // was 4000
 
     try {
-      await page.waitForSelector(".product-link", { timeout: 25000 });
+      // Wait for the product grid container first, then individual links
+      await page.waitForSelector('[class*="product-grid-product"]', {
+        timeout: 30000, // was 25000 on .product-link
+      });
     } catch (e) {
-      console.log(
-        "  --> ⚠️ Initial grid didn't load immediately. Forcing scroll...",
-      );
+      console.log("  --> ⚠️ Product grid didn't appear. Forcing scroll...");
     }
 
-    // scroll first...
-    await page.evaluate(`
-      (function() {
-        return new Promise(function(resolve) {
-          var totalHeight = 0;
-          var distance = 600;
-          var scrolls = 0;
-          var maxScrolls = 30;
-          var timer = setInterval(function() {
-            var scrollHeight = document.body.scrollHeight;
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-            scrolls++;
-            if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
-              clearInterval(timer);
-              resolve(undefined);
-            }
-          }, 800);
-        });
-      })()
-    `);
-
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // ── TEMPORARY DEBUG: place HERE, after goto + scroll ──
-    const debugInfo = await page.evaluate(() => ({
-      title: document.title,
-      url: window.location.href,
-      bodyLength: document.body.innerHTML.length,
-      hasProductLink: document.querySelectorAll(".product-link").length,
-      hasProductCard: document.querySelectorAll(
-        '[class*="product-grid-product"]',
-      ).length,
-      hasArticle: document.querySelectorAll("article").length,
-      firstBodyClass: document.body.className,
-      sampleLinks: Array.from(document.querySelectorAll("a"))
-        .map((a) => (a as HTMLAnchorElement).href)
-        .filter((h) => h.includes("zara.com/tr/en/") && h.includes("-p"))
-        .slice(0, 3),
-    }));
-    console.log("  --> 🔍 DEBUG:", JSON.stringify(debugInfo));
-
-    // then extract...
     let productLinks: string[] = [];
-
     const maxRetries = 3;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract Zara links...`);
-
       console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
+
       await page.evaluate(`
         (function() {
           return new Promise(function(resolve) {
             var totalHeight = 0;
-            var distance = 600; 
+            var distance = 600;
             var scrolls = 0;
-            var maxScrolls = 30; 
-            
+            var maxScrolls = 30;
             var timer = setInterval(function() {
               var scrollHeight = document.body.scrollHeight;
               window.scrollBy(0, distance);
               totalHeight += distance;
               scrolls++;
-
               if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
                 clearInterval(timer);
                 resolve(undefined);
               }
-            }, 800); 
+            }, 800);
           });
         })()
       `);
 
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 3000)); // was 2000
 
       productLinks = (await page.evaluate(`
         (function() {
           return Array.from(document.querySelectorAll('.product-link'))
             .map(function(el) { return el.href; })
-            .filter(function(href) { return href && href !== ''; })
-            .map(function(href) { return href.split('?')[0]; }) 
-            .filter(function(href, index, self) { return self.indexOf(href) === index; }); 
+            .filter(function(href) { return href && href.includes('-p'); })
+            .map(function(href) { return href.split('?')[0]; })
+            .filter(function(href, index, self) { return self.indexOf(href) === index; });
         })()
       `)) as string[];
 
@@ -521,24 +478,14 @@ export async function getProductLinksFromCategory(
         break;
       }
 
-      console.log(
-        `  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting before retry...`,
-      );
+      console.log(`  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting...`);
       await page.evaluate(() => window.scrollTo(0, 0));
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    if (productLinks.length === 0) {
-      console.log(
-        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
-      );
+      await new Promise((r) => setTimeout(r, 4000)); // was 3000
     }
 
     return productLinks;
   } catch (error: any) {
-    console.log(
-      `  --> ⚠️ Error finding links on this Zara page: ${error.message}`,
-    );
+    console.log(`  --> ⚠️ Error finding links: ${error.message}`);
     return [];
   }
 }
