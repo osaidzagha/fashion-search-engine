@@ -112,7 +112,11 @@ export const runScraperPipeline = async (
         break;
       }
 
+      // 👇 ADD THIS: Wipe memory completely before starting a new category
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
+      console.log("  --> 🧹 Wiping tab memory for new category...");
+      if (!page.isClosed()) await page.close().catch(() => {});
+      page = await setupPage(await browser.newPage());
 
       let links: string[] = [];
       try {
@@ -152,8 +156,7 @@ export const runScraperPipeline = async (
           break;
         }
 
-        // ♻️ PAGE RECYCLING: Clear DOM memory leaks every 25 items
-        if (productCount > 0 && productCount % 25 === 0) {
+        if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
           await page.close().catch(() => {});
           page = await setupPage(await browser.newPage());
