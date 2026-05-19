@@ -553,10 +553,10 @@ export async function getZaraCategories(
   department: string,
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
-  const deptLower = department.toLowerCase(); // "man" or "woman"
+  const deptLower = department.toLowerCase();
 
-  // ── STRATEGY 1: Sitemap via Node.js (no browser context, no redirect risk) ─
-  console.log("   --> 📋 Trying sitemap strategy...");
+  // ── STRATEGY 1: Node.js sitemap (pure HTTP, no browser context risk) ───────
+  console.log("   --> 📋 [1/3] Sitemap strategy...");
   try {
     const sitemapCandidates = [
       "https://www.zara.com/sitemap.xml",
@@ -564,31 +564,38 @@ export async function getZaraCategories(
       "https://www.zara.com/tr/en/sitemap.xml",
     ];
 
-    for (const sitemapUrl of sitemapCandidates) {
-      console.log(`   --> 🗺️  Checking: ${sitemapUrl}`);
-      const text = await fetchUrl(sitemapUrl);
+    for (const url of sitemapCandidates) {
+      const text = await fetchUrl(url);
       if (!text) {
-        console.log("   --> ⚠️ No response, skipping.");
+        console.log(`   --> ⚠️ No response from ${url}`);
         continue;
       }
 
-      // Is it a sitemap index? Drill into sub-sitemaps
-      const subUrlMatches =
-        text.match(/<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/g) ||
-        [];
-      if (subUrlMatches.length > 0) {
-        const subUrls = subUrlMatches
-          .map((m) => {
-            const match = m.match(/<loc>(.*?)<\/loc>/);
-            return match ? match[1] : null;
-          })
-          .filter((u): u is string => !!u);
+      console.log(`   --> ✉️ ${url} → ${text.length} bytes`);
 
-        // Prefer TR-locale sub-sitemaps, fall back to all
-        const trSubUrls = subUrls.filter(
+      // Log a sample so we can see the actual URL format Zara uses
+      const sampleLocs = (text.match(/<loc>(.*?)<\/loc>/g) || [])
+        .slice(0, 5)
+        .map((m) => m.replace(/<\/?loc>/g, ""));
+      console.log(`   --> 🔍 Sample locs: ${JSON.stringify(sampleLocs)}`);
+
+      // Check if it's a sitemap index
+      const subUrls = (
+        text.match(/<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/g) ||
+        []
+      )
+        .map((m) => {
+          const match = m.match(/<loc>(.*?)<\/loc>/);
+          return match ? match[1] : null;
+        })
+        .filter((u): u is string => !!u);
+
+      if (subUrls.length > 0) {
+        console.log(`   --> 📑 Sitemap index: ${subUrls.length} sub-sitemaps.`);
+        const trUrls = subUrls.filter(
           (u) => u.includes("-tr-") || u.includes("_tr") || u.includes("/tr/"),
         );
-        const toTry = trSubUrls.length > 0 ? trSubUrls : subUrls.slice(0, 15);
+        const toTry = trUrls.length > 0 ? trUrls : subUrls.slice(0, 15);
 
         for (const subUrl of toTry) {
           const subText = await fetchUrl(subUrl);
@@ -596,107 +603,111 @@ export async function getZaraCategories(
           const links = extractZaraCategoryLinks(subText, deptLower);
           if (links.length > 0) {
             console.log(
-              `   --> ✅ Sitemap found ${links.length} ${department} categories.`,
+              `   --> ✅ [Sitemap] ${links.length} ${department} categories.`,
             );
             return links;
           }
         }
-      }
-
-      // Not an index — try extracting directly
-      const directLinks = extractZaraCategoryLinks(text, deptLower);
-      if (directLinks.length > 0) {
-        console.log(
-          `   --> ✅ Sitemap found ${directLinks.length} ${department} categories.`,
-        );
-        return directLinks;
+      } else {
+        const links = extractZaraCategoryLinks(text, deptLower);
+        if (links.length > 0) {
+          console.log(
+            `   --> ✅ [Sitemap] ${links.length} ${department} categories.`,
+          );
+          return links;
+        }
       }
     }
-
-    console.log("   --> ⚠️ Sitemap returned 0 links. Falling back to menu...");
+    console.log("   --> ⚠️ [Sitemap] 0 matching links. Continuing...");
   } catch (e: any) {
-    console.log(
-      `   --> ⚠️ Sitemap error: ${e.message}. Falling back to menu...`,
-    );
+    console.log(`   --> ⚠️ [Sitemap] ${e.message}`);
   }
 
-  // ── STRATEGY 2: Menu navigation — correct selector, single click ──────────
-  console.log("   --> 🍔 Trying menu strategy...");
+  // ── Single navigation — shared by strategies 2 and 3 ─────────────────────
   try {
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
       timeout: 120000,
     });
-
-    await new Promise((r) => setTimeout(r, 5000));
+    await new Promise((r) => setTimeout(r, 5000)); // let React hydrate
     await handleGeoModal(page);
+  } catch (e: any) {
+    console.error(`  --> ❌ Navigation failed: ${e.message}`);
+    return [];
+  }
 
-    // ─ Use the ACTUAL class from Zara's HTML (not aria-label which didn't match)
-    const menuSelector =
-      ".layout-desktop-open-menu, .layout-catalog-desktop-menu__open-menu, .layout-open-menu-base";
-
-    await page
-      .waitForSelector(menuSelector, { visible: true, timeout: 20000 })
-      .catch(() =>
-        console.log(
-          "   --> ⚠️ Menu button not immediately visible, clicking anyway...",
+  // ── STRATEGY 2: Pre-rendered DOM (no menu click needed) ───────────────────
+  // Zara's SSR/Next.js likely includes nav links in the initial HTML payload,
+  // just visually hidden. We can grab them without opening the hamburger at all.
+  console.log("   --> 🌐 [2/3] Pre-rendered DOM extraction...");
+  try {
+    const preRenderedLinks = await page.evaluate((dept) => {
+      const patterns = [`/${dept}-`, dept === "man" ? "/men-" : "/women-"];
+      return [
+        ...new Set(
+          Array.from(document.querySelectorAll("a"))
+            .map((el) => (el as HTMLAnchorElement).href)
+            .filter(
+              (href) =>
+                href &&
+                !href.includes("-p") &&
+                patterns.some((p) => href.includes(p)),
+            ),
         ),
-      );
+      ];
+    }, deptLower);
 
-    // ─ Click ONCE (it's a toggle — the old 3-retry loop was opening/closing/opening)
-    await page.evaluate((selector) => {
-      const btn = document.querySelector(selector) as HTMLElement;
-      if (btn) {
-        console.log("   --> Hamburger found:", btn.className);
-        btn.click();
-      } else {
-        console.log("   --> ⚠️ Hamburger element not found by selector.");
+    if (preRenderedLinks.length > 0) {
+      console.log(
+        `   --> ✅ [DOM] ${preRenderedLinks.length} ${department} categories (no menu needed).`,
+      );
+      return preRenderedLinks;
+    }
+    console.log(
+      "   --> ⚠️ [DOM] 0 links in pre-rendered HTML. Opening menu...",
+    );
+  } catch (e: any) {
+    console.log(`   --> ⚠️ [DOM] ${e.message}`);
+  }
+
+  // ── STRATEGY 3: JS-based menu click (bypasses all visibility checks) ───────
+  console.log("   --> 🍔 [3/3] Menu strategy...");
+  try {
+    // Use page.evaluate to click — this ignores Puppeteer's visibility requirement.
+    // The OLD approach used waitForSelector with visible:true which timed out
+    // because Render's headless Chrome considers off-screen elements not "visible".
+    const clickedSelector = await page.evaluate(() => {
+      const candidates = [
+        ".layout-desktop-open-menu",
+        ".layout-catalog-desktop-menu__open-menu",
+        ".layout-open-menu-base",
+        "[data-qa-id='layout-desktop-open-menu-trigger']",
+        "button[aria-label='Menu']",
+        "[aria-label='Menu']",
+      ];
+      for (const sel of candidates) {
+        const el = document.querySelector(sel) as HTMLElement;
+        if (el) {
+          el.click();
+          return sel;
+        }
       }
-    }, menuSelector);
-
-    console.log("   --> 🔓 Menu clicked. Waiting for panel to render...");
-    await new Promise((r) => setTimeout(r, 5000)); // generous wait for React re-render
-
-    // ─ Verify menu opened using Zara-specific panel classes ─
-    const menuIsOpen = await page.evaluate(() => {
-      // Check for the catalog panel Zara renders when menu is open
-      const panel = document.querySelector(
-        '[class*="layout-catalog-desktop-menu__panel"], [class*="catalog-menu__panel"], [class*="layout-catalog-desktop"], [class*="zds-layout-desktop__center"]',
-      );
-      if (panel) return { open: true, via: "panel" };
-
-      // Fallback: any Zara category link is now visible in the DOM
-      const catLinks = Array.from(document.querySelectorAll("a")).filter(
-        (a) =>
-          a.href &&
-          (a.href.includes("/man-") ||
-            a.href.includes("/woman-") ||
-            a.href.includes("/kids-")),
-      );
-      if (catLinks.length > 0) return { open: true, via: "category links" };
-
-      return { open: false, via: "none" };
+      return null;
     });
 
-    console.log(
-      `   --> Menu open: ${menuIsOpen.open} (detected via: ${menuIsOpen.via})`,
-    );
-
-    // ─ If still closed, one recovery click (it might have been already open and we toggled it shut)
-    if (!menuIsOpen.open) {
-      console.log("   --> ⚠️ Menu closed. One recovery click...");
-      await page.evaluate((selector) => {
-        const btn = document.querySelector(selector) as HTMLElement;
-        if (btn) btn.click();
-      }, menuSelector);
-      await new Promise((r) => setTimeout(r, 5000));
+    if (clickedSelector) {
+      console.log(`   --> ✅ Hamburger clicked via: ${clickedSelector}`);
+    } else {
+      console.log("   --> ⚠️ No hamburger element found in DOM.");
     }
 
-    // ─ Department selection (best-effort, proceed even if it fails) ─
+    // Single wait — no retry loop (retrying would CLOSE a toggleable hamburger)
+    await new Promise((r) => setTimeout(r, 5000));
+
+    // Best-effort department click
     await selectDepartment(page, department);
     await new Promise((r) => setTimeout(r, 4000));
 
-    // ─ Extract all category links matching the department ─
     const links = await page.evaluate((dept) => {
       const patterns = [`/${dept}-`, dept === "man" ? "/men-" : "/women-"];
       return [
