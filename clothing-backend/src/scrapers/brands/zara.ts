@@ -1,6 +1,64 @@
 import { Page } from "puppeteer";
 import { Product } from "../interface";
 
+import https from "https";
+
+// Node.js-side fetch — immune to browser context destruction
+function fetchUrl(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const req = https.get(
+      url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+          Accept: "text/xml, application/xml, */*",
+        },
+        timeout: 15000,
+      },
+      (res) => {
+        // Follow one redirect
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          fetchUrl(res.headers.location).then(resolve);
+          return;
+        }
+        if (!res.statusCode || res.statusCode !== 200) {
+          resolve(null);
+          return;
+        }
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(data));
+      },
+    );
+    req.on("error", () => resolve(null));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+
+// Pure regex — no DOMParser needed in Node.js
+function extractZaraCategoryLinks(xmlText: string, dept: string): string[] {
+  const locMatches = xmlText.match(/<loc>(.*?)<\/loc>/g) || [];
+  const locs = locMatches.map((m) => m.replace(/<\/?loc>/g, "").trim());
+  return [
+    ...new Set(
+      locs.filter(
+        (href) =>
+          href.includes(`/${dept}-`) &&
+          !href.includes("-p") &&
+          href.includes("zara.com/tr/en/"),
+      ),
+    ),
+  ];
+}
 export function parseUniversalPrice(rawPrice: string): number | undefined {
   if (!rawPrice) return undefined;
 
@@ -497,173 +555,160 @@ export async function getZaraCategories(
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
   const deptLower = department.toLowerCase(); // "man" or "woman"
 
-  // ── STRATEGY 1: Sitemap (zero UI interaction, same pattern as Mango) ──────
+  // ── STRATEGY 1: Sitemap via Node.js (no browser context, no redirect risk) ─
   console.log("   --> 📋 Trying sitemap strategy...");
   try {
-    await page.goto("https://www.zara.com/tr/en/", {
-      waitUntil: "domcontentloaded",
-      timeout: 120000,
-    });
-    await new Promise((r) => setTimeout(r, 3000));
-    await handleGeoModal(page);
+    const sitemapCandidates = [
+      "https://www.zara.com/sitemap.xml",
+      "https://www.zara.com/sitemap_index.xml",
+      "https://www.zara.com/tr/en/sitemap.xml",
+    ];
 
-    const sitemapLinks = await page.evaluate(async (dept: string) => {
-      const tryFetch = async (url: string): Promise<string | null> => {
-        try {
-          const res = await fetch(url, {
-            headers: { Accept: "text/xml, application/xml, */*" },
-          });
-          return res.ok ? res.text() : null;
-        } catch {
-          return null;
-        }
-      };
-
-      const extractCategoryLinks = (
-        xmlText: string,
-        dept: string,
-      ): string[] => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(xmlText, "text/xml");
-        const locs = Array.from(doc.querySelectorAll("loc")).map(
-          (l) => l.textContent || "",
-        );
-        return [
-          ...new Set(
-            locs.filter(
-              (href) =>
-                href.includes(`/${dept}-`) &&
-                !href.includes("-p") &&
-                href.includes("zara.com/tr/en/"),
-            ),
-          ),
-        ];
-      };
-
-      // Zara uses a sitemap index — try the most likely entry points
-      const candidateUrls = [
-        "https://www.zara.com/sitemap.xml",
-        "https://www.zara.com/sitemap_index.xml",
-        "https://www.zara.com/tr/en/sitemap.xml",
-      ];
-
-      for (const candidateUrl of candidateUrls) {
-        const text = await tryFetch(candidateUrl);
-        if (!text) continue;
-
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(text, "text/xml");
-
-        // Is it a sitemap index? Try drilling into sub-sitemaps
-        const subSitemapUrls = Array.from(doc.querySelectorAll("sitemap loc"))
-          .map((l) => l.textContent || "")
-          .filter(Boolean);
-
-        if (subSitemapUrls.length > 0) {
-          // Look for TR-scoped sitemaps first, then try all
-          const trSitemaps = subSitemapUrls.filter(
-            (u) =>
-              u.includes("-tr-") || u.includes("_tr") || u.includes("/tr/"),
-          );
-          const toTry =
-            trSitemaps.length > 0 ? trSitemaps : subSitemapUrls.slice(0, 15); // safety cap
-
-          for (const subUrl of toTry) {
-            const subText = await tryFetch(subUrl);
-            if (!subText) continue;
-            const links = extractCategoryLinks(subText, dept);
-            if (links.length > 0) return links;
-          }
-        }
-
-        // Not an index — try extracting directly
-        const directLinks = extractCategoryLinks(text, dept);
-        if (directLinks.length > 0) return directLinks;
+    for (const sitemapUrl of sitemapCandidates) {
+      console.log(`   --> 🗺️  Checking: ${sitemapUrl}`);
+      const text = await fetchUrl(sitemapUrl);
+      if (!text) {
+        console.log("   --> ⚠️ No response, skipping.");
+        continue;
       }
 
-      return [];
-    }, deptLower);
+      // Is it a sitemap index? Drill into sub-sitemaps
+      const subUrlMatches =
+        text.match(/<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/g) ||
+        [];
+      if (subUrlMatches.length > 0) {
+        const subUrls = subUrlMatches
+          .map((m) => {
+            const match = m.match(/<loc>(.*?)<\/loc>/);
+            return match ? match[1] : null;
+          })
+          .filter((u): u is string => !!u);
 
-    if (sitemapLinks && sitemapLinks.length > 0) {
-      console.log(
-        `   --> ✅ Sitemap: Found ${sitemapLinks.length} categories for ${department}.`,
-      );
-      return sitemapLinks;
+        // Prefer TR-locale sub-sitemaps, fall back to all
+        const trSubUrls = subUrls.filter(
+          (u) => u.includes("-tr-") || u.includes("_tr") || u.includes("/tr/"),
+        );
+        const toTry = trSubUrls.length > 0 ? trSubUrls : subUrls.slice(0, 15);
+
+        for (const subUrl of toTry) {
+          const subText = await fetchUrl(subUrl);
+          if (!subText) continue;
+          const links = extractZaraCategoryLinks(subText, deptLower);
+          if (links.length > 0) {
+            console.log(
+              `   --> ✅ Sitemap found ${links.length} ${department} categories.`,
+            );
+            return links;
+          }
+        }
+      }
+
+      // Not an index — try extracting directly
+      const directLinks = extractZaraCategoryLinks(text, deptLower);
+      if (directLinks.length > 0) {
+        console.log(
+          `   --> ✅ Sitemap found ${directLinks.length} ${department} categories.`,
+        );
+        return directLinks;
+      }
     }
 
     console.log("   --> ⚠️ Sitemap returned 0 links. Falling back to menu...");
   } catch (e: any) {
     console.log(
-      `   --> ⚠️ Sitemap strategy error: ${e.message}. Falling back to menu...`,
+      `   --> ⚠️ Sitemap error: ${e.message}. Falling back to menu...`,
     );
   }
 
-  // ── STRATEGY 2: Menu navigation (with retry loop) ─────────────────────────
+  // ── STRATEGY 2: Menu navigation — correct selector, single click ──────────
   console.log("   --> 🍔 Trying menu strategy...");
   try {
-    const menuButtonSelector = [
-      'button[aria-label="Menu"]',
-      '[aria-label="Menu"]',
-      '[data-qa-id="layout-desktop-open-menu-trigger"]',
-      ".layout-header-menu-icon",
-    ].join(", ");
+    await page.goto("https://www.zara.com/tr/en/", {
+      waitUntil: "domcontentloaded",
+      timeout: 120000,
+    });
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      console.log(`   --> 🔄 Menu open attempt ${attempt}/3...`);
+    await new Promise((r) => setTimeout(r, 5000));
+    await handleGeoModal(page);
 
-      // Wait up to 15s for the button to appear, then click regardless
-      await page
-        .waitForSelector(menuButtonSelector, { visible: true, timeout: 15000 })
-        .catch(() =>
-          console.log("   --> ⚠️ Menu button not visible, clicking anyway..."),
-        );
+    // ─ Use the ACTUAL class from Zara's HTML (not aria-label which didn't match)
+    const menuSelector =
+      ".layout-desktop-open-menu, .layout-catalog-desktop-menu__open-menu, .layout-open-menu-base";
 
+    await page
+      .waitForSelector(menuSelector, { visible: true, timeout: 20000 })
+      .catch(() =>
+        console.log(
+          "   --> ⚠️ Menu button not immediately visible, clicking anyway...",
+        ),
+      );
+
+    // ─ Click ONCE (it's a toggle — the old 3-retry loop was opening/closing/opening)
+    await page.evaluate((selector) => {
+      const btn = document.querySelector(selector) as HTMLElement;
+      if (btn) {
+        console.log("   --> Hamburger found:", btn.className);
+        btn.click();
+      } else {
+        console.log("   --> ⚠️ Hamburger element not found by selector.");
+      }
+    }, menuSelector);
+
+    console.log("   --> 🔓 Menu clicked. Waiting for panel to render...");
+    await new Promise((r) => setTimeout(r, 5000)); // generous wait for React re-render
+
+    // ─ Verify menu opened using Zara-specific panel classes ─
+    const menuIsOpen = await page.evaluate(() => {
+      // Check for the catalog panel Zara renders when menu is open
+      const panel = document.querySelector(
+        '[class*="layout-catalog-desktop-menu__panel"], [class*="catalog-menu__panel"], [class*="layout-catalog-desktop"], [class*="zds-layout-desktop__center"]',
+      );
+      if (panel) return { open: true, via: "panel" };
+
+      // Fallback: any Zara category link is now visible in the DOM
+      const catLinks = Array.from(document.querySelectorAll("a")).filter(
+        (a) =>
+          a.href &&
+          (a.href.includes("/man-") ||
+            a.href.includes("/woman-") ||
+            a.href.includes("/kids-")),
+      );
+      if (catLinks.length > 0) return { open: true, via: "category links" };
+
+      return { open: false, via: "none" };
+    });
+
+    console.log(
+      `   --> Menu open: ${menuIsOpen.open} (detected via: ${menuIsOpen.via})`,
+    );
+
+    // ─ If still closed, one recovery click (it might have been already open and we toggled it shut)
+    if (!menuIsOpen.open) {
+      console.log("   --> ⚠️ Menu closed. One recovery click...");
       await page.evaluate((selector) => {
         const btn = document.querySelector(selector) as HTMLElement;
         if (btn) btn.click();
-      }, menuButtonSelector);
-
-      await new Promise((r) => setTimeout(r, 4000));
-
-      // Confirm menu actually opened by looking for any nav anchor
-      const menuIsOpen = await page.evaluate(() => {
-        const anchors = document.querySelectorAll(
-          "nav a, [class*='menu'] a, [class*='nav'] a",
-        );
-        return anchors.length > 3; // more than a few means the nav panel is rendered
-      });
-
-      if (menuIsOpen) {
-        console.log(`   --> ✅ Menu confirmed open on attempt ${attempt}.`);
-        break;
-      }
-
-      if (attempt < 3) {
-        console.log("   --> ⚠️ Menu not confirmed open. Retrying...");
-        await new Promise((r) => setTimeout(r, 3000));
-      }
+      }, menuSelector);
+      await new Promise((r) => setTimeout(r, 5000));
     }
 
-    // Best-effort department click — don't abort if it fails
+    // ─ Department selection (best-effort, proceed even if it fails) ─
     await selectDepartment(page, department);
-    await new Promise((r) => setTimeout(r, 4000)); // extra wait for dept panel to render
+    await new Promise((r) => setTimeout(r, 4000));
 
-    // Wider URL pattern matching in case Zara changes slug format
+    // ─ Extract all category links matching the department ─
     const links = await page.evaluate((dept) => {
-      const patterns = [
-        `/${dept}-`,
-        dept === "man" ? "/men-" : "/women-",
-        dept === "man" ? "/man/" : "/woman/",
-      ];
-
+      const patterns = [`/${dept}-`, dept === "man" ? "/men-" : "/women-"];
       return [
         ...new Set(
           Array.from(document.querySelectorAll("a"))
             .map((el) => (el as HTMLAnchorElement).href)
-            .filter((href) => {
-              if (!href || href.includes("-p")) return false;
-              return patterns.some((p) => href.includes(p));
-            }),
+            .filter(
+              (href) =>
+                href &&
+                !href.includes("-p") &&
+                patterns.some((p) => href.includes(p)),
+            ),
         ),
       ];
     }, deptLower);
