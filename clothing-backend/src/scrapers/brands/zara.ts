@@ -36,17 +36,17 @@ export function parseUniversalPrice(rawPrice: string): number | undefined {
   return isNaN(parsed) ? undefined : parsed;
 }
 
+// 1. Replace selectDepartment — remove className check
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
   try {
     const clicked = await page.evaluate((dept) => {
-      const elements = Array.from(
+      const target = Array.from(
         document.querySelectorAll("a, button, li, span"),
-      );
-      const target = elements.find(
+      ).find(
         (el) =>
           el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
-          (el as HTMLElement).offsetParent !== null, // must be visible, not hidden
+          (el as HTMLElement).offsetParent !== null,
       );
       if (target) {
         (target as HTMLElement).click();
@@ -63,7 +63,7 @@ async function selectDepartment(page: Page, department: string) {
         `   --> ⚠️ Failed to click ${department} department. Proceeding anyway...`,
       );
     }
-  } catch (error) {
+  } catch {
     console.log(`   --> ⚠️ Failed to click ${department} department.`);
   }
 }
@@ -109,7 +109,7 @@ export async function scrapeZaraProductData(
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var maxWait = 25000; // 👇 FIX: Bumped to 25s to let Render CPU catch up
+          var maxWait = 10000; // 👇 FIX: Bumped to 25s to let Render CPU catch up
           var waited = 0;
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
@@ -212,10 +212,7 @@ export async function scrapeZaraProductData(
       })()
     `);
 
-    // 👇 FIX: Bumped timeout to 20s
-    await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 20000 })
-      .catch(() => {});
+    await new Promise((r) => setTimeout(r, 2000)); // was: waitForNetworkIdle 20s
 
     // ─── STEP 4: Read images after scroll & GHOST FRAME DEFENSE ──────────────
     const rawImages = (await page.evaluate(`
