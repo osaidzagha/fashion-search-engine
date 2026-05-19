@@ -143,6 +143,12 @@ export const runScraperPipeline = async (
         continue;
       }
 
+      console.log(
+        "  --> 🧹 Wiping bloated grid memory before scraping products...",
+      );
+      if (!page.isClosed()) await page.close().catch(() => {});
+      page = await setupPage(await browser.newPage());
+
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
         ? shuffledLinks.slice(0, 2)
