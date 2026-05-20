@@ -487,14 +487,44 @@ export async function getProductLinksFromCategory(
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
+    await new Promise((r) => setTimeout(r, 6000));
 
-    // Wait longer for JS hydration on Render's slow CPU
-    await new Promise((r) => setTimeout(r, 6000)); // was 4000
+    // ─── GEO-REDIRECT DETECTOR ────────────────────────────────────────────────
+    // If Zara served us the location selector instead of the category page,
+    // warm up on the homepage first, then retry the real URL.
+    const isLocationPage = await page.evaluate(() => {
+      const text = document.body?.innerText || "";
+      return (
+        text.includes("SELECT YOUR LOCATION") ||
+        text.includes("select your location") ||
+        document.title === "ZARA Official Website"
+      );
+    });
+
+    if (isLocationPage) {
+      console.log(
+        "  --> 🌍 Geo-redirect detected! Warming up on homepage first...",
+      );
+
+      // Step 1: Go to TR homepage and dismiss modal
+      await page.goto("https://www.zara.com/tr/en/", {
+        waitUntil: "domcontentloaded",
+        timeout: 120000,
+      });
+      await new Promise((r) => setTimeout(r, 5000));
+      await handleGeoModal(page);
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Step 2: Now navigate to the real category URL
+      console.log("  --> 🔁 Retrying category URL after warmup...");
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
+      await new Promise((r) => setTimeout(r, 6000));
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     try {
-      // Wait for the product grid container first, then individual links
       await page.waitForSelector('[class*="product-grid-product"]', {
-        timeout: 30000, // was 25000 on .product-link
+        timeout: 30000,
       });
     } catch (e) {
       console.log("  --> ⚠️ Product grid didn't appear. Forcing scroll...");
@@ -528,7 +558,7 @@ export async function getProductLinksFromCategory(
         })()
       `);
 
-      await new Promise((r) => setTimeout(r, 3000)); // was 2000
+      await new Promise((r) => setTimeout(r, 3000));
 
       productLinks = (await page.evaluate(`
         (function() {
@@ -549,10 +579,9 @@ export async function getProductLinksFromCategory(
 
       console.log(`  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting...`);
       await page.evaluate(() => window.scrollTo(0, 0));
-      await new Promise((r) => setTimeout(r, 4000)); // was 3000
+      await new Promise((r) => setTimeout(r, 4000));
     }
 
-    // 👇 ADDED DEBUG BLOCK 👇
     if (productLinks.length === 0) {
       console.log(
         `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
@@ -570,7 +599,6 @@ export async function getProductLinksFromCategory(
         console.log(`  --> 🕵️‍♂️ DEBUG ERROR: Could not read page text.`);
       }
     }
-    // 👆 END DEBUG BLOCK 👆
 
     return productLinks;
   } catch (error: any) {
