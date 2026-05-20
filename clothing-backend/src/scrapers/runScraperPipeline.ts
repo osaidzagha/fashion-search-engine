@@ -62,7 +62,17 @@ export const runScraperPipeline = async (
         req.abort();
       } else if (rt === "image") {
         if (brandName === "Zara") {
-          req.continue();
+          // 👇 THE RETURN OF THE 1x1 PIXEL 👇
+          // We removed this thinking it broke the layout, but the geo-wall was the real culprit.
+          // Now that geo is fixed, we MUST use this to survive the 512MB RAM limit!
+          req.respond({
+            status: 200,
+            contentType: "image/png",
+            body: Buffer.from(
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+              "base64",
+            ),
+          });
         } else {
           req.abort();
         }
