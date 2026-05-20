@@ -552,6 +552,26 @@ export async function getProductLinksFromCategory(
       await new Promise((r) => setTimeout(r, 4000)); // was 3000
     }
 
+    // 👇 ADDED DEBUG BLOCK 👇
+    if (productLinks.length === 0) {
+      console.log(
+        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
+      );
+      try {
+        const pageTitle = await page.title();
+        const pageText = await page.evaluate(() => {
+          return document.body.innerText
+            .substring(0, 300)
+            .replace(/\n/g, " | ");
+        });
+        console.log(`  --> 🕵️‍♂️ DEBUG TITLE: ${pageTitle}`);
+        console.log(`  --> 🕵️‍♂️ DEBUG TEXT: ${pageText}`);
+      } catch (e) {
+        console.log(`  --> 🕵️‍♂️ DEBUG ERROR: Could not read page text.`);
+      }
+    }
+    // 👆 END DEBUG BLOCK 👆
+
     return productLinks;
   } catch (error: any) {
     console.log(`  --> ⚠️ Error finding links: ${error.message}`);
