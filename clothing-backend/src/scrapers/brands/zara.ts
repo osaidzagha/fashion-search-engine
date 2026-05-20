@@ -2,7 +2,7 @@ import { Page } from "puppeteer";
 import { Product } from "../interface";
 
 import https from "https";
-
+import * as cheerio from "cheerio";
 // Node.js-side fetch — immune to browser context destruction
 function fetchUrl(url: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -480,147 +480,30 @@ export async function getProductLinksFromCategory(
   page: Page,
   url: string,
 ): Promise<string[]> {
-  console.log(`   --> 🕵️‍♂️ Zara Scout visiting: ${url}`);
+  console.log(`   --> 🕵️‍♂️ Zara Scout (Lightweight Mode) visiting: ${url}`);
 
   try {
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
-    await new Promise((r) => setTimeout(r, 6000));
+    // 1. Get the raw HTML without waiting for 100s of images
+    const html = await page.content();
+    const $ = cheerio.load(html);
 
-    // ─── GEO-WALL CHECK ───────────────────────────────────────────────────────
-    // Pipeline's safeWipe now handles warmup, so if we still hit the geo wall
-    // here it means this specific URL triggered a re-check. Log cookies for
-    // debugging and attempt a single recovery via handleGeoModal.
-    const pageTitle = await page.title();
-    const pageBodySnippet = await page.evaluate(() =>
-      (document.body?.innerText || "").substring(0, 200),
+    const links: string[] = [];
+
+    // 2. Extract directly from the static HTML
+    $("a.product-link").each((i, el) => {
+      const href = $(el).attr("href");
+      if (href && href.includes("-p")) {
+        links.push(href.split("?")[0]);
+      }
+    });
+
+    const uniqueLinks = [...new Set(links)];
+    console.log(
+      `   --> ✅ Success! Found ${uniqueLinks.length} product links.`,
     );
-
-    if (isGeoWallPage(pageTitle, pageBodySnippet)) {
-      // Log full cookie set so we can identify the missing cookie
-      const cookies = await page.cookies();
-      console.log(`  --> 🌍 Geo-wall hit on category page despite warmup!`);
-      console.log(
-        `  --> 🔍 Active cookies (${cookies.length}):`,
-        cookies.map((c) => `${c.name}=${c.value}`).join(", "),
-      );
-
-      // Single recovery attempt: homepage → modal dismiss → retry
-      console.log("  --> 🔁 Attempting single geo recovery...");
-      await page.goto("https://www.zara.com/tr/en/", {
-        waitUntil: "domcontentloaded",
-        timeout: 60000,
-      });
-      await new Promise((r) => setTimeout(r, 4000));
-      await handleGeoModal(page);
-      await new Promise((r) => setTimeout(r, 2000));
-
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
-      await new Promise((r) => setTimeout(r, 6000));
-
-      // If still on geo wall after recovery, bail
-      const retryTitle = await page.title();
-      const retryBody = await page.evaluate(() =>
-        (document.body?.innerText || "").substring(0, 200),
-      );
-      if (isGeoWallPage(retryTitle, retryBody)) {
-        console.log(
-          "  --> ❌ Geo-wall persisted after recovery. Skipping category.",
-        );
-        return [];
-      }
-    }
-    // ─────────────────────────────────────────────────────────────────────────
-
-    try {
-      await page.waitForSelector('[class*="product-grid-product"]', {
-        timeout: 30000,
-      });
-    } catch (e) {
-      console.log("  --> ⚠️ Product grid didn't appear. Forcing scroll...");
-    }
-
-    let productLinks: string[] = [];
-    const maxRetries = 3;
-
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      console.log(`  --> 🔄 Attempt ${attempt} to extract Zara links...`);
-      console.log("  --> 📜 Auto-scrolling to trigger lazy load...");
-
-      await page.evaluate(`
-        (function() {
-          return new Promise(function(resolve) {
-            var totalHeight = 0;
-            var distance = 600;
-            var scrolls = 0;
-            var maxScrolls = 30;
-            var timer = setInterval(function() {
-              var scrollHeight = document.body.scrollHeight;
-              window.scrollBy(0, distance);
-              totalHeight += distance;
-              scrolls++;
-
-              // 👇 NEW: THE HOLLOW GRID DOM PRUNER 👇
-              // As we scroll, delete the heavy HTML of products that have passed out of view.
-              // This stops React from accumulating thousands of DOM nodes in RAM.
-              document.querySelectorAll('.product-grid-product').forEach(function(el) {
-                if (el.getBoundingClientRect().top < -1500 && el.innerHTML !== '') {
-                  el.style.height = el.offsetHeight + 'px'; // Lock height so React doesn't collapse the layout
-                  el.innerHTML = ''; // Nuke the memory
-                }
-              });
-
-              if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
-                clearInterval(timer);
-                resolve(undefined);
-              }
-            }, 800);
-          });
-        })()
-      `);
-
-      await new Promise((r) => setTimeout(r, 3000));
-
-      productLinks = (await page.evaluate(`
-        (function() {
-          return Array.from(document.querySelectorAll('.product-link'))
-            .map(function(el) { return el.href; })
-            .filter(function(href) { return href && href.includes('-p'); })
-            .map(function(href) { return href.split('?')[0]; })
-            .filter(function(href, index, self) { return self.indexOf(href) === index; });
-        })()
-      `)) as string[];
-
-      if (productLinks.length > 0) {
-        console.log(
-          `  --> ✅ Success! Found ${productLinks.length} product links.`,
-        );
-        break;
-      }
-
-      console.log(`  --> ⚠️ Found 0 links on attempt ${attempt}. Waiting...`);
-      await page.evaluate(() => window.scrollTo(0, 0));
-      await new Promise((r) => setTimeout(r, 4000));
-    }
-
-    if (productLinks.length === 0) {
-      console.log(
-        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
-      );
-      try {
-        const title = await page.title();
-        const text = await page.evaluate(() =>
-          document.body.innerText.substring(0, 300).replace(/\n/g, " | "),
-        );
-        console.log(`  --> 🕵️‍♂️ DEBUG TITLE: ${title}`);
-        console.log(`  --> 🕵️‍♂️ DEBUG TEXT: ${text}`);
-      } catch (e) {
-        console.log(`  --> 🕵️‍♂️ DEBUG ERROR: Could not read page text.`);
-      }
-    }
-
-    return productLinks;
+    return uniqueLinks;
   } catch (error: any) {
-    console.log(`  --> ⚠️ Error finding links: ${error.message}`);
+    console.log(`   --> ⚠️ Error parsing HTML: ${error.message}`);
     return [];
   }
 }

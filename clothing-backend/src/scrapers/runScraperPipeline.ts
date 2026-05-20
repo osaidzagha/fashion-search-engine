@@ -55,44 +55,14 @@ export const runScraperPipeline = async (
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
 
+    // Add this to your setupPage function
     await p.setRequestInterception(true);
     p.on("request", (req) => {
-      const rt = req.resourceType();
-      const url = req.url().toLowerCase();
-
-      // 🚨 NEW: Ruthlessly block heavy 3rd-party trackers & analytics
-      const blockedDomains = [
-        "analytics",
-        "tracking",
-        "criteo",
-        "tealium",
-        "tiqcdn",
-        "hotjar",
-        "clarity",
-      ];
-      if (blockedDomains.some((domain) => url.includes(domain))) {
-        return req.abort();
-      }
-
-      if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
-        req.abort();
-      } else if (rt === "image") {
-        if (brandName === "Zara") {
-          req.respond({
-            status: 200,
-            contentType: "image/png",
-            body: Buffer.from(
-              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-              "base64",
-            ),
-          });
-        } else {
-          req.abort();
-        }
-      } else if (brandName !== "Zara" && rt === "font") {
-        req.abort();
-      } else {
+      // ABORT EVERYTHING EXCEPT THE MAIN HTML
+      if (req.isNavigationRequest()) {
         req.continue();
+      } else {
+        req.abort();
       }
     });
 
