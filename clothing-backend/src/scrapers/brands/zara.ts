@@ -154,12 +154,23 @@ export async function scrapeZaraProductData(
     }
     const productId = match[1];
 
-    // 👇 FIX: Added explicit 120s timeout
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
+    // 👇 THE FIX: The Impatient Goto
     try {
-      // 👇 FIX: Bumped timeout to 25s
-      await page.waitForSelector("h1", { timeout: 25000 });
+      // Drop timeout to 40s. If a tracking pixel hangs, we don't care.
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40000 });
+    } catch (e: any) {
+      console.log(
+        `  --> ⚠️ Page load timed out or interrupted. Checking if DOM is usable anyway...`,
+      );
+    }
+
+    // 👇 THE CHECK: If the H1 is here, the HTML loaded successfully!
+    try {
+      await page.waitForSelector("h1", { timeout: 15000 });
     } catch {
+      console.log(
+        `  --> ❌ Page completely failed to load (Bot Blocked or Blank). Skipping.`,
+      );
       return null;
     }
 
