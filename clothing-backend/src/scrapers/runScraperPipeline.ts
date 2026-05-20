@@ -77,21 +77,16 @@ export const runScraperPipeline = async (
   };
 
   // ─── Zara geo warmup ──────────────────────────────────────────────────────
-  // The geo-confirmation cookie is only SET by Zara's server when the user
-  // actively dismisses the location modal. Simply visiting the homepage is not
-  // enough — the modal appears on the FIRST category URL visit, not the homepage.
-  // Strategy: visit a known stable category URL, wait for the modal, dismiss it,
-  // then harvest the resulting full cookie set.
   const zaraGeoWarmup = async (p: Page): Promise<void> => {
     console.log(
       "   --> 🌍 Running Zara geo-warmup (modal trigger strategy)...",
     );
 
-    // Step 1: Homepage first to get base cookies
+    // Step 1: Homepage first to get base cookies (Bumped to 60s for cloud CPUs)
     try {
       await p.goto("https://www.zara.com/tr/en/", {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: 60000,
       });
       await new Promise((r) => setTimeout(r, 3000));
     } catch (e: any) {
@@ -102,7 +97,7 @@ export const runScraperPipeline = async (
     try {
       await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
         waitUntil: "domcontentloaded",
-        timeout: 30000,
+        timeout: 60000,
       });
       await new Promise((r) => setTimeout(r, 4000));
     } catch (e: any) {
@@ -118,19 +113,26 @@ export const runScraperPipeline = async (
       await new Promise((r) => setTimeout(r, 2000));
       console.log("   --> ✅ Geo modal dismissed during warmup.");
     } catch {
-      // No modal = Zara already trusts this session (cookies from previous harvest)
       console.log(
         "   --> ℹ️ No geo modal during warmup (session already trusted).",
       );
 
-      // Check if we still ended up on the geo-wall page
-      const isGeoWall = await p.evaluate(() => {
-        const text = document.body?.innerText || "";
-        return (
-          text.includes("SELECT YOUR LOCATION") ||
-          document.title === "ZARA Official Website"
+      // 👇 THE CRASH FIX: Wrapped the evaluation in a try/catch
+      let isGeoWall = false;
+      try {
+        isGeoWall = await p.evaluate(() => {
+          const text = document.body?.innerText || "";
+          return (
+            text.includes("SELECT YOUR LOCATION") ||
+            document.title === "ZARA Official Website"
+          );
+        });
+      } catch (err) {
+        console.log(
+          "   --> ⚠️ Browser navigating during geo-check. Assuming geo-wall...",
         );
-      });
+        isGeoWall = true; // If it crashed, it's likely redirecting to the wall
+      }
 
       if (isGeoWall) {
         // Nuclear fallback: inject the store cookie directly
@@ -156,7 +158,7 @@ export const runScraperPipeline = async (
         try {
           await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
             waitUntil: "domcontentloaded",
-            timeout: 30000,
+            timeout: 60000,
           });
           await new Promise((r) => setTimeout(r, 3000));
 
@@ -182,10 +184,6 @@ export const runScraperPipeline = async (
         console.log(
           `   --> 🍪 Warmup complete — ${zaraCookies.length} cookies harvested.`,
         );
-
-        // Log cookie names so we can see exactly which ones Zara sets
-        const names = freshCookies.map((c) => c.name).join(", ");
-        console.log(`   --> 🔍 Cookie names: ${names}`);
       }
     } catch {}
   };
