@@ -96,14 +96,47 @@ export const runScraperPipeline = async (
 
     const newPage = await setupPage(await browser.newPage());
 
-    // Transplant the session onto the new blank page — zero network cost
-    if (brandName === "Zara" && zaraCookies.length > 0) {
+    if (brandName === "Zara") {
+      // Transplant whatever cookies we have first
+      if (zaraCookies.length > 0) {
+        try {
+          await newPage.setCookie(...zaraCookies);
+          console.log(
+            `   --> 🍪 Session transplanted (${zaraCookies.length} cookies).`,
+          );
+        } catch {}
+      }
+
+      // 👇 THE FIX: Warm up the TR homepage on every fresh page
+      // This sets the geo cookie so category pages don't redirect
       try {
-        await newPage.setCookie(...zaraCookies);
-        console.log(
-          `   --> 🍪 Session transplanted (${zaraCookies.length} cookies).`,
-        );
-      } catch {}
+        console.log("   --> 🌍 Warming up Zara TR session...");
+        await newPage.goto("https://www.zara.com/tr/en/", {
+          waitUntil: "domcontentloaded",
+          timeout: 30000,
+        });
+        await new Promise((r) => setTimeout(r, 3000));
+
+        // Dismiss modal if it appears
+        try {
+          const stayBtn = '[data-qa-action="stay-in-store"]';
+          await newPage.waitForSelector(stayBtn, { timeout: 3000 });
+          await newPage.click(stayBtn);
+          await new Promise((r) => setTimeout(r, 1000));
+          console.log("   --> ✅ Geo modal dismissed during warmup.");
+        } catch {} // No modal = fine
+
+        // Harvest the freshly-set geo cookies
+        const freshCookies = await newPage.cookies();
+        if (freshCookies.length > 0) {
+          zaraCookies = freshCookies;
+          console.log(
+            `   --> 🍪 Fresh session established (${zaraCookies.length} cookies).`,
+          );
+        }
+      } catch (e: any) {
+        console.log(`   --> ⚠️ Warmup failed: ${e.message}`);
+      }
     }
 
     return newPage;
