@@ -26,7 +26,7 @@ export interface PipelineResult {
 // ─── Pipeline ─────────────────────────────────────────────────────────────────
 
 export const runScraperPipeline = async (
-  browser: Browser, // 👈 CHANGED: Now takes the full browser instance
+  browser: Browser,
   brandName: string,
   departments: string[],
   getCategories: GetCategories,
@@ -38,7 +38,7 @@ export const runScraperPipeline = async (
   let updatedItems = 0;
   let errorCount = 0;
 
-  // 🛡️ THE ARMOR: Sets up viewport, user agent, and 1x1 Pixel Trick
+  // 🛡️ THE ARMOR: Sets up viewport, dynamic user agent, and SMART media blocking
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
 
@@ -51,23 +51,16 @@ export const runScraperPipeline = async (
       const rt = req.resourceType();
       const url = req.url().toLowerCase();
 
+      // ALWAYS block heavy videos (they are the primary cause of OOM crashes)
       if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
         req.abort();
       }
-      // 👇 THE 1x1 PIXEL TRICK
+      // 👇 THE FIX: Let Zara load images naturally so the React grid doesn't collapse!
       else if (rt === "image") {
         if (brandName === "Zara") {
-          // Feed Zara a microscopic 1x1 transparent pixel so React lazy-loads, but uses 0 RAM
-          req.respond({
-            status: 200,
-            contentType: "image/png",
-            body: Buffer.from(
-              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-              "base64",
-            ),
-          });
+          req.continue(); // Let Zara have its images. safeWipe will handle the RAM.
         } else {
-          req.abort(); // Mango and Massimo don't strictly need images to load links
+          req.abort(); // Mango and Massimo don't strictly need them
         }
       } else if (brandName !== "Zara" && rt === "font") {
         req.abort();
@@ -93,7 +86,7 @@ export const runScraperPipeline = async (
   let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
-    // 🛡️ THE MEMORY FIX: Force a fresh page for every department to survive massive sitemaps
+    // 🛡️ WIPE 1: Force a fresh page for every department to survive massive sitemaps
     console.log(`🧹 Wiping browser memory before starting ${dept} pipeline...`);
     page = await safeWipe(page);
 
@@ -144,7 +137,7 @@ export const runScraperPipeline = async (
         break;
       }
 
-      // 👇 ADD THIS: Wipe memory completely before starting a new category
+      // 🛡️ WIPE 2: Wipe memory completely before starting a new category
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       console.log("  --> 🧹 Wiping tab memory for new category...");
       page = await safeWipe(page);
@@ -174,6 +167,7 @@ export const runScraperPipeline = async (
         continue;
       }
 
+      // 🛡️ WIPE 3: Clear the heavy grid DOM before scraping individual products
       console.log(
         "  --> 🧹 Wiping bloated grid memory before scraping products...",
       );
@@ -192,9 +186,10 @@ export const runScraperPipeline = async (
           break;
         }
 
+        // 🛡️ WIPE 4: The 10-Product Recycle Loop (CRITICAL for Zara)
         if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
-          page = await safeWipe(page); // 👈 THE 4TH ONE!
+          page = await safeWipe(page);
         }
 
         const category =
@@ -231,7 +226,6 @@ export const runScraperPipeline = async (
               $setOnInsert: {
                 timestamp: new Date(),
                 brand: product.brand,
-                // ❌ REMOVE DEPARTMENT FROM HERE
                 category: product.category,
                 link: product.link,
                 currency: product.currency,
