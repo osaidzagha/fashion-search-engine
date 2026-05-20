@@ -1,4 +1,8 @@
-import puppeteer, { Browser } from "puppeteer";
+// 👇 NEW IMPORTS FOR STEALTH
+import puppeteer from "puppeteer-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+import { Browser } from "puppeteer"; // Keep for TypeScript types
+
 import { runScraperPipeline } from "./runScraperPipeline";
 import {
   getZaraCategories,
@@ -22,6 +26,9 @@ import {
 } from "./brands/massimoDutti";
 import { ScraperRunModel } from "../models/ScraperRun";
 import { priceAlertQueue } from "../queues/queues";
+
+// Initialize the stealth plugin
+puppeteer.use(StealthPlugin());
 
 // ─── Process Registry ─────────────────────────────────────────────────────────
 const activeBrowsers = new Map<string, Browser>();
@@ -62,6 +69,7 @@ export const cleanupStaleRuns = async (): Promise<void> => {
 
   console.log("✅ Queue flushed and stale runs marked as error.");
 };
+
 // ─── Stop Engine ──────────────────────────────────────────────────────────────
 export const stopScraper = async (brandSlug: string): Promise<boolean> => {
   const browser = activeBrowsers.get(brandSlug);
@@ -85,22 +93,22 @@ export const triggerScraper = async (
   let browser: Browser | null = null;
 
   try {
-    browser = await puppeteer.launch({
+    // puppeteer-extra uses the exact same launch arguments!
+    browser = (await puppeteer.launch({
       headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage", // 🚨 THIS IS THE LIFESAVER! It stops the /dev/shm crash.
+        "--disable-dev-shm-usage",
         "--disable-gpu",
         "--no-zygote",
-        "--single-process", // 🚨 Forces Chrome to use less RAM footprint
-        "--js-flags=--max-old-space-size=256", // 🚨 Caps V8 JS engine memory
+        "--single-process",
+        "--js-flags=--max-old-space-size=256",
       ],
-    });
+    })) as unknown as Browser; // Type casting for strict TS environments
 
     activeBrowsers.set(brandSlug, browser);
 
-    // 👈 CHANGED: We removed the page generation here, the pipeline handles it now
     const result = await runScraperPipeline(
       browser,
       job.brandName,
