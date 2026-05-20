@@ -558,6 +558,17 @@ export async function getProductLinksFromCategory(
               window.scrollBy(0, distance);
               totalHeight += distance;
               scrolls++;
+
+              // 👇 NEW: THE HOLLOW GRID DOM PRUNER 👇
+              // As we scroll, delete the heavy HTML of products that have passed out of view.
+              // This stops React from accumulating thousands of DOM nodes in RAM.
+              document.querySelectorAll('.product-grid-product').forEach(function(el) {
+                if (el.getBoundingClientRect().top < -1500 && el.innerHTML !== '') {
+                  el.style.height = el.offsetHeight + 'px'; // Lock height so React doesn't collapse the layout
+                  el.innerHTML = ''; // Nuke the memory
+                }
+              });
+
               if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
                 clearInterval(timer);
                 resolve(undefined);

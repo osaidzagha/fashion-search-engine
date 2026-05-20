@@ -40,11 +40,13 @@ export const runScraperPipeline = async (
 
   let zaraCookies: any[] = [];
 
-  // 🛡️ THE ARMOR: Sets up viewport, dynamic user agent, and SMART media blocking
+  // 🛡️ THE ARMOR: Sets up viewport, dynamic UA, 1x1 Pixels, and Tracker Blocking
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
 
-    // Declare TR locale so Zara serves the TR store from the first request
+    // 🚨 NEW: Explicitly disable Chrome's RAM cache
+    await p.setCacheEnabled(false);
+
     await p.setExtraHTTPHeaders({
       "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
     });
@@ -58,13 +60,24 @@ export const runScraperPipeline = async (
       const rt = req.resourceType();
       const url = req.url().toLowerCase();
 
+      // 🚨 NEW: Ruthlessly block heavy 3rd-party trackers & analytics
+      const blockedDomains = [
+        "analytics",
+        "tracking",
+        "criteo",
+        "tealium",
+        "tiqcdn",
+        "hotjar",
+        "clarity",
+      ];
+      if (blockedDomains.some((domain) => url.includes(domain))) {
+        return req.abort();
+      }
+
       if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
         req.abort();
       } else if (rt === "image") {
         if (brandName === "Zara") {
-          // 👇 THE RETURN OF THE 1x1 PIXEL 👇
-          // We removed this thinking it broke the layout, but the geo-wall was the real culprit.
-          // Now that geo is fixed, we MUST use this to survive the 512MB RAM limit!
           req.respond({
             status: 200,
             contentType: "image/png",
