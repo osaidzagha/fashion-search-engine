@@ -17,7 +17,6 @@ function fetchUrl(url: string): Promise<string | null> {
         timeout: 15000,
       },
       (res) => {
-        // Follow one redirect
         if (
           res.statusCode &&
           res.statusCode >= 300 &&
@@ -59,6 +58,7 @@ function extractZaraCategoryLinks(xmlText: string, dept: string): string[] {
     ),
   ];
 }
+
 export function parseUniversalPrice(rawPrice: string): number | undefined {
   if (!rawPrice) return undefined;
 
@@ -68,33 +68,31 @@ export function parseUniversalPrice(rawPrice: string): number | undefined {
   const lastComma = cleanStr.lastIndexOf(",");
   const lastDot = cleanStr.lastIndexOf(".");
 
-  // Case 1: String has BOTH a dot and a comma (e.g., 1.790,00 or 1,790.00)
+  // Case 1: Both dot and comma (e.g., 1.790,00 or 1,790.00)
   if (lastComma > -1 && lastDot > -1) {
     if (lastComma > lastDot) {
-      // TR/EU Format: 1.790,00 -> Remove dot, change comma to decimal
+      // TR/EU: 1.790,00 → 1790.00
       cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
     } else {
-      // US Format: 1,790.00 -> Remove comma
+      // US: 1,790.00 → 1790.00
       cleanStr = cleanStr.replace(/,/g, "");
     }
   }
-  // Case 2: String has ONLY a dot (e.g., 2.990 or 29.90)
+  // Case 2: Only dot (e.g., 2.990 or 29.90)
   else if (lastDot > -1 && lastComma === -1) {
-    // If exactly 3 digits follow the dot, it is a thousands separator, NOT a decimal
     if (cleanStr.length - lastDot === 4) {
-      cleanStr = cleanStr.replace(/\./g, ""); // "2.990" -> "2990"
+      cleanStr = cleanStr.replace(/\./g, ""); // "2.990" → "2990"
     }
   }
-  // Case 3: String has ONLY a comma (e.g., 2990,00)
+  // Case 3: Only comma (e.g., 2990,00)
   else if (lastComma > -1 && lastDot === -1) {
-    cleanStr = cleanStr.replace(",", "."); // "2990,00" -> "2990.00"
+    cleanStr = cleanStr.replace(",", "."); // "2990,00" → "2990.00"
   }
 
   const parsed = parseFloat(cleanStr);
   return isNaN(parsed) ? undefined : parsed;
 }
 
-// 1. Replace selectDepartment — remove className check
 async function selectDepartment(page: Page, department: string) {
   console.log(`Switching to ${department} department...`);
   try {
@@ -140,6 +138,15 @@ async function handleGeoModal(page: Page) {
   }
 }
 
+// ─── Shared geo-wall check ────────────────────────────────────────────────────
+function isGeoWallPage(title: string, bodyText: string): boolean {
+  return (
+    title === "ZARA Official Website" ||
+    bodyText.includes("SELECT YOUR LOCATION") ||
+    bodyText.includes("select your location")
+  );
+}
+
 export async function scrapeZaraProductData(
   page: Page,
   url: string,
@@ -154,9 +161,7 @@ export async function scrapeZaraProductData(
     }
     const productId = match[1];
 
-    // 👇 THE FIX: The Impatient Goto
     try {
-      // Drop timeout to 40s. If a tracking pixel hangs, we don't care.
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40000 });
     } catch (e: any) {
       console.log(
@@ -164,7 +169,6 @@ export async function scrapeZaraProductData(
       );
     }
 
-    // 👇 THE CHECK: If the H1 is here, the HTML loaded successfully!
     try {
       await page.waitForSelector("h1", { timeout: 15000 });
     } catch {
@@ -174,11 +178,11 @@ export async function scrapeZaraProductData(
       return null;
     }
 
-    // ─── STEP 1: Wait for JS hydration at page top ───────────────────────────
+    // ─── STEP 1: Wait for JS hydration ───────────────────────────────────────
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var maxWait = 10000; // 👇 FIX: Bumped to 25s to let Render CPU catch up
+          var maxWait = 10000;
           var waited = 0;
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
@@ -199,7 +203,7 @@ export async function scrapeZaraProductData(
       })()
     `);
 
-    // ─── STEP 2: Read ALL text data while page is still at top ───────────────
+    // ─── STEP 2: Read all text data ───────────────────────────────────────────
     const textData = (await page.evaluate(`
       (function() {
         function getText(selector) {
@@ -281,18 +285,16 @@ export async function scrapeZaraProductData(
       })()
     `);
 
-    await new Promise((r) => setTimeout(r, 2000)); // was: waitForNetworkIdle 20s
+    await new Promise((r) => setTimeout(r, 2000));
 
-    // ─── STEP 4: Read images after scroll & GHOST FRAME DEFENSE ──────────────
+    // ─── STEP 4: Read images after scroll ────────────────────────────────────
     const rawImages = (await page.evaluate(`
       (function() {
         function sanitizeAndUpscale(url) {
           if (!url) return null;
           var lowerUrl = url.toLowerCase();
-          
           if (lowerUrl.startsWith('data:') || lowerUrl.endsWith('.svg') || lowerUrl.includes('placeholder')) return null;
           if (lowerUrl.includes('swatch') || lowerUrl.includes('texture') || lowerUrl.includes('color-selector')) return null;
-
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
         }
 
@@ -345,7 +347,6 @@ export async function scrapeZaraProductData(
           if (sources.length === 0) return;
           var rawUrl = pickHighestResFromSources(sources);
           var cleanUrl = sanitizeAndUpscale(rawUrl);
-          
           if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
             seen.add(cleanUrl); 
             images.push(cleanUrl); 
@@ -356,7 +357,6 @@ export async function scrapeZaraProductData(
           clone.querySelectorAll('img').forEach(function(img) {
             var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
             var cleanUrl = sanitizeAndUpscale(rawUrl);
-            
             if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
               seen.add(cleanUrl); 
               images.push(cleanUrl); 
@@ -367,7 +367,7 @@ export async function scrapeZaraProductData(
       })()
     `)) as string[];
 
-    // ─── STEP 5: Videos (Extract ALL valid videos) ────────────────────────────
+    // ─── STEP 5: Videos ───────────────────────────────────────────────────────
     const cleanVideos = (await page
       .evaluate(
         `
@@ -377,7 +377,6 @@ export async function scrapeZaraProductData(
 
         for (var i = 0; i < videos.length; i++) {
           var v = videos[i];
-
           if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) {
             continue;
           }
@@ -392,7 +391,6 @@ export async function scrapeZaraProductData(
 
           if (src && !src.startsWith('blob:')) {
             var lowerSrc = src.toLowerCase();
-            
             if (
               !lowerSrc.includes('campaign') && 
               !lowerSrc.includes('banner') && 
@@ -412,7 +410,7 @@ export async function scrapeZaraProductData(
       )
       .catch(() => [])) as string[];
 
-    // ─── STEP 6: Sizes — click add-to-cart to reveal selector ─────────────────
+    // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
     try {
       await page.evaluate(`
         (function() {
@@ -421,7 +419,6 @@ export async function scrapeZaraProductData(
         })()
       `);
       await new Promise((r) => setTimeout(r, 1000));
-      // 👇 FIX: Bumped timeout
       await page.waitForSelector(".size-selector-sizes-size__label", {
         timeout: 10000,
       });
@@ -489,36 +486,48 @@ export async function getProductLinksFromCategory(
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
     await new Promise((r) => setTimeout(r, 6000));
 
-    // ─── GEO-REDIRECT DETECTOR ────────────────────────────────────────────────
-    // If Zara served us the location selector instead of the category page,
-    // warm up on the homepage first, then retry the real URL.
-    const isLocationPage = await page.evaluate(() => {
-      const text = document.body?.innerText || "";
-      return (
-        text.includes("SELECT YOUR LOCATION") ||
-        text.includes("select your location") ||
-        document.title === "ZARA Official Website"
-      );
-    });
+    // ─── GEO-WALL CHECK ───────────────────────────────────────────────────────
+    // Pipeline's safeWipe now handles warmup, so if we still hit the geo wall
+    // here it means this specific URL triggered a re-check. Log cookies for
+    // debugging and attempt a single recovery via handleGeoModal.
+    const pageTitle = await page.title();
+    const pageBodySnippet = await page.evaluate(() =>
+      (document.body?.innerText || "").substring(0, 200),
+    );
 
-    if (isLocationPage) {
+    if (isGeoWallPage(pageTitle, pageBodySnippet)) {
+      // Log full cookie set so we can identify the missing cookie
+      const cookies = await page.cookies();
+      console.log(`  --> 🌍 Geo-wall hit on category page despite warmup!`);
       console.log(
-        "  --> 🌍 Geo-redirect detected! Warming up on homepage first...",
+        `  --> 🔍 Active cookies (${cookies.length}):`,
+        cookies.map((c) => `${c.name}=${c.value}`).join(", "),
       );
 
-      // Step 1: Go to TR homepage and dismiss modal
+      // Single recovery attempt: homepage → modal dismiss → retry
+      console.log("  --> 🔁 Attempting single geo recovery...");
       await page.goto("https://www.zara.com/tr/en/", {
         waitUntil: "domcontentloaded",
-        timeout: 120000,
+        timeout: 60000,
       });
-      await new Promise((r) => setTimeout(r, 5000));
+      await new Promise((r) => setTimeout(r, 4000));
       await handleGeoModal(page);
       await new Promise((r) => setTimeout(r, 2000));
 
-      // Step 2: Now navigate to the real category URL
-      console.log("  --> 🔁 Retrying category URL after warmup...");
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
       await new Promise((r) => setTimeout(r, 6000));
+
+      // If still on geo wall after recovery, bail
+      const retryTitle = await page.title();
+      const retryBody = await page.evaluate(() =>
+        (document.body?.innerText || "").substring(0, 200),
+      );
+      if (isGeoWallPage(retryTitle, retryBody)) {
+        console.log(
+          "  --> ❌ Geo-wall persisted after recovery. Skipping category.",
+        );
+        return [];
+      }
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -587,14 +596,12 @@ export async function getProductLinksFromCategory(
         `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
       );
       try {
-        const pageTitle = await page.title();
-        const pageText = await page.evaluate(() => {
-          return document.body.innerText
-            .substring(0, 300)
-            .replace(/\n/g, " | ");
-        });
-        console.log(`  --> 🕵️‍♂️ DEBUG TITLE: ${pageTitle}`);
-        console.log(`  --> 🕵️‍♂️ DEBUG TEXT: ${pageText}`);
+        const title = await page.title();
+        const text = await page.evaluate(() =>
+          document.body.innerText.substring(0, 300).replace(/\n/g, " | "),
+        );
+        console.log(`  --> 🕵️‍♂️ DEBUG TITLE: ${title}`);
+        console.log(`  --> 🕵️‍♂️ DEBUG TEXT: ${text}`);
       } catch (e) {
         console.log(`  --> 🕵️‍♂️ DEBUG ERROR: Could not read page text.`);
       }
@@ -637,13 +644,11 @@ export async function getZaraCategories(
 
       console.log(`   --> ✉️ ${url} → ${text.length} bytes`);
 
-      // Log a sample so we can see the actual URL format Zara uses
       const sampleLocs = (text.match(/<loc>(.*?)<\/loc>/g) || [])
         .slice(0, 5)
         .map((m) => m.replace(/<\/?loc>/g, ""));
       console.log(`   --> 🔍 Sample locs: ${JSON.stringify(sampleLocs)}`);
 
-      // Check if it's a sitemap index
       const subUrls = (
         text.match(/<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/g) ||
         []
@@ -688,21 +693,21 @@ export async function getZaraCategories(
   }
 
   // ── Single navigation — shared by strategies 2 and 3 ─────────────────────
+  // Note: pipeline's safeWipe already warmed up this page, but getZaraCategories
+  // needs to navigate to the homepage anyway to extract nav links.
   try {
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
       timeout: 120000,
     });
-    await new Promise((r) => setTimeout(r, 5000)); // let React hydrate
+    await new Promise((r) => setTimeout(r, 5000));
     await handleGeoModal(page);
   } catch (e: any) {
     console.error(`  --> ❌ Navigation failed: ${e.message}`);
     return [];
   }
 
-  // ── STRATEGY 2: Pre-rendered DOM (no menu click needed) ───────────────────
-  // Zara's SSR/Next.js likely includes nav links in the initial HTML payload,
-  // just visually hidden. We can grab them without opening the hamburger at all.
+  // ── STRATEGY 2: Pre-rendered DOM ──────────────────────────────────────────
   console.log("   --> 🌐 [2/3] Pre-rendered DOM extraction...");
   try {
     const preRenderedLinks = await page.evaluate((dept) => {
@@ -716,7 +721,6 @@ export async function getZaraCategories(
               if (href.includes("-p")) return false;
 
               const isDepartment = patterns.some((p) => href.includes(p));
-
               const blockedWords = [
                 "mkt",
                 "beauty",
@@ -728,7 +732,6 @@ export async function getZaraCategories(
                 "collections",
                 "join-life",
               ];
-
               const isBlocked = blockedWords.some((w) =>
                 href.toLowerCase().includes(w),
               );
@@ -752,12 +755,9 @@ export async function getZaraCategories(
     console.log(`   --> ⚠️ [DOM] ${e.message}`);
   }
 
-  // ── STRATEGY 3: JS-based menu click (bypasses all visibility checks) ───────
+  // ── STRATEGY 3: JS-based menu click ───────────────────────────────────────
   console.log("   --> 🍔 [3/3] Menu strategy...");
   try {
-    // Use page.evaluate to click — this ignores Puppeteer's visibility requirement.
-    // The OLD approach used waitForSelector with visible:true which timed out
-    // because Render's headless Chrome considers off-screen elements not "visible".
     const clickedSelector = await page.evaluate(() => {
       const candidates = [
         ".layout-desktop-open-menu",
@@ -785,10 +785,7 @@ export async function getZaraCategories(
       console.log("   --> ⚠️ No hamburger element found in DOM.");
     }
 
-    // Single wait — no retry loop (retrying would CLOSE a toggleable hamburger)
     await new Promise((r) => setTimeout(r, 5000));
-
-    // Best-effort department click
     await selectDepartment(page, department);
     await new Promise((r) => setTimeout(r, 4000));
 

@@ -44,6 +44,11 @@ export const runScraperPipeline = async (
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
 
+    // Declare TR locale so Zara serves the TR store from the first request
+    await p.setExtraHTTPHeaders({
+      "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
+    });
+
     const defaultUA = await browser.userAgent();
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
@@ -53,16 +58,13 @@ export const runScraperPipeline = async (
       const rt = req.resourceType();
       const url = req.url().toLowerCase();
 
-      // ALWAYS block heavy videos (they are the primary cause of OOM crashes)
       if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
         req.abort();
-      }
-      // 👇 THE FIX: Let Zara load images naturally so the React grid doesn't collapse!
-      else if (rt === "image") {
+      } else if (rt === "image") {
         if (brandName === "Zara") {
-          req.continue(); // Let Zara have its images. safeWipe will handle the RAM.
+          req.continue();
         } else {
-          req.abort(); // Mango and Massimo don't strictly need them
+          req.abort();
         }
       } else if (brandName !== "Zara" && rt === "font") {
         req.abort();
@@ -72,6 +74,120 @@ export const runScraperPipeline = async (
     });
 
     return p;
+  };
+
+  // ─── Zara geo warmup ──────────────────────────────────────────────────────
+  // The geo-confirmation cookie is only SET by Zara's server when the user
+  // actively dismisses the location modal. Simply visiting the homepage is not
+  // enough — the modal appears on the FIRST category URL visit, not the homepage.
+  // Strategy: visit a known stable category URL, wait for the modal, dismiss it,
+  // then harvest the resulting full cookie set.
+  const zaraGeoWarmup = async (p: Page): Promise<void> => {
+    console.log(
+      "   --> 🌍 Running Zara geo-warmup (modal trigger strategy)...",
+    );
+
+    // Step 1: Homepage first to get base cookies
+    try {
+      await p.goto("https://www.zara.com/tr/en/", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      await new Promise((r) => setTimeout(r, 3000));
+    } catch (e: any) {
+      console.log(`   --> ⚠️ Homepage warmup failed: ${e.message}`);
+    }
+
+    // Step 2: Poke a known category URL — this is what triggers the modal
+    try {
+      await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
+        waitUntil: "domcontentloaded",
+        timeout: 30000,
+      });
+      await new Promise((r) => setTimeout(r, 4000));
+    } catch (e: any) {
+      console.log(`   --> ⚠️ Warmup category visit failed: ${e.message}`);
+    }
+
+    // Step 3: Dismiss the modal if it appeared
+    try {
+      await p.waitForSelector('[data-qa-action="stay-in-store"]', {
+        timeout: 5000,
+      });
+      await p.click('[data-qa-action="stay-in-store"]');
+      await new Promise((r) => setTimeout(r, 2000));
+      console.log("   --> ✅ Geo modal dismissed during warmup.");
+    } catch {
+      // No modal = Zara already trusts this session (cookies from previous harvest)
+      console.log(
+        "   --> ℹ️ No geo modal during warmup (session already trusted).",
+      );
+
+      // Check if we still ended up on the geo-wall page
+      const isGeoWall = await p.evaluate(() => {
+        const text = document.body?.innerText || "";
+        return (
+          text.includes("SELECT YOUR LOCATION") ||
+          document.title === "ZARA Official Website"
+        );
+      });
+
+      if (isGeoWall) {
+        // Nuclear fallback: inject the store cookie directly
+        console.log(
+          "   --> 💉 Geo-wall detected in warmup — injecting store cookies...",
+        );
+        await p.setCookie(
+          {
+            name: "selectedCountry",
+            value: "TR",
+            domain: ".zara.com",
+            path: "/",
+          },
+          { name: "store", value: "tr", domain: ".zara.com", path: "/" },
+          {
+            name: "inditex_country",
+            value: "TR",
+            domain: ".zara.com",
+            path: "/",
+          },
+        );
+        // Retry the category page once after injecting
+        try {
+          await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
+            waitUntil: "domcontentloaded",
+            timeout: 30000,
+          });
+          await new Promise((r) => setTimeout(r, 3000));
+
+          await p.waitForSelector('[data-qa-action="stay-in-store"]', {
+            timeout: 4000,
+          });
+          await p.click('[data-qa-action="stay-in-store"]');
+          await new Promise((r) => setTimeout(r, 2000));
+          console.log("   --> ✅ Geo modal dismissed after cookie injection.");
+        } catch {
+          console.log(
+            "   --> ⚠️ Could not dismiss modal after injection. Proceeding anyway.",
+          );
+        }
+      }
+    }
+
+    // Step 4: Harvest the full post-modal cookie set
+    try {
+      const freshCookies = await p.cookies();
+      if (freshCookies.length > 0) {
+        zaraCookies = freshCookies;
+        console.log(
+          `   --> 🍪 Warmup complete — ${zaraCookies.length} cookies harvested.`,
+        );
+
+        // Log cookie names so we can see exactly which ones Zara sets
+        const names = freshCookies.map((c) => c.name).join(", ");
+        console.log(`   --> 🔍 Cookie names: ${names}`);
+      }
+    } catch {}
   };
 
   const safeWipe = async (currentPage: Page) => {
@@ -97,46 +213,19 @@ export const runScraperPipeline = async (
     const newPage = await setupPage(await browser.newPage());
 
     if (brandName === "Zara") {
-      // Transplant whatever cookies we have first
+      // Transplant whatever cookies we already have as a starting point
       if (zaraCookies.length > 0) {
         try {
           await newPage.setCookie(...zaraCookies);
           console.log(
-            `   --> 🍪 Session transplanted (${zaraCookies.length} cookies).`,
+            `   --> 🍪 Pre-transplanted ${zaraCookies.length} cookies.`,
           );
         } catch {}
       }
 
-      // 👇 THE FIX: Warm up the TR homepage on every fresh page
-      // This sets the geo cookie so category pages don't redirect
-      try {
-        console.log("   --> 🌍 Warming up Zara TR session...");
-        await newPage.goto("https://www.zara.com/tr/en/", {
-          waitUntil: "domcontentloaded",
-          timeout: 30000,
-        });
-        await new Promise((r) => setTimeout(r, 3000));
-
-        // Dismiss modal if it appears
-        try {
-          const stayBtn = '[data-qa-action="stay-in-store"]';
-          await newPage.waitForSelector(stayBtn, { timeout: 3000 });
-          await newPage.click(stayBtn);
-          await new Promise((r) => setTimeout(r, 1000));
-          console.log("   --> ✅ Geo modal dismissed during warmup.");
-        } catch {} // No modal = fine
-
-        // Harvest the freshly-set geo cookies
-        const freshCookies = await newPage.cookies();
-        if (freshCookies.length > 0) {
-          zaraCookies = freshCookies;
-          console.log(
-            `   --> 🍪 Fresh session established (${zaraCookies.length} cookies).`,
-          );
-        }
-      } catch (e: any) {
-        console.log(`   --> ⚠️ Warmup failed: ${e.message}`);
-      }
+      // Always run the full geo warmup — it's the only reliable way to ensure
+      // the TR store cookie is active on this fresh page context
+      await zaraGeoWarmup(newPage);
     }
 
     return newPage;
@@ -146,7 +235,6 @@ export const runScraperPipeline = async (
   let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
-    // 🛡️ WIPE 1: Force a fresh page for every department to survive massive sitemaps
     console.log(`🧹 Wiping browser memory before starting ${dept} pipeline...`);
     page = await safeWipe(page);
 
@@ -197,7 +285,6 @@ export const runScraperPipeline = async (
         break;
       }
 
-      // 🛡️ WIPE 2: Wipe memory completely before starting a new category
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       console.log("  --> 🧹 Wiping tab memory for new category...");
       page = await safeWipe(page);
@@ -227,7 +314,6 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      // 🛡️ WIPE 3: Clear the heavy grid DOM before scraping individual products
       console.log(
         "  --> 🧹 Wiping bloated grid memory before scraping products...",
       );
@@ -238,7 +324,7 @@ export const runScraperPipeline = async (
         ? shuffledLinks.slice(0, 2)
         : shuffledLinks.slice(0, 50);
 
-      let productCount = 0; // Track products for recycling
+      let productCount = 0;
 
       for (const link of toTest) {
         if (page.isClosed()) {
@@ -246,7 +332,6 @@ export const runScraperPipeline = async (
           break;
         }
 
-        // 🛡️ WIPE 4: The 10-Product Recycle Loop (CRITICAL for Zara)
         if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
           page = await safeWipe(page);
@@ -266,7 +351,6 @@ export const runScraperPipeline = async (
 
             const oldPrice = existingProduct?.price ?? null;
             const isNewProduct = oldPrice === null;
-            const isPriceDrop = !isNewProduct && product.price < oldPrice!;
             const shouldRecordPrice =
               isNewProduct || product.price !== oldPrice;
 
@@ -274,7 +358,7 @@ export const runScraperPipeline = async (
               $set: {
                 name: product.name,
                 price: product.price,
-                department: product.department, // ✅ KEEP IT HERE
+                department: product.department,
                 originalPrice: product.originalPrice,
                 color: product.color,
                 description: product.description,
@@ -349,7 +433,6 @@ export const runScraperPipeline = async (
     }
   }
 
-  // Cleanup our page when the whole pipeline is done
   await page.close().catch(() => {});
   return { newItems, updatedItems, errorCount };
 };
