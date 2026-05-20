@@ -40,13 +40,9 @@ export const runScraperPipeline = async (
 
   let zaraCookies: any[] = [];
 
-  // 🛡️ THE ARMOR: Sets up viewport, dynamic UA, 1x1 Pixels, and Tracker Blocking
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
-
-    // 🚨 NEW: Explicitly disable Chrome's RAM cache
     await p.setCacheEnabled(false);
-
     await p.setExtraHTTPHeaders({
       "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7",
     });
@@ -54,6 +50,9 @@ export const runScraperPipeline = async (
     const defaultUA = await browser.userAgent();
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
+
+    // ✅ Must be called BEFORE attaching the request listener
+    await p.setRequestInterception(true);
 
     p.on("request", (req) => {
       const type = req.resourceType();
