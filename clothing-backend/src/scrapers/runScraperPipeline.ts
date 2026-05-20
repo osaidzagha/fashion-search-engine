@@ -38,21 +38,36 @@ export const runScraperPipeline = async (
   let updatedItems = 0;
   let errorCount = 0;
 
-  // 🛡️ THE ARMOR: Sets up viewport, user agent, and blocks heavy media
+  // 🛡️ THE ARMOR: Sets up viewport, dynamic user agent, and SMART media blocking
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
-    await p.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    );
+
+    // 👇 FIX 1: Dynamic User-Agent
+    // Zara checks if your User-Agent Chrome version matches your actual browser engine.
+    // Hardcoding it causes mismatches. This dynamically grabs the real version and masks the "Headless" tag.
+    const defaultUA = await browser.userAgent();
+    const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
+    await p.setUserAgent(cleanUA);
+
     await p.setRequestInterception(true);
     p.on("request", (req) => {
       const rt = req.resourceType();
-      if (rt === "image" || rt === "media" || rt === "font") {
+      const url = req.url().toLowerCase();
+
+      // 👇 FIX 2: Smart Interception
+      // ALWAYS block videos (they are the primary cause of 512MB OOM crashes)
+      if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
+        req.abort();
+      }
+      // ZARA EXCEPTION: Zara's firewall and React engine REQUIRE images and fonts to load.
+      // We only block images/fonts if the brand is NOT Zara.
+      else if (brandName !== "Zara" && (rt === "image" || rt === "font")) {
         req.abort();
       } else {
         req.continue();
       }
     });
+
     return p;
   };
 
