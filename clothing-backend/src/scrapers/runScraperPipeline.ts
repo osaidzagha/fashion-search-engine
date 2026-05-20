@@ -55,11 +55,9 @@ export const runScraperPipeline = async (
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
 
-    // Add this to your setupPage function
-    await p.setRequestInterception(true);
     p.on("request", (req) => {
-      // ABORT EVERYTHING EXCEPT THE MAIN HTML
-      if (req.isNavigationRequest()) {
+      const type = req.resourceType();
+      if (req.isNavigationRequest() || type === "script") {
         req.continue();
       } else {
         req.abort();

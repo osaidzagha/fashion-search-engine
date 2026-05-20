@@ -9,6 +9,9 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "render-build": "npm install && npx puppeteer browsers install chrome && npm run build",
     "dev": "tsx watch src/server.ts"
   },
@@ -42,7 +45,9 @@
     "resend": "^4.8.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.7",
     "tsx": "^4.21.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.7"
   }
 }

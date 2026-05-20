@@ -483,13 +483,23 @@ export async function getProductLinksFromCategory(
   console.log(`   --> 🕵️‍♂️ Zara Scout (Lightweight Mode) visiting: ${url}`);
 
   try {
-    // 1. Get the raw HTML without waiting for 100s of images
+    // 1. Navigate first, then grab the HTML after JS has hydrated the grid
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+
+    // 2. Wait for at least one product link to appear in the DOM
+    await page
+      .waitForSelector("a.product-link", { timeout: 15000 })
+      .catch(() => {
+        console.log(
+          `   --> ⚠️ Timed out waiting for product links. Trying anyway...`,
+        );
+      });
+
     const html = await page.content();
     const $ = cheerio.load(html);
 
     const links: string[] = [];
 
-    // 2. Extract directly from the static HTML
     $("a.product-link").each((i, el) => {
       const href = $(el).attr("href");
       if (href && href.includes("-p")) {
@@ -507,7 +517,6 @@ export async function getProductLinksFromCategory(
     return [];
   }
 }
-
 export async function getZaraCategories(
   page: Page,
   department: string,
