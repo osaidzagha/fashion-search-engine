@@ -1,5 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // ─── Inline the pure functions under test ────────────────────────────────────
 // (Copy them here so tests are self-contained and don't need a live DB/browser)
 
