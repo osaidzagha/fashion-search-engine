@@ -72,14 +72,46 @@ export const runScraperPipeline = async (
     return p;
   };
 
-  // 🛡️ THE GARBAGE COLLECTOR: Drops DOM nodes instantly and waits for RAM to clear
   const safeWipe = async (currentPage: Page) => {
     try {
       await currentPage.goto("about:blank");
     } catch (e) {}
     if (!currentPage.isClosed()) await currentPage.close().catch(() => {});
-    await new Promise((r) => setTimeout(r, 2000)); // Give Node 2 seconds to dump RAM
-    return await setupPage(await browser.newPage());
+    await new Promise((r) => setTimeout(r, 2000));
+
+    const newPage = await setupPage(await browser.newPage());
+
+    // ─── ZARA SESSION WARMUP ──────────────────────────────────────────────────
+    // Zara's CDN (Akamai) intercepts any cold navigation from a datacenter IP
+    // and serves a location-selector page instead of the real content.
+    // Visiting the homepage first plants the session cookie, which makes all
+    // subsequent navigations on this page behave like a real browser.
+    if (brandName === "Zara") {
+      try {
+        console.log("   --> 🔥 Warming up Zara session on homepage...");
+        await newPage.goto("https://www.zara.com/tr/en/", {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+        await new Promise((r) => setTimeout(r, 4000));
+        // Dismiss geo modal if present
+        try {
+          await newPage.waitForSelector('[data-qa-action="stay-in-store"]', {
+            timeout: 3000,
+          });
+          await newPage.click('[data-qa-action="stay-in-store"]');
+          await new Promise((r) => setTimeout(r, 1000));
+          console.log("   --> ✅ Warmup modal dismissed.");
+        } catch {
+          console.log("   --> ✅ Warmup complete (no modal).");
+        }
+      } catch (e: any) {
+        console.log(`   --> ⚠️ Warmup failed: ${e.message}`);
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    return newPage;
   };
 
   // Create our initial protected page
