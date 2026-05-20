@@ -216,14 +216,13 @@ export const runScraperPipeline = async (
         try {
           await newPage.setCookie(...zaraCookies);
           console.log(
-            `   --> 🍪 Pre-transplanted ${zaraCookies.length} cookies.`,
+            `   --> 🍪 Pre-transplanted ${zaraCookies.length} cookies. Skipping geo-warmup.`,
           );
         } catch {}
+      } else {
+        // 👇 THE FIX: ONLY run the heavy geo warmup if we have NO cookies!
+        await zaraGeoWarmup(newPage);
       }
-
-      // Always run the full geo warmup — it's the only reliable way to ensure
-      // the TR store cookie is active on this fresh page context
-      await zaraGeoWarmup(newPage);
     }
 
     return newPage;
