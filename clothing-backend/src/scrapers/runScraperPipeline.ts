@@ -38,13 +38,10 @@ export const runScraperPipeline = async (
   let updatedItems = 0;
   let errorCount = 0;
 
-  // 🛡️ THE ARMOR: Sets up viewport, dynamic user agent, and SMART media blocking
+  // 🛡️ THE ARMOR: Sets up viewport, user agent, and 1x1 Pixel Trick
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
 
-    // 👇 FIX 1: Dynamic User-Agent
-    // Zara checks if your User-Agent Chrome version matches your actual browser engine.
-    // Hardcoding it causes mismatches. This dynamically grabs the real version and masks the "Headless" tag.
     const defaultUA = await browser.userAgent();
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
@@ -54,14 +51,25 @@ export const runScraperPipeline = async (
       const rt = req.resourceType();
       const url = req.url().toLowerCase();
 
-      // 👇 FIX 2: Smart Interception
-      // ALWAYS block videos (they are the primary cause of 512MB OOM crashes)
       if (rt === "media" || url.endsWith(".mp4") || url.endsWith(".webm")) {
         req.abort();
       }
-      // ZARA EXCEPTION: Zara's firewall and React engine REQUIRE images and fonts to load.
-      // We only block images/fonts if the brand is NOT Zara.
-      else if (brandName !== "Zara" && (rt === "image" || rt === "font")) {
+      // 👇 THE 1x1 PIXEL TRICK
+      else if (rt === "image") {
+        if (brandName === "Zara") {
+          // Feed Zara a microscopic 1x1 transparent pixel so React lazy-loads, but uses 0 RAM
+          req.respond({
+            status: 200,
+            contentType: "image/png",
+            body: Buffer.from(
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+              "base64",
+            ),
+          });
+        } else {
+          req.abort(); // Mango and Massimo don't strictly need images to load links
+        }
+      } else if (brandName !== "Zara" && rt === "font") {
         req.abort();
       } else {
         req.continue();
@@ -71,14 +79,23 @@ export const runScraperPipeline = async (
     return p;
   };
 
+  // 🛡️ THE GARBAGE COLLECTOR: Drops DOM nodes instantly and waits for RAM to clear
+  const safeWipe = async (currentPage: Page) => {
+    try {
+      await currentPage.goto("about:blank");
+    } catch (e) {}
+    if (!currentPage.isClosed()) await currentPage.close().catch(() => {});
+    await new Promise((r) => setTimeout(r, 2000)); // Give Node 2 seconds to dump RAM
+    return await setupPage(await browser.newPage());
+  };
+
   // Create our initial protected page
   let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
     // 🛡️ THE MEMORY FIX: Force a fresh page for every department to survive massive sitemaps
     console.log(`🧹 Wiping browser memory before starting ${dept} pipeline...`);
-    if (!page.isClosed()) await page.close().catch(() => {});
-    page = await setupPage(await browser.newPage());
+    page = await safeWipe(page);
 
     if (page.isClosed()) {
       console.log("🛑 Browser was closed. Halting pipeline gracefully.");
@@ -130,8 +147,7 @@ export const runScraperPipeline = async (
       // 👇 ADD THIS: Wipe memory completely before starting a new category
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       console.log("  --> 🧹 Wiping tab memory for new category...");
-      if (!page.isClosed()) await page.close().catch(() => {});
-      page = await setupPage(await browser.newPage());
+      page = await safeWipe(page);
 
       let links: string[] = [];
       try {
@@ -161,8 +177,7 @@ export const runScraperPipeline = async (
       console.log(
         "  --> 🧹 Wiping bloated grid memory before scraping products...",
       );
-      if (!page.isClosed()) await page.close().catch(() => {});
-      page = await setupPage(await browser.newPage());
+      page = await safeWipe(page);
 
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
@@ -179,8 +194,7 @@ export const runScraperPipeline = async (
 
         if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
-          await page.close().catch(() => {});
-          page = await setupPage(await browser.newPage());
+          page = await safeWipe(page); // 👈 THE 4TH ONE!
         }
 
         const category =
