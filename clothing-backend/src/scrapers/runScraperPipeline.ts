@@ -38,6 +38,8 @@ export const runScraperPipeline = async (
   let updatedItems = 0;
   let errorCount = 0;
 
+  let zaraCookies: any[] = [];
+
   // 🛡️ THE ARMOR: Sets up viewport, dynamic user agent, and SMART media blocking
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
@@ -73,6 +75,19 @@ export const runScraperPipeline = async (
   };
 
   const safeWipe = async (currentPage: Page) => {
+    // Harvest cookies from the dying page BEFORE we kill it
+    if (brandName === "Zara" && !currentPage.isClosed()) {
+      try {
+        const harvested = await currentPage.cookies();
+        if (harvested.length > 0) {
+          zaraCookies = harvested;
+          console.log(
+            `   --> 🍪 Harvested ${zaraCookies.length} session cookies.`,
+          );
+        }
+      } catch {}
+    }
+
     try {
       await currentPage.goto("about:blank");
     } catch (e) {}
@@ -81,35 +96,15 @@ export const runScraperPipeline = async (
 
     const newPage = await setupPage(await browser.newPage());
 
-    // ─── ZARA SESSION WARMUP ──────────────────────────────────────────────────
-    // Zara's CDN (Akamai) intercepts any cold navigation from a datacenter IP
-    // and serves a location-selector page instead of the real content.
-    // Visiting the homepage first plants the session cookie, which makes all
-    // subsequent navigations on this page behave like a real browser.
-    if (brandName === "Zara") {
+    // Transplant the session onto the new blank page — zero network cost
+    if (brandName === "Zara" && zaraCookies.length > 0) {
       try {
-        console.log("   --> 🔥 Warming up Zara session on homepage...");
-        await newPage.goto("https://www.zara.com/tr/en/", {
-          waitUntil: "domcontentloaded",
-          timeout: 60000,
-        });
-        await new Promise((r) => setTimeout(r, 4000));
-        // Dismiss geo modal if present
-        try {
-          await newPage.waitForSelector('[data-qa-action="stay-in-store"]', {
-            timeout: 3000,
-          });
-          await newPage.click('[data-qa-action="stay-in-store"]');
-          await new Promise((r) => setTimeout(r, 1000));
-          console.log("   --> ✅ Warmup modal dismissed.");
-        } catch {
-          console.log("   --> ✅ Warmup complete (no modal).");
-        }
-      } catch (e: any) {
-        console.log(`   --> ⚠️ Warmup failed: ${e.message}`);
-      }
+        await newPage.setCookie(...zaraCookies);
+        console.log(
+          `   --> 🍪 Session transplanted (${zaraCookies.length} cookies).`,
+        );
+      } catch {}
     }
-    // ─────────────────────────────────────────────────────────────────────────
 
     return newPage;
   };
