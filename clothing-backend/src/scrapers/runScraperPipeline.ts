@@ -62,7 +62,7 @@ export const runScraperPipeline = async (
           req.abort();
         }
       } catch {
-        // Interception may have been disabled on page navigation — ignore
+        // CDP interception state desynced on navigation — safe to ignore
       }
     });
 
