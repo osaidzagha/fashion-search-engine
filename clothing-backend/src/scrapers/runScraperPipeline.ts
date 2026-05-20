@@ -192,16 +192,23 @@ export const runScraperPipeline = async (
       } catch {}
     }
 
+    // ✅ Remove all listeners before navigating away to prevent
+    // the request interceptor firing on a dying page
+    try {
+      currentPage.removeAllListeners("request");
+      await currentPage.setRequestInterception(false);
+    } catch {}
+
     try {
       await currentPage.goto("about:blank");
-    } catch (e) {}
+    } catch {}
+
     if (!currentPage.isClosed()) await currentPage.close().catch(() => {});
     await new Promise((r) => setTimeout(r, 2000));
 
     const newPage = await setupPage(await browser.newPage());
 
     if (brandName === "Zara") {
-      // Transplant whatever cookies we already have as a starting point
       if (zaraCookies.length > 0) {
         try {
           await newPage.setCookie(...zaraCookies);
@@ -210,7 +217,6 @@ export const runScraperPipeline = async (
           );
         } catch {}
       } else {
-        // 👇 THE FIX: ONLY run the heavy geo warmup if we have NO cookies!
         await zaraGeoWarmup(newPage);
       }
     }
