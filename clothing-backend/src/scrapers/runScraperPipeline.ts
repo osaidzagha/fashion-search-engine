@@ -51,15 +51,18 @@ export const runScraperPipeline = async (
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
 
-    // ✅ Must be called BEFORE attaching the request listener
     await p.setRequestInterception(true);
 
     p.on("request", (req) => {
-      const type = req.resourceType();
-      if (req.isNavigationRequest() || type === "script") {
-        req.continue();
-      } else {
-        req.abort();
+      try {
+        const type = req.resourceType();
+        if (req.isNavigationRequest() || type === "script") {
+          req.continue();
+        } else {
+          req.abort();
+        }
+      } catch {
+        // Interception may have been disabled on page navigation — ignore
       }
     });
 
