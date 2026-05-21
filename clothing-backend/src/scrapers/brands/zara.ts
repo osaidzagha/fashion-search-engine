@@ -448,7 +448,7 @@ export async function scrapeZaraProductData(
     console.log(
       `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${rawName}`,
     );
-
+    await page.setRequestInterception(true);
     return {
       id: productId,
       name: rawName,
@@ -473,6 +473,7 @@ export async function scrapeZaraProductData(
   } catch (error: any) {
     console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);
     console.error(error);
+    await page.setRequestInterception(true).catch(() => {});
     return null;
   }
 }
@@ -484,10 +485,22 @@ export async function getProductLinksFromCategory(
   console.log(`   --> 🕵️‍♂️ Zara Scout (Lightweight Mode) visiting: ${url}`);
 
   try {
-    // 1. Navigate first, then grab the HTML after JS has hydrated the grid
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.setRequestInterception(true);
 
-    // 2. Wait for at least one product link to appear in the DOM
+    // Remove existing listener first to avoid duplicates
+    page.removeAllListeners("request");
+
+    page.on("request", (req) => {
+      try {
+        if (req.isNavigationRequest() || req.resourceType() === "script") {
+          req.continue();
+        } else {
+          req.abort();
+        }
+      } catch {}
+    });
+
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page
       .waitForSelector("a.product-link", { timeout: 15000 })
       .catch(() => {
@@ -497,10 +510,13 @@ export async function getProductLinksFromCategory(
       });
 
     const html = await page.content();
+
+    // ✅ Clean up — disable interception for next user of this page
+    page.removeAllListeners("request");
+    await page.setRequestInterception(false);
+
     const $ = cheerio.load(html);
-
     const links: string[] = [];
-
     $("a.product-link").each((i, el) => {
       const href = $(el).attr("href");
       if (href && href.includes("-p")) {
@@ -514,6 +530,8 @@ export async function getProductLinksFromCategory(
     );
     return uniqueLinks;
   } catch (error: any) {
+    page.removeAllListeners("request");
+    await page.setRequestInterception(false).catch(() => {});
     console.log(`   --> ⚠️ Error parsing HTML: ${error.message}`);
     return [];
   }

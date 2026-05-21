@@ -51,8 +51,6 @@ export const runScraperPipeline = async (
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
 
-    await p.setRequestInterception(true);
-
     p.on("request", (req) => {
       try {
         const type = req.resourceType();
@@ -199,7 +197,6 @@ export const runScraperPipeline = async (
     // the request interceptor firing on a dying page
     try {
       currentPage.removeAllListeners("request");
-      await currentPage.setRequestInterception(false);
     } catch {}
 
     try {
