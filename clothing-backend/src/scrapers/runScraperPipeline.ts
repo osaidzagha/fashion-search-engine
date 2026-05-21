@@ -35,7 +35,6 @@ export const runScraperPipeline = async (
   let errorCount = 0;
   let zaraCookies: any[] = [];
 
-  // ─── setupPage: the ONLY place that calls setRequestInterception ──────────
   const setupPage = async (raw: Page): Promise<InterceptPage> => {
     await raw.setViewport({ width: 1920, height: 1080 });
     await raw.setCacheEnabled(false);
@@ -46,12 +45,12 @@ export const runScraperPipeline = async (
     const defaultUA = await browser.userAgent();
     await raw.setUserAgent(defaultUA.replace(/HeadlessChrome/g, "Chrome"));
 
-    const page = asInterceptPage(raw); // brand the page, set default mode
+    const page = asInterceptPage(raw);
 
     await page.setRequestInterception(true);
 
-    // Single persistent listener — reads mode flag synchronously, never re-registered
-    page.on("request", (req) => {
+    // ← Store the reference so safeWipe can remove it before disabling interception
+    const requestHandler = (req: any) => {
       if (req.isInterceptResolutionHandled()) return;
       try {
         const type = req.resourceType();
@@ -63,9 +62,16 @@ export const runScraperPipeline = async (
           req.abort();
         }
       } catch {
-        // Stale CDP event after navigation — safe to ignore
+        // Stale CDP event — safe to ignore
       }
-    });
+    };
+
+    page.on("request", requestHandler);
+
+    // ← Attach the remover to the page itself so safeWipe can call it
+    (page as any).__removeRequestHandler = () => {
+      page.off("request", requestHandler);
+    };
 
     return page;
   };
@@ -170,7 +176,6 @@ export const runScraperPipeline = async (
   };
 
   const safeWipe = async (current: InterceptPage): Promise<InterceptPage> => {
-    // Harvest cookies
     if (brandName === "Zara" && !current.isClosed()) {
       try {
         const harvested = await current.cookies();
@@ -183,16 +188,19 @@ export const runScraperPipeline = async (
       } catch {}
     }
 
-    // Disable interception THEN close immediately — no goto in between
     if (!current.isClosed()) {
+      // ← Remove the listener FIRST, then disable interception
+      try {
+        (current as any).__removeRequestHandler?.();
+      } catch {}
       try {
         await current.setRequestInterception(false);
       } catch {}
       await current.close().catch(() => {});
     }
+
     await new Promise((r) => setTimeout(r, 2000));
 
-    // Fresh page
     const next = await setupPage(await browser.newPage());
 
     if (brandName === "Zara") {
