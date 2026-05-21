@@ -1,10 +1,10 @@
-import { Page } from "puppeteer";
 import { Product } from "../interface";
+import { InterceptPage, setMode } from "../pageTypes";
 
 import https from "https";
 import * as cheerio from "cheerio";
 
-// Node.js-side fetch — immune to browser context destruction
+// ─── HTTP fetch (Node.js side, immune to browser context destruction) ─────────
 function fetchUrl(url: string): Promise<string | null> {
   return new Promise((resolve) => {
     const req = https.get(
@@ -44,7 +44,6 @@ function fetchUrl(url: string): Promise<string | null> {
   });
 }
 
-// Pure regex — no DOMParser needed in Node.js
 function extractZaraCategoryLinks(xmlText: string, dept: string): string[] {
   const locMatches = xmlText.match(/<loc>(.*?)<\/loc>/g) || [];
   const locs = locMatches.map((m) => m.replace(/<\/?loc>/g, "").trim());
@@ -62,128 +61,51 @@ function extractZaraCategoryLinks(xmlText: string, dept: string): string[] {
 
 export function parseUniversalPrice(rawPrice: string): number | undefined {
   if (!rawPrice) return undefined;
-
   let cleanStr = rawPrice.replace(/[^\d.,]/g, "");
   if (!cleanStr) return undefined;
 
   const lastComma = cleanStr.lastIndexOf(",");
   const lastDot = cleanStr.lastIndexOf(".");
 
-  // Case 1: Both dot and comma (e.g., 1.790,00 or 1,790.00)
   if (lastComma > -1 && lastDot > -1) {
     if (lastComma > lastDot) {
-      // TR/EU: 1.790,00 → 1790.00
       cleanStr = cleanStr.replace(/\./g, "").replace(",", ".");
     } else {
-      // US: 1,790.00 → 1790.00
       cleanStr = cleanStr.replace(/,/g, "");
     }
-  }
-  // Case 2: Only dot (e.g., 2.990 or 29.90)
-  else if (lastDot > -1 && lastComma === -1) {
-    if (cleanStr.length - lastDot === 4) {
-      cleanStr = cleanStr.replace(/\./g, ""); // "2.990" → "2990"
-    }
-  }
-  // Case 3: Only comma (e.g., 2990,00)
-  else if (lastComma > -1 && lastDot === -1) {
-    cleanStr = cleanStr.replace(",", "."); // "2990,00" → "2990.00"
+  } else if (lastDot > -1 && lastComma === -1) {
+    if (cleanStr.length - lastDot === 4) cleanStr = cleanStr.replace(/\./g, "");
+  } else if (lastComma > -1 && lastDot === -1) {
+    cleanStr = cleanStr.replace(",", ".");
   }
 
   const parsed = parseFloat(cleanStr);
   return isNaN(parsed) ? undefined : parsed;
 }
 
-async function selectDepartment(page: Page, department: string) {
-  console.log(`Switching to ${department} department...`);
-  try {
-    const clicked = await page.evaluate((dept) => {
-      const target = Array.from(
-        document.querySelectorAll("a, button, li, span"),
-      ).find(
-        (el) =>
-          el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
-          (el as HTMLElement).offsetParent !== null,
-      );
-      if (target) {
-        (target as HTMLElement).click();
-        return true;
-      }
-      return false;
-    }, department);
-
-    if (clicked) {
-      console.log(`   --> ${department} Department Selected.`);
-      await new Promise((r) => setTimeout(r, 3000));
-    } else {
-      console.log(
-        `   --> ⚠️ Failed to click ${department} department. Proceeding anyway...`,
-      );
-    }
-  } catch {
-    console.log(`   --> ⚠️ Failed to click ${department} department.`);
-  }
-}
-
-async function handleGeoModal(page: Page) {
+async function handleGeoModal(page: InterceptPage) {
   console.log("   --> Checking for Geo-Location Modal...");
   try {
-    const stayButtonSelector = '[data-qa-action="stay-in-store"]';
-    await page.waitForSelector(stayButtonSelector, { timeout: 3000 });
+    await page.waitForSelector('[data-qa-action="stay-in-store"]', {
+      timeout: 3000,
+    });
     console.log("   --> Modal Detected! Clicking 'Stay in Turkey'...");
-    await page.click(stayButtonSelector);
+    await page.click('[data-qa-action="stay-in-store"]');
     await new Promise((r) => setTimeout(r, 1000));
     console.log("   --> Modal Dismissed.");
-  } catch (e) {
+  } catch {
     console.log("   --> No modal found (Safe to proceed).");
   }
 }
 
-// ─── Swap the page's request listener between two modes ───────────────────────
-// restrictive: only navigation + scripts (default scraping mode)
-// permissive:  navigation + scripts + images (lazy-load / scroll phase)
-//
-// ⚠️  This is the ONLY place in zara.ts that touches request listeners.
-//     We never call page.setRequestInterception() here — setupPage in
-//     runScraperPipeline.ts owns that for the page's entire lifetime.
-function attachRestrictiveListener(page: Page) {
-  page.removeAllListeners("request");
-  page.on("request", (req) => {
-    if (req.isInterceptResolutionHandled()) return;
-    try {
-      const type = req.resourceType();
-      if (req.isNavigationRequest() || type === "script") {
-        req.continue();
-      } else {
-        req.abort();
-      }
-    } catch {}
-  });
-}
-
-function attachPermissiveListener(page: Page) {
-  page.removeAllListeners("request");
-  page.on("request", (req) => {
-    if (req.isInterceptResolutionHandled()) return;
-    try {
-      const type = req.resourceType();
-      if (req.isNavigationRequest() || type === "script" || type === "image") {
-        req.continue();
-      } else {
-        req.abort();
-      }
-    } catch {}
-  });
-}
-
+// ─── Product scraper ──────────────────────────────────────────────────────────
 export async function scrapeZaraProductData(
-  page: Page,
+  page: InterceptPage,
   url: string,
   category: string = "",
   department: string = "",
 ): Promise<Product | null> {
-  // ✅ Start in restrictive mode (no images yet)
-  attachRestrictiveListener(page);
+  setMode(page, "restrictive"); // always start restrictive
 
   try {
     const match = url.match(/-p([a-zA-Z0-9]+)\.html/);
@@ -195,10 +117,8 @@ export async function scrapeZaraProductData(
 
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40000 });
-    } catch (e: any) {
-      console.log(
-        `  --> ⚠️ Page load timed out or interrupted. Checking if DOM is usable anyway...`,
-      );
+    } catch {
+      console.log(`  --> ⚠️ Page load timed out. Checking if DOM is usable...`);
     }
 
     try {
@@ -207,7 +127,7 @@ export async function scrapeZaraProductData(
       console.log(
         `  --> ❌ Page completely failed to load (Bot Blocked or Blank). Skipping.`,
       );
-      attachRestrictiveListener(page);
+      setMode(page, "restrictive");
       return null;
     }
 
@@ -215,21 +135,17 @@ export async function scrapeZaraProductData(
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var maxWait = 10000;
-          var waited = 0;
+          var maxWait = 10000, waited = 0;
           var interval = setInterval(function() {
             var descEl  = document.querySelector('.product-detail-description');
             var colorEl = document.querySelector('.product-color-extended-name');
             var priceEl = document.querySelector('.money-amount__main, .price__amount');
-            
             var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length  > 0;
             var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
             var priceReady = priceEl && /[0-9]/.test(priceEl.textContent);
-            
             waited += 100;
             if ((descReady && colorReady && priceReady) || waited >= maxWait) {
-              clearInterval(interval);
-              resolve(undefined);
+              clearInterval(interval); resolve(undefined);
             }
           }, 100);
         });
@@ -243,53 +159,34 @@ export async function scrapeZaraProductData(
           var el = document.querySelector(selector);
           return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
         }
-
-        var name = getText('h1.product-detail-info__header-name') || getText('h1');
+        var name        = getText('h1.product-detail-info__header-name') || getText('h1');
         var description = getText('.product-detail-description') || getText('[class*="product-detail-info__description"]');
-        var color = getText('.product-color-extended-name') || getText('[class*="color-extended"]');
-
-        var compItems = Array.from(document.querySelectorAll('.product-detail-composition__item.product-detail-composition__part'));
+        var color       = getText('.product-color-extended-name') || getText('[class*="color-extended"]');
+        var compItems   = Array.from(document.querySelectorAll('.product-detail-composition__item.product-detail-composition__part'));
         var composition = compItems.length > 0
           ? compItems.map(function(el) { return el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : ''; }).filter(Boolean).join(', ')
           : getText('.product-detail-composition.product-detail-view__detailed-composition') || getText('.product-detail-composition');
-        
+
         function getText2(selector) {
           var el = document.querySelector(selector);
           return el && el.textContent ? el.textContent.trim() : '';
         }
-
         var originalRaw =
           getText2('[data-qa-qualifier="price-amount-old"] .money-amount__main') ||
           getText2('[data-qa-qualifier="price-amount-old"]') ||
           getText2('.price-old__amount .money-amount__main') ||
           getText2('.price__amount--old-price-wrapper .money-amount__main');
-
         var currentRaw =
           getText2('.price-current__amount .money-amount__main') ||
           getText2('.price-current .money-amount__main') ||
           getText2('.price__amount--on-sale .money-amount__main');
-
         if (!originalRaw || !currentRaw) {
           var allPrices = Array.from(document.querySelectorAll('.product-detail-info__price .money-amount__main'))
-            .map(function(el) { return el.textContent ? el.textContent.trim() : ''; })
-            .filter(Boolean);
-          
-          if (allPrices.length >= 2) {
-            originalRaw = originalRaw || allPrices[0];
-            currentRaw = currentRaw || allPrices[allPrices.length - 1];
-          } else if (allPrices.length === 1) {
-            currentRaw = currentRaw || allPrices[0];
-          }
+            .map(function(el) { return el.textContent ? el.textContent.trim() : ''; }).filter(Boolean);
+          if (allPrices.length >= 2) { originalRaw = originalRaw || allPrices[0]; currentRaw = currentRaw || allPrices[allPrices.length - 1]; }
+          else if (allPrices.length === 1) { currentRaw = currentRaw || allPrices[0]; }
         }
-          
-        return {
-          name:        name,
-          description: description,
-          color:       color,
-          composition: composition,
-          currentRaw:  currentRaw,
-          originalRaw: originalRaw,
-        };
+        return { name, description, color, composition, currentRaw, originalRaw };
       })()
     `)) as {
       name: string;
@@ -300,29 +197,26 @@ export async function scrapeZaraProductData(
       originalRaw: string;
     };
 
-    // ─── STEP 3: Switch to permissive mode, then deep-scroll for lazy images ─
-    attachPermissiveListener(page);
+    // ─── STEP 3: Switch to permissive, scroll for lazy images ─────────────────
+    setMode(page, "permissive");
 
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
-          var totalHeight = 0;
-          var distance = 300;
+          var totalHeight = 0, distance = 300;
           var timer = setInterval(function() {
             window.scrollBy(0, distance);
             totalHeight += distance;
             if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
-              clearInterval(timer);
-              resolve(undefined);
+              clearInterval(timer); resolve(undefined);
             }
           }, 300);
         });
       })()
     `);
-
     await new Promise((r) => setTimeout(r, 2000));
 
-    // ─── STEP 4: Read images after scroll ────────────────────────────────────
+    // ─── STEP 4: Read images ──────────────────────────────────────────────────
     const rawImages = (await page.evaluate(`
       (function() {
         function sanitizeAndUpscale(url) {
@@ -332,10 +226,8 @@ export async function scrapeZaraProductData(
           if (lowerUrl.includes('swatch') || lowerUrl.includes('texture') || lowerUrl.includes('color-selector')) return null;
           return url.replace(/\\/w\\/\\d+\\//g, '/w/1024/');
         }
-
         function pickHighestResFromSources(sources) {
-          var bestUrl = null;
-          var bestWidth = -1;
+          var bestUrl = null, bestWidth = -1;
           sources.forEach(function(source) {
             var srcset = source.getAttribute('srcset') || '';
             var candidates = srcset.split(',').map(function(entry) {
@@ -349,52 +241,39 @@ export async function scrapeZaraProductData(
           });
           return bestUrl;
         }
-
         var gallery =
           document.querySelector('[class*="product-detail-images"]') ||
           document.querySelector('[class*="pdp-gallery"]') ||
           document.querySelector('[class*="media-gallery"]') ||
           document.querySelector('main');
-          
         if (!gallery) return [];
         var clone = gallery.cloneNode(true);
-
         var badPosters = [];
         clone.querySelectorAll('video').forEach(function(v) {
           var posterUrl = v.getAttribute('poster');
           if (posterUrl) badPosters.push(sanitizeAndUpscale(posterUrl));
-          v.remove(); 
+          v.remove();
         });
-
-        ['[class*="complete-the-look"]','[class*="cross-sell"]',
-         '[class*="recommendations"]','[class*="carousel"]','footer',
-         '[class*="color-selector"]', '[class*="product-detail-color"]',
-         '[class*="thumbnail"]', '[class*="swatch"]']
-          .forEach(function(sel) {
-            clone.querySelectorAll(sel).forEach(function(el) { el.remove(); });
-          });
-
-        var seen = new Set();
-        var images = [];
-
+        ['[class*="complete-the-look"]','[class*="cross-sell"]','[class*="recommendations"]',
+         '[class*="carousel"]','footer','[class*="color-selector"]','[class*="product-detail-color"]',
+         '[class*="thumbnail"]','[class*="swatch"]']
+          .forEach(function(sel) { clone.querySelectorAll(sel).forEach(function(el) { el.remove(); }); });
+        var seen = new Set(), images = [];
         clone.querySelectorAll('picture').forEach(function(picture) {
           var sources = Array.from(picture.querySelectorAll('source'));
           if (sources.length === 0) return;
           var rawUrl = pickHighestResFromSources(sources);
           var cleanUrl = sanitizeAndUpscale(rawUrl);
-          if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
-            seen.add(cleanUrl); 
-            images.push(cleanUrl); 
+          if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) {
+            seen.add(cleanUrl); images.push(cleanUrl);
           }
         });
-
         if (images.length === 0) {
           clone.querySelectorAll('img').forEach(function(img) {
             var rawUrl = img.getAttribute('data-src') || img.getAttribute('src');
             var cleanUrl = sanitizeAndUpscale(rawUrl);
-            if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) { 
-              seen.add(cleanUrl); 
-              images.push(cleanUrl); 
+            if (cleanUrl && !seen.has(cleanUrl) && badPosters.indexOf(cleanUrl) === -1) {
+              seen.add(cleanUrl); images.push(cleanUrl);
             }
           });
         }
@@ -409,33 +288,15 @@ export async function scrapeZaraProductData(
       (function() {
         var videos = Array.from(document.querySelectorAll('video'));
         var validVideos = [];
-
         for (var i = 0; i < videos.length; i++) {
           var v = videos[i];
-          if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) {
-            continue;
-          }
-
+          if (v.closest('footer, [class*="recommendations"], [class*="cross-sell"], [class*="complete-the-look"], [class*="banner"]')) continue;
           var src = v.getAttribute('src') || v.getAttribute('data-src');
-          if (!src) {
-            var source = v.querySelector('source[type="video/mp4"], source');
-            if (source) {
-              src = source.getAttribute('src') || source.getAttribute('data-src');
-            }
-          }
-
+          if (!src) { var source = v.querySelector('source[type="video/mp4"], source'); if (source) src = source.getAttribute('src') || source.getAttribute('data-src'); }
           if (src && !src.startsWith('blob:')) {
             var lowerSrc = src.toLowerCase();
-            if (
-              !lowerSrc.includes('campaign') && 
-              !lowerSrc.includes('banner') && 
-              !lowerSrc.includes('promo') &&
-              !lowerSrc.includes('editorial') &&
-              !lowerSrc.includes('background')
-            ) {
-              if (validVideos.indexOf(src) === -1) {
-                validVideos.push(src);
-              }
+            if (!lowerSrc.includes('campaign') && !lowerSrc.includes('banner') && !lowerSrc.includes('promo') && !lowerSrc.includes('editorial') && !lowerSrc.includes('background')) {
+              if (validVideos.indexOf(src) === -1) validVideos.push(src);
             }
           }
         }
@@ -445,9 +306,8 @@ export async function scrapeZaraProductData(
       )
       .catch(() => [])) as string[];
 
-    // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
-    // Switch back to restrictive before clicking (no images needed)
-    attachRestrictiveListener(page);
+    // ─── STEP 6: Sizes (back to restrictive — no images needed) ──────────────
+    setMode(page, "restrictive");
 
     try {
       await page.evaluate(`
@@ -460,7 +320,7 @@ export async function scrapeZaraProductData(
       await page.waitForSelector(".size-selector-sizes-size__label", {
         timeout: 10000,
       });
-    } catch (e) {}
+    } catch {}
 
     const sizes = (await page.evaluate(`
       (function() {
@@ -471,8 +331,6 @@ export async function scrapeZaraProductData(
     `)) as string[];
 
     // ─── Assemble ─────────────────────────────────────────────────────────────
-    const rawName = textData.name;
-    const rawDescription = textData.description;
     const cleanColor = textData.color.split("|")[0].trim();
     const cleanComposition = textData.composition
       .replace(/^Composition:\s*/i, "")
@@ -483,50 +341,44 @@ export async function scrapeZaraProductData(
       : undefined;
 
     console.log(
-      `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${rawName}`,
+      `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${textData.name}`,
     );
 
-    // ✅ Always leave the page in restrictive mode for the next caller
-    attachRestrictiveListener(page);
-
+    setMode(page, "restrictive"); // always leave restrictive
     return {
       id: productId,
-      name: rawName,
+      name: textData.name,
       price: finalPrice,
       ...(finalOriginalPrice !== undefined && {
         originalPrice: finalOriginalPrice,
       }),
       currency: "TRY",
       brand: "Zara",
-      // @ts-ignore
       images: rawImages,
       videos: cleanVideos.length > 0 ? cleanVideos : undefined,
       link: url,
       timestamp: new Date(),
       color: cleanColor,
-      description: rawDescription,
+      description: textData.description,
       composition: cleanComposition,
-      sizes: sizes,
-      category: category,
-      department: department,
+      sizes,
+      category,
+      department,
     };
   } catch (error: any) {
-    console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);
-    console.error(error);
-    // ✅ Always restore restrictive mode on error too
-    attachRestrictiveListener(page);
+    console.error(`  --> ❌ Zara Scraper crashed on ${url}:`, error);
+    setMode(page, "restrictive"); // always restore on error
     return null;
   }
 }
 
+// ─── Category link getter ─────────────────────────────────────────────────────
 export async function getProductLinksFromCategory(
-  page: Page,
+  page: InterceptPage,
   url: string,
 ): Promise<string[]> {
   console.log(`   --> 🕵️‍♂️ Zara Scout (Lightweight Mode) visiting: ${url}`);
-
-  // ✅ Use restrictive mode — we only need HTML, no images
-  attachRestrictiveListener(page);
+  setMode(page, "restrictive");
 
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
@@ -539,29 +391,25 @@ export async function getProductLinksFromCategory(
       });
 
     const html = await page.content();
-
     const $ = cheerio.load(html);
     const links: string[] = [];
-    $("a.product-link").each((i, el) => {
+    $("a.product-link").each((_i, el) => {
       const href = $(el).attr("href");
-      if (href && href.includes("-p")) {
-        links.push(href.split("?")[0]);
-      }
+      if (href && href.includes("-p")) links.push(href.split("?")[0]);
     });
 
-    const uniqueLinks = [...new Set(links)];
-    console.log(
-      `   --> ✅ Success! Found ${uniqueLinks.length} product links.`,
-    );
-    return uniqueLinks;
+    const unique = [...new Set(links)];
+    console.log(`   --> ✅ Success! Found ${unique.length} product links.`);
+    return unique;
   } catch (error: any) {
     console.log(`   --> ⚠️ Error parsing HTML: ${error.message}`);
     return [];
   }
 }
 
+// ─── Category discovery ───────────────────────────────────────────────────────
 export async function getZaraCategories(
-  page: Page,
+  page: InterceptPage,
   department: string,
 ): Promise<string[]> {
   console.log("   --> 🕵️‍♂️ Crawler: Starting Category Discovery...");
@@ -572,7 +420,7 @@ export async function getZaraCategories(
         ? "man"
         : department.toLowerCase();
 
-  // ── STRATEGY 1: Node.js sitemap (pure HTTP, no browser context risk) ───────
+  // ── STRATEGY 1: Sitemap (pure Node.js HTTP) ───────────────────────────────
   console.log("   --> 📋 [1/3] Sitemap strategy...");
   try {
     const sitemapCandidates = [
@@ -588,13 +436,6 @@ export async function getZaraCategories(
         continue;
       }
 
-      console.log(`   --> ✉️ ${url} → ${text.length} bytes`);
-
-      const sampleLocs = (text.match(/<loc>(.*?)<\/loc>/g) || [])
-        .slice(0, 5)
-        .map((m) => m.replace(/<\/?loc>/g, ""));
-      console.log(`   --> 🔍 Sample locs: ${JSON.stringify(sampleLocs)}`);
-
       const subUrls = (
         text.match(/<sitemap>[\s\S]*?<loc>(.*?)<\/loc>[\s\S]*?<\/sitemap>/g) ||
         []
@@ -606,12 +447,10 @@ export async function getZaraCategories(
         .filter((u): u is string => !!u);
 
       if (subUrls.length > 0) {
-        console.log(`   --> 📑 Sitemap index: ${subUrls.length} sub-sitemaps.`);
         const trUrls = subUrls.filter(
           (u) => u.includes("-tr-") || u.includes("_tr") || u.includes("/tr/"),
         );
         const toTry = trUrls.length > 0 ? trUrls : subUrls.slice(0, 15);
-
         for (const subUrl of toTry) {
           const subText = await fetchUrl(subUrl);
           if (!subText) continue;
@@ -638,9 +477,8 @@ export async function getZaraCategories(
     console.log(`   --> ⚠️ [Sitemap] ${e.message}`);
   }
 
-  // ── Single navigation — shared by strategies 2 and 3 ─────────────────────
-  // Restrictive mode is fine here — we only need HTML for nav links
-  attachRestrictiveListener(page);
+  // ── Navigate once for strategies 2 & 3 ───────────────────────────────────
+  setMode(page, "restrictive");
   try {
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
@@ -658,32 +496,28 @@ export async function getZaraCategories(
   try {
     const preRenderedLinks = await page.evaluate((dept) => {
       const patterns = [`/${dept}-`];
+      const blocked = [
+        "mkt",
+        "beauty",
+        "editorial",
+        "campaign",
+        "newsletter",
+        "spring-getaway",
+        "best-sellers",
+        "collections",
+        "join-life",
+      ];
       return [
         ...new Set(
           Array.from(document.querySelectorAll("a"))
             .map((el) => (el as HTMLAnchorElement).href)
-            .filter((href) => {
-              if (!href) return false;
-              if (href.includes("-p")) return false;
-
-              const isDepartment = patterns.some((p) => href.includes(p));
-              const blockedWords = [
-                "mkt",
-                "beauty",
-                "editorial",
-                "campaign",
-                "newsletter",
-                "spring-getaway",
-                "best-sellers",
-                "collections",
-                "join-life",
-              ];
-              const isBlocked = blockedWords.some((w) =>
-                href.toLowerCase().includes(w),
-              );
-
-              return isDepartment && !isBlocked;
-            }),
+            .filter(
+              (href) =>
+                href &&
+                !href.includes("-p") &&
+                patterns.some((p) => href.includes(p)) &&
+                !blocked.some((w) => href.toLowerCase().includes(w)),
+            ),
         ),
       ];
     }, deptLower);
@@ -694,14 +528,12 @@ export async function getZaraCategories(
       );
       return preRenderedLinks;
     }
-    console.log(
-      "   --> ⚠️ [DOM] 0 links in pre-rendered HTML. Opening menu...",
-    );
+    console.log("   --> ⚠️ [DOM] 0 links. Opening menu...");
   } catch (e: any) {
     console.log(`   --> ⚠️ [DOM] ${e.message}`);
   }
 
-  // ── STRATEGY 3: JS-based menu click ───────────────────────────────────────
+  // ── STRATEGY 3: JS menu click ─────────────────────────────────────────────
   console.log("   --> 🍔 [3/3] Menu strategy...");
   try {
     const clickedSelector = await page.evaluate(() => {
@@ -710,7 +542,6 @@ export async function getZaraCategories(
         ".layout-catalog-desktop-menu__open-menu",
         ".layout-open-menu-base",
         "[data-qa-action='layout-desktop-open-menu-trigger']",
-        "[data-qa-id='layout-desktop-open-menu-trigger']",
         "button[aria-label='Open menu']",
         "button[aria-label='Menu']",
         "[aria-label='Menu']",
@@ -732,28 +563,46 @@ export async function getZaraCategories(
     }
 
     await new Promise((r) => setTimeout(r, 5000));
-    await selectDepartment(page, department);
+
+    // Select department
+    try {
+      const clicked = await page.evaluate((dept) => {
+        const target = Array.from(
+          document.querySelectorAll("a, button, li, span"),
+        ).find(
+          (el) =>
+            el.textContent?.trim().toUpperCase() === dept.toUpperCase() &&
+            (el as HTMLElement).offsetParent !== null,
+        );
+        if (target) {
+          (target as HTMLElement).click();
+          return true;
+        }
+        return false;
+      }, department);
+      if (clicked) {
+        console.log(`   --> ${department} Department Selected.`);
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    } catch {}
+
     await new Promise((r) => setTimeout(r, 4000));
 
     const links = await page.evaluate((dept) => {
-      const patterns = [`/${dept}-`];
       return [
         ...new Set(
           Array.from(document.querySelectorAll("a"))
             .map((el) => (el as HTMLAnchorElement).href)
             .filter(
               (href) =>
-                href &&
-                !href.includes("-p") &&
-                patterns.some((p) => href.includes(p)),
+                href && !href.includes("-p") && href.includes(`/${dept}-`),
             ),
         ),
       ];
     }, deptLower);
 
-    const uniqueLinks = [...new Set(links)];
-    console.log(`   --> 🕵️‍♂️ Found ${uniqueLinks.length} categories via menu.`);
-    return uniqueLinks;
+    console.log(`   --> 🕵️‍♂️ Found ${links.length} categories via menu.`);
+    return links;
   } catch (error: any) {
     console.error(`  --> ❌ Category crawler failed: ${error.message}`);
     return [];
