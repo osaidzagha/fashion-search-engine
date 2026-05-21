@@ -1,0 +1,39 @@
+name: Zara Scraper
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 3am UTC daily
+  workflow_dispatch: # manual trigger button in GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: cd clothing-backend && npm install
+
+      - name: Install Chrome for Puppeteer
+        run: cd clothing-backend && npx puppeteer browsers install chrome
+
+      - name: Build
+        run: cd clothing-backend && npm run build
+
+      - name: Run scraper
+        run: cd clothing-backend && node dist/scrapers/runNow.js
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          CLIENT_URL: ${{ secrets.CLIENT_URL }}
+          NODE_ENV: production
+          PORT: 10000
