@@ -51,6 +51,9 @@ export const runScraperPipeline = async (
     const cleanUA = defaultUA.replace(/HeadlessChrome/g, "Chrome");
     await p.setUserAgent(cleanUA);
 
+    // ✅ Enable interception BEFORE attaching the listener
+    await p.setRequestInterception(true);
+
     p.on("request", (req) => {
       try {
         const type = req.resourceType();
