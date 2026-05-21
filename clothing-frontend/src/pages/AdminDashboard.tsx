@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import { useSelector } from "react-redux";
 import { toggleCampaignHeroAPI } from "../services/api";
-import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -36,14 +35,6 @@ interface ScraperStatus {
   updated: number;
 }
 
-interface WatchlistItem {
-  image: string;
-  brand: string;
-  name: string;
-  trackCount: number;
-  link?: string;
-}
-
 interface VideoProduct {
   id: string;
   name: string;
@@ -60,10 +51,12 @@ interface VideoProduct {
   category?: string;
   isCampaignHero: boolean;
 }
+
 interface BrandBreakdown {
   _id: string;
   count: number;
 }
+
 interface DashboardData {
   kpiData: KpiItem[];
   priceDropData: PriceDropPoint[];
@@ -101,6 +94,9 @@ const NAV_ITEMS = [
 
 const API_BASE =
   import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:5000";
+
+const GITHUB_ACTIONS_URL =
+  "https://github.com/osaidzagha/fashion-search-engine/actions/workflows/scraper.yml";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function resolveVideoSrc(p: VideoProduct): string | undefined {
@@ -180,15 +176,7 @@ function KpiCard({ item }: { item: KpiItem }) {
   );
 }
 
-function ScraperCard({
-  s,
-  onRun,
-  onStop,
-}: {
-  s: ScraperStatus;
-  onRun: (brand: string) => void;
-  onStop: (brand: string) => void;
-}) {
+function ScraperCard({ s }: { s: ScraperStatus }) {
   const isRunning = s.status === "running";
   return (
     <div className="border border-borderLight dark:border-borderLight-dark p-5 md:p-6 flex flex-col gap-4 md:gap-5 bg-bgPrimary dark:bg-bgPrimary-dark">
@@ -197,7 +185,13 @@ function ScraperCard({
           {s.brand}
         </h3>
         <span
-          className={`font-sans text-[8px] md:text-[9px] tracking-widest uppercase ${isRunning ? "text-textPrimary dark:text-textPrimary-dark" : s.status === "error" ? "text-accentRed" : "text-textMuted dark:text-textMuted-dark"}`}
+          className={`font-sans text-[8px] md:text-[9px] tracking-widest uppercase ${
+            isRunning
+              ? "text-textPrimary dark:text-textPrimary-dark"
+              : s.status === "error"
+                ? "text-accentRed"
+                : "text-textMuted dark:text-textMuted-dark"
+          }`}
         >
           {isRunning ? "● running" : s.status}
         </span>
@@ -222,27 +216,14 @@ function ScraperCard({
           </div>
         ))}
       </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() => onRun(s.brand)}
-          disabled={isRunning}
-          className={`flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
-            isRunning
-              ? "border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark cursor-wait opacity-50"
-              : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"
-          }`}
-        >
-          {isRunning ? "Scraping…" : "Run"}
-        </button>
-        {isRunning && (
-          <button
-            onClick={() => onStop(s.brand)}
-            className="px-4 md:px-6 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border border-accentRed text-accentRed hover:bg-accentRed hover:text-white transition-all duration-300"
-          >
-            Stop
-          </button>
-        )}
-      </div>
+      <a
+        href={GITHUB_ACTIONS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark text-center transition-all duration-300"
+      >
+        Run on GitHub ↗
+      </a>
     </div>
   );
 }
@@ -367,7 +348,13 @@ function CampaignCard({
             onToggle(product.id);
           }}
           disabled={isToggling}
-          className={`w-full py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${isToggling ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark" : isHero ? "border-accentRed text-accentRed hover:bg-accentRed hover:text-white" : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"}`}
+          className={`w-full py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
+            isToggling
+              ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark"
+              : isHero
+                ? "border-accentRed text-accentRed hover:bg-accentRed hover:text-white"
+                : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"
+          }`}
         >
           {isToggling
             ? "Updating…"
@@ -441,44 +428,6 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, [data, fetchDashboard]);
 
-  // ── Scraper actions ──
-  const handleRunScraper = async (brand: string) => {
-    const safeBrand = encodeURIComponent(brand);
-    setData((prev) =>
-      prev
-        ? {
-            ...prev,
-            scraperStatus: prev.scraperStatus.map((s) =>
-              s.brand === brand ? { ...s, status: "running" } : s,
-            ),
-          }
-        : prev,
-    );
-    try {
-      await fetch(`${API_BASE}/api/admin/scrape/${safeBrand}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchDashboard(true);
-    } catch (err) {
-      console.error(err);
-      fetchDashboard(true);
-    }
-  };
-
-  const handleStopScraper = async (brand: string) => {
-    const safeBrand = encodeURIComponent(brand);
-    try {
-      await fetch(`${API_BASE}/api/admin/scrape/stop/${safeBrand}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      fetchDashboard(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   // ── Campaign toggle ──
   const handleToggleCampaign = async (productId: string) => {
     const prev = data?.videoProducts?.find((p) => p.id === productId);
@@ -547,9 +496,8 @@ export default function AdminDashboard() {
 
   return (
     <PageTransition>
-      {/* ── Stack on mobile (flex-col), side-by-side on desktop (md:flex-row) ── */}
       <div className="flex flex-col md:flex-row min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
-        {/* ── Sidebar (Converts to Top Nav on Mobile) ────────────────────────── */}
+        {/* ── Sidebar ── */}
         <aside className="w-full md:w-[220px] flex-shrink-0 border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark flex flex-col relative md:sticky top-0 md:h-screen z-20 bg-bgPrimary dark:bg-bgPrimary-dark">
           <div className="px-6 py-5 md:px-8 md:py-8 border-b border-borderLight dark:border-borderLight-dark flex justify-between items-center md:block">
             <div>
@@ -562,7 +510,6 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* ── Horizontal scrolling navigation on mobile ── */}
           <nav className="flex flex-row md:flex-col px-4 py-3 md:px-4 md:py-6 gap-2 md:gap-1 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {NAV_ITEMS.map((item) => (
               <button
@@ -591,9 +538,8 @@ export default function AdminDashboard() {
           )}
         </aside>
 
-        {/* ── Main Content ────────────────────────────────────────────────────── */}
+        {/* ── Main Content ── */}
         <main className="flex-1 overflow-y-auto">
-          {/* ── Tighter padding on mobile headers ── */}
           <div className="px-6 py-6 md:px-12 md:py-10 border-b border-borderLight dark:border-borderLight-dark flex flex-col sm:flex-row items-start sm:items-baseline justify-between gap-2">
             <h2 className="font-heading font-light text-3xl md:text-4xl text-textPrimary dark:text-textPrimary-dark">
               {NAV_ITEMS.find((n) => n.id === activeNav)?.label}
@@ -606,7 +552,7 @@ export default function AdminDashboard() {
           </div>
 
           <div className="px-6 py-6 md:px-12 md:py-10 flex flex-col gap-8 md:gap-12">
-            {/* ══════════════════════════════════ OVERVIEW ══════════════════ */}
+            {/* ══ OVERVIEW ══ */}
             {activeNav === "overview" && (
               <>
                 {data.kpiData?.length > 0 && (
@@ -696,26 +642,38 @@ export default function AdminDashboard() {
               </>
             )}
 
-            {/* ══════════════════════════════════ SCRAPERS ══════════════════ */}
+            {/* ══ SCRAPERS ══ */}
             {activeNav === "scrapers" && (
-              <section>
+              <section className="flex flex-col gap-6">
+                <div className="border border-borderLight dark:border-borderLight-dark p-4 md:p-5 bg-bgPrimary dark:bg-bgPrimary-dark flex items-center justify-between gap-4">
+                  <div>
+                    <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                      Scheduler
+                    </p>
+                    <p className="font-heading font-light text-base text-textPrimary dark:text-textPrimary-dark">
+                      Runs automatically at 3:00 AM daily via GitHub Actions
+                    </p>
+                  </div>
+                  <a
+                    href={GITHUB_ACTIONS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-shrink-0 px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase border border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark transition-all duration-300"
+                  >
+                    View on GitHub ↗
+                  </a>
+                </div>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
                   {data.scraperStatus?.map((s) => (
-                    <ScraperCard
-                      key={s.brand}
-                      s={s}
-                      onRun={handleRunScraper}
-                      onStop={handleStopScraper}
-                    />
+                    <ScraperCard key={s.brand} s={s} />
                   ))}
                 </div>
               </section>
             )}
 
-            {/* ══════════════════════════════════ CAMPAIGN ══════════════════ */}
+            {/* ══ CAMPAIGN ══ */}
             {activeNav === "campaign" && (
               <section className="flex flex-col gap-6 md:gap-8">
-                {/* ── Wrap flex items on mobile to prevent stretching ── */}
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-baseline gap-3">
                     <span className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
