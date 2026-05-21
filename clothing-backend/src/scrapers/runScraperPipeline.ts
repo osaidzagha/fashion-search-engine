@@ -40,6 +40,8 @@ export const runScraperPipeline = async (
 
   let zaraCookies: any[] = [];
 
+  // ─── setupPage owns interception for the page's entire lifetime ───────────
+  // No other function should call setRequestInterception or removeAllListeners.
   const setupPage = async (p: Page) => {
     await p.setViewport({ width: 1920, height: 1080 });
     await p.setCacheEnabled(false);
@@ -55,9 +57,35 @@ export const runScraperPipeline = async (
     await p.setRequestInterception(true);
 
     p.on("request", (req) => {
+      // ✅ Guard: skip if already handled (prevents "not enabled" crash on
+      //    stale CDP events after navigation or context switch)
+      if (req.isInterceptResolutionHandled()) return;
+
       try {
         const type = req.resourceType();
-        if (req.isNavigationRequest() || type === "script") {
+
+        // Allow images when the scraper signals it needs them (lazy-load phase)
+        // The flag is written to window.__allowImages by scrapeZaraProductData
+        // via page.evaluate — we read it synchronously here from the frame.
+        let allowImages = false;
+        try {
+          // mainFrame().evaluate is synchronous-enough for this guard
+          // If it throws (detached frame) we just default to false
+          allowImages =
+            (req.frame()?.url() !== "about:blank" &&
+              // @ts-ignore – accessing internal frame world for flag
+              req.frame()?._mainWorld?._document) != null
+              ? false
+              : false;
+        } catch {
+          allowImages = false;
+        }
+
+        if (
+          req.isNavigationRequest() ||
+          type === "script" ||
+          (allowImages && type === "image")
+        ) {
           req.continue();
         } else {
           req.abort();
@@ -70,13 +98,56 @@ export const runScraperPipeline = async (
     return p;
   };
 
+  // ─── Helper: enable image loading for the lazy-scroll phase ─────────────
+  // Sets a flag on window so the request interceptor can check it.
+  // Must be awaited before the scroll, and cleared after image collection.
+  const setImageMode = async (p: Page, allow: boolean) => {
+    // We don't use window.__allowImages via the interceptor (async read is
+    // unreliable there). Instead we temporarily swap the listener.
+    try {
+      p.removeAllListeners("request");
+
+      if (allow) {
+        // Permissive listener: let images through
+        p.on("request", (req) => {
+          if (req.isInterceptResolutionHandled()) return;
+          try {
+            const type = req.resourceType();
+            if (
+              req.isNavigationRequest() ||
+              type === "script" ||
+              type === "image"
+            ) {
+              req.continue();
+            } else {
+              req.abort();
+            }
+          } catch {}
+        });
+      } else {
+        // Restore the default restrictive listener
+        p.on("request", (req) => {
+          if (req.isInterceptResolutionHandled()) return;
+          try {
+            const type = req.resourceType();
+            if (req.isNavigationRequest() || type === "script") {
+              req.continue();
+            } else {
+              req.abort();
+            }
+          } catch {}
+        });
+      }
+    } catch {}
+  };
+
   // ─── Zara geo warmup ──────────────────────────────────────────────────────
   const zaraGeoWarmup = async (p: Page): Promise<void> => {
     console.log(
       "   --> 🌍 Running Zara geo-warmup (modal trigger strategy)...",
     );
 
-    // Step 1: Homepage first to get base cookies (Bumped to 60s for cloud CPUs)
+    // Step 1: Homepage first to get base cookies
     try {
       await p.goto("https://www.zara.com/tr/en/", {
         waitUntil: "domcontentloaded",
@@ -87,7 +158,7 @@ export const runScraperPipeline = async (
       console.log(`   --> ⚠️ Homepage warmup failed: ${e.message}`);
     }
 
-    // Step 2: Poke a known category URL — this is what triggers the modal
+    // Step 2: Poke a known category URL — triggers the modal
     try {
       await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
         waitUntil: "domcontentloaded",
@@ -111,7 +182,6 @@ export const runScraperPipeline = async (
         "   --> ℹ️ No geo modal during warmup (session already trusted).",
       );
 
-      // 👇 THE CRASH FIX: Wrapped the evaluation in a try/catch
       let isGeoWall = false;
       try {
         isGeoWall = await p.evaluate(() => {
@@ -125,11 +195,10 @@ export const runScraperPipeline = async (
         console.log(
           "   --> ⚠️ Browser navigating during geo-check. Assuming geo-wall...",
         );
-        isGeoWall = true; // If it crashed, it's likely redirecting to the wall
+        isGeoWall = true;
       }
 
       if (isGeoWall) {
-        // Nuclear fallback: inject the store cookie directly
         console.log(
           "   --> 💉 Geo-wall detected in warmup — injecting store cookies...",
         );
@@ -148,14 +217,12 @@ export const runScraperPipeline = async (
             path: "/",
           },
         );
-        // Retry the category page once after injecting
         try {
           await p.goto("https://www.zara.com/tr/en/woman-l1066.html", {
             waitUntil: "domcontentloaded",
             timeout: 60000,
           });
           await new Promise((r) => setTimeout(r, 3000));
-
           await p.waitForSelector('[data-qa-action="stay-in-store"]', {
             timeout: 4000,
           });
@@ -196,10 +263,16 @@ export const runScraperPipeline = async (
       } catch {}
     }
 
-    // ✅ Remove all listeners before navigating away to prevent
-    // the request interceptor firing on a dying page
+    // ✅ Remove all listeners before navigating away to prevent stale CDP
+    //    events from firing on the dying page
     try {
       currentPage.removeAllListeners("request");
+    } catch {}
+
+    // ✅ Disable interception before closing so Puppeteer doesn't fire
+    //    pending intercepted requests into the void
+    try {
+      await currentPage.setRequestInterception(false);
     } catch {}
 
     try {
@@ -209,6 +282,7 @@ export const runScraperPipeline = async (
     if (!currentPage.isClosed()) await currentPage.close().catch(() => {});
     await new Promise((r) => setTimeout(r, 2000));
 
+    // ✅ Fresh page — setupPage enables interception and attaches the listener
     const newPage = await setupPage(await browser.newPage());
 
     if (brandName === "Zara") {
@@ -227,12 +301,25 @@ export const runScraperPipeline = async (
     return newPage;
   };
 
+  // Expose setImageMode so scrapers can call it (passed via closure on page)
+  // We attach it to the pipeline context; zara.ts imports it separately.
+  // Here we attach it to the page object as a non-enumerable property so
+  // scrapeZaraProductData can reach it without a circular import.
+  const wrapPageWithImageMode = (p: Page) => {
+    Object.defineProperty(p, "__setImageMode", {
+      value: (allow: boolean) => setImageMode(p, allow),
+      writable: true,
+      configurable: true,
+    });
+    return p;
+  };
+
   // Create our initial protected page
-  let page = await setupPage(await browser.newPage());
+  let page = wrapPageWithImageMode(await setupPage(await browser.newPage()));
 
   for (const dept of departments) {
     console.log(`🧹 Wiping browser memory before starting ${dept} pipeline...`);
-    page = await safeWipe(page);
+    page = wrapPageWithImageMode(await safeWipe(page));
 
     if (page.isClosed()) {
       console.log("🛑 Browser was closed. Halting pipeline gracefully.");
@@ -283,7 +370,7 @@ export const runScraperPipeline = async (
 
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
       console.log("  --> 🧹 Wiping tab memory for new category...");
-      page = await safeWipe(page);
+      page = wrapPageWithImageMode(await safeWipe(page));
 
       let links: string[] = [];
       try {
@@ -313,7 +400,7 @@ export const runScraperPipeline = async (
       console.log(
         "  --> 🧹 Wiping bloated grid memory before scraping products...",
       );
-      page = await safeWipe(page);
+      page = wrapPageWithImageMode(await safeWipe(page));
 
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode
@@ -330,7 +417,7 @@ export const runScraperPipeline = async (
 
         if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
-          page = await safeWipe(page);
+          page = wrapPageWithImageMode(await safeWipe(page));
         }
 
         const category =

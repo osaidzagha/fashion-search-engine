@@ -3,6 +3,7 @@ import { Product } from "../interface";
 
 import https from "https";
 import * as cheerio from "cheerio";
+
 // Node.js-side fetch — immune to browser context destruction
 function fetchUrl(url: string): Promise<string | null> {
   return new Promise((resolve) => {
@@ -138,13 +139,41 @@ async function handleGeoModal(page: Page) {
   }
 }
 
-// ─── Shared geo-wall check ────────────────────────────────────────────────────
-function isGeoWallPage(title: string, bodyText: string): boolean {
-  return (
-    title === "ZARA Official Website" ||
-    bodyText.includes("SELECT YOUR LOCATION") ||
-    bodyText.includes("select your location")
-  );
+// ─── Swap the page's request listener between two modes ───────────────────────
+// restrictive: only navigation + scripts (default scraping mode)
+// permissive:  navigation + scripts + images (lazy-load / scroll phase)
+//
+// ⚠️  This is the ONLY place in zara.ts that touches request listeners.
+//     We never call page.setRequestInterception() here — setupPage in
+//     runScraperPipeline.ts owns that for the page's entire lifetime.
+function attachRestrictiveListener(page: Page) {
+  page.removeAllListeners("request");
+  page.on("request", (req) => {
+    if (req.isInterceptResolutionHandled()) return;
+    try {
+      const type = req.resourceType();
+      if (req.isNavigationRequest() || type === "script") {
+        req.continue();
+      } else {
+        req.abort();
+      }
+    } catch {}
+  });
+}
+
+function attachPermissiveListener(page: Page) {
+  page.removeAllListeners("request");
+  page.on("request", (req) => {
+    if (req.isInterceptResolutionHandled()) return;
+    try {
+      const type = req.resourceType();
+      if (req.isNavigationRequest() || type === "script" || type === "image") {
+        req.continue();
+      } else {
+        req.abort();
+      }
+    } catch {}
+  });
 }
 
 export async function scrapeZaraProductData(
@@ -153,8 +182,10 @@ export async function scrapeZaraProductData(
   category: string = "",
   department: string = "",
 ): Promise<Product | null> {
+  // ✅ Start in restrictive mode (no images yet)
+  attachRestrictiveListener(page);
+
   try {
-    await page.setRequestInterception(false);
     const match = url.match(/-p([a-zA-Z0-9]+)\.html/);
     if (!match) {
       console.log(`  --> ⚠️ No ID found in URL, skipping: ${url}`);
@@ -176,6 +207,7 @@ export async function scrapeZaraProductData(
       console.log(
         `  --> ❌ Page completely failed to load (Bot Blocked or Blank). Skipping.`,
       );
+      attachRestrictiveListener(page);
       return null;
     }
 
@@ -268,7 +300,9 @@ export async function scrapeZaraProductData(
       originalRaw: string;
     };
 
-    // ─── STEP 3: Deep scroll to trigger lazy-loaded images ───────────────────
+    // ─── STEP 3: Switch to permissive mode, then deep-scroll for lazy images ─
+    attachPermissiveListener(page);
+
     await page.evaluate(`
       (function() {
         return new Promise(function(resolve) {
@@ -412,6 +446,9 @@ export async function scrapeZaraProductData(
       .catch(() => [])) as string[];
 
     // ─── STEP 6: Sizes ────────────────────────────────────────────────────────
+    // Switch back to restrictive before clicking (no images needed)
+    attachRestrictiveListener(page);
+
     try {
       await page.evaluate(`
         (function() {
@@ -448,7 +485,10 @@ export async function scrapeZaraProductData(
     console.log(
       `  --> Images: ${rawImages.length} | Price: ${finalPrice}${finalOriginalPrice ? ` (was ${finalOriginalPrice})` : ""} | Color: "${cleanColor}" | Name: ${rawName}`,
     );
-    await page.setRequestInterception(true);
+
+    // ✅ Always leave the page in restrictive mode for the next caller
+    attachRestrictiveListener(page);
+
     return {
       id: productId,
       name: rawName,
@@ -473,7 +513,8 @@ export async function scrapeZaraProductData(
   } catch (error: any) {
     console.error(`  --> ❌ Zara Scraper crashed on ${url}:`);
     console.error(error);
-    await page.setRequestInterception(true).catch(() => {});
+    // ✅ Always restore restrictive mode on error too
+    attachRestrictiveListener(page);
     return null;
   }
 }
@@ -484,22 +525,10 @@ export async function getProductLinksFromCategory(
 ): Promise<string[]> {
   console.log(`   --> 🕵️‍♂️ Zara Scout (Lightweight Mode) visiting: ${url}`);
 
+  // ✅ Use restrictive mode — we only need HTML, no images
+  attachRestrictiveListener(page);
+
   try {
-    await page.setRequestInterception(true);
-
-    // Remove existing listener first to avoid duplicates
-    page.removeAllListeners("request");
-
-    page.on("request", (req) => {
-      try {
-        if (req.isNavigationRequest() || req.resourceType() === "script") {
-          req.continue();
-        } else {
-          req.abort();
-        }
-      } catch {}
-    });
-
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page
       .waitForSelector("a.product-link", { timeout: 15000 })
@@ -510,10 +539,6 @@ export async function getProductLinksFromCategory(
       });
 
     const html = await page.content();
-
-    // ✅ Clean up — disable interception for next user of this page
-    page.removeAllListeners("request");
-    await page.setRequestInterception(false);
 
     const $ = cheerio.load(html);
     const links: string[] = [];
@@ -530,12 +555,11 @@ export async function getProductLinksFromCategory(
     );
     return uniqueLinks;
   } catch (error: any) {
-    page.removeAllListeners("request");
-    await page.setRequestInterception(false).catch(() => {});
     console.log(`   --> ⚠️ Error parsing HTML: ${error.message}`);
     return [];
   }
 }
+
 export async function getZaraCategories(
   page: Page,
   department: string,
@@ -615,8 +639,8 @@ export async function getZaraCategories(
   }
 
   // ── Single navigation — shared by strategies 2 and 3 ─────────────────────
-  // Note: pipeline's safeWipe already warmed up this page, but getZaraCategories
-  // needs to navigate to the homepage anyway to extract nav links.
+  // Restrictive mode is fine here — we only need HTML for nav links
+  attachRestrictiveListener(page);
   try {
     await page.goto("https://www.zara.com/tr/en/", {
       waitUntil: "domcontentloaded",
