@@ -154,6 +154,7 @@ export async function scrapeZaraProductData(
   department: string = "",
 ): Promise<Product | null> {
   try {
+    await page.setRequestInterception(false);
     const match = url.match(/-p([a-zA-Z0-9]+)\.html/);
     if (!match) {
       console.log(`  --> ⚠️ No ID found in URL, skipping: ${url}`);

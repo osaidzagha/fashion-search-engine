@@ -416,7 +416,7 @@ export const runScraperPipeline = async (
         productCount++;
 
         if (page.isClosed()) break;
-        const delay = testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000;
+        const delay = testMode ? 1500 : Math.floor(Math.random() * 3000) + 4000;
         await new Promise((r) => setTimeout(r, delay));
       }
 
