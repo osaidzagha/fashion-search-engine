@@ -6,7 +6,6 @@ import productRoutes from "./routes/productRoutes";
 import authRoutes from "./routes/authRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
 import adminRoutes from "./routes/admin";
-import { startScraperCron } from "./scrapers/scheduler";
 import { priceAlertWorker } from "./queues/priceAlertWorker";
 import { redisConnection } from "./queues/queues";
 import { cleanupStaleRuns } from "./scrapers/scraperManager";
@@ -72,7 +71,6 @@ mongoose
       console.log(`🚀 Server running`);
     });
 
-    startScraperCron();
     console.log("🔔 Price alert worker online.");
   })
   .catch((error) => {
