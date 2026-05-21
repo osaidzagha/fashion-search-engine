@@ -169,9 +169,8 @@ export const runScraperPipeline = async (
     } catch {}
   };
 
-  // ─── safeWipe: close old page, open fresh one ─────────────────────────────
   const safeWipe = async (current: InterceptPage): Promise<InterceptPage> => {
-    // 1. Harvest cookies before killing the page
+    // Harvest cookies
     if (brandName === "Zara" && !current.isClosed()) {
       try {
         const harvested = await current.cookies();
@@ -184,17 +183,16 @@ export const runScraperPipeline = async (
       } catch {}
     }
 
-    // 2. Cleanly disable interception, then close
-    try {
-      await current.setRequestInterception(false);
-    } catch {}
-    try {
-      await current.goto("about:blank");
-    } catch {}
-    if (!current.isClosed()) await current.close().catch(() => {});
+    // Disable interception THEN close immediately — no goto in between
+    if (!current.isClosed()) {
+      try {
+        await current.setRequestInterception(false);
+      } catch {}
+      await current.close().catch(() => {});
+    }
     await new Promise((r) => setTimeout(r, 2000));
 
-    // 3. Fresh page — setupPage attaches the one true listener
+    // Fresh page
     const next = await setupPage(await browser.newPage());
 
     if (brandName === "Zara") {
