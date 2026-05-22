@@ -7,45 +7,39 @@ export async function getMangoCategories(
 ): Promise<string[]> {
   const isWoman = department.toLowerCase() === "woman";
   const deptSlug = isWoman ? "kadin" : "erkek";
-
-  // Navigate directly to the department hub
   const targetUrl = `https://shop.mango.com/tr/tr/${deptSlug}`;
 
-  console.log(
-    `   --> 🗺️  Extracting Mango categories from DOM for department: ${department.toUpperCase()}`,
-  );
+  console.log(`   --> 🗺️  Navigating to Mango hub: ${targetUrl}`);
 
   try {
+    // 1. Wait for network to be idle, not just the DOM
     await page.goto(targetUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 120000,
+      waitUntil: "networkidle2",
+      timeout: 60000,
     });
 
+    // 2. Hard wait for 3 seconds to let React inject the mega-menu
+    await new Promise((r) => setTimeout(r, 3000));
+
     const categoryLinks = await page.evaluate((slug) => {
-      // 1. Gather all anchor tags on the page (even hidden menu ones)
       const links = Array.from(document.querySelectorAll("a"));
       const validLinks = new Set<string>();
 
       for (const a of links) {
         const href = a.href || "";
-
-        // 2. Look for the category URL pattern
-        // Example: https://shop.mango.com/tr/tr/c/kadin/ceket/5ef3ad3b
-        if (
-          href.includes(`/c/${slug}/`) &&
-          !href.includes("/p/") // Ignore individual product links
-        ) {
-          // Remove messy query params like ?layout=...
-          const cleanLink = href.split("?")[0];
-          validLinks.add(cleanLink);
+        // Broaden the search string slightly
+        if (href.includes(`/c/${slug}`) && !href.includes("/p/")) {
+          validLinks.add(href.split("?")[0]);
         }
       }
       return Array.from(validLinks);
     }, deptSlug);
 
+    // 3. Take a screenshot if we get blocked so we can see the enemy
     if (!categoryLinks || categoryLinks.length === 0) {
+      await page.screenshot({ path: `mango-error-${department}.png` });
       throw new Error(
-        "DOM parsed but returned 0 category links. WAF block likely.",
+        `0 links found. Took screenshot: mango-error-${department}.png (Check folder for WAF Block!)`,
       );
     }
 
