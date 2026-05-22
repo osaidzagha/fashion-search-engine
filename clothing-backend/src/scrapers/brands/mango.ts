@@ -12,31 +12,22 @@ export async function getMangoCategories(
   console.log(`   --> 🗺️  Navigating to Mango hub: ${targetUrl}`);
 
   try {
-    // 👇 INJECT REALISTIC BROWSER HEADERS SO MANGO'S API DOESN'T PANIC
+    // Rely entirely on the Stealth plugin, remove forced headers.
     await page.setUserAgent(
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     );
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7", // Tells Mango we are in Turkey
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-      "sec-ch-ua":
-        '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "Upgrade-Insecure-Requests": "1",
-    });
 
-    // 1. Wait for network to be idle
+    // Go to the page and wait for the network to settle
     await page.goto(targetUrl, {
       waitUntil: "networkidle2",
       timeout: 60000,
     });
 
-    // 2. Hard wait for 3 seconds to let React inject the mega-menu
-    await new Promise((r) => setTimeout(r, 3000));
+    // Hard wait for 4 seconds to let React inject the mega-menu and clear initial WAF checks
+    await new Promise((r) => setTimeout(r, 4000));
 
-    const categoryLinks = await page.evaluate((slug) => {
+    // 👇 FIX: Explicitly pass the argument, define its type, and cast the return to string[]
+    const categoryLinks = (await page.evaluate((slug: string) => {
       const links = Array.from(document.querySelectorAll("a"));
       const validLinks = new Set<string>();
 
@@ -47,19 +38,23 @@ export async function getMangoCategories(
         }
       }
       return Array.from(validLinks);
-    }, deptSlug);
+    }, deptSlug)) as string[];
 
-    if (!categoryLinks || categoryLinks.length === 0) {
-      await page.screenshot({ path: `mango-error-${department}.png` });
+    // 👇 FIX: categoryLinks is now explicitly a string array, so `link` is inferred correctly
+    const filteredLinks = categoryLinks.filter((link: string) =>
+      link.includes(`/c/${deptSlug}`),
+    );
+
+    if (!filteredLinks || filteredLinks.length === 0) {
       throw new Error(
-        `0 links found. Took screenshot: mango-error-${department}.png (Check folder for WAF Block!)`,
+        `0 links found. (Check the live browser window to see the block!)`,
       );
     }
 
     console.log(
-      `   --> ✅ Discovered ${categoryLinks.length} ${department.toUpperCase()} categories.`,
+      `   --> ✅ Discovered ${filteredLinks.length} ${department.toUpperCase()} categories.`,
     );
-    return categoryLinks;
+    return filteredLinks;
   } catch (error: any) {
     console.error(
       `   --> ❌ Category extraction failed for ${department}:`,
