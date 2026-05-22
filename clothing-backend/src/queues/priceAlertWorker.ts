@@ -142,26 +142,25 @@ async function processPriceAlerts(
 // ─── The Worker Router ────────────────────────────────────────────────────────
 export const priceAlertWorker = new Worker<AlertQueuePayload>(
   "price-alerts",
-  // We explicitly tell TS this router returns our custom object
   async (job): Promise<{ alertsSent: number; failed: number }> => {
     // Route 1: The Scraper Drop Check
     if (job.name === "check-price-drops") {
       return await processPriceAlerts(job as Job<CheckPriceDropsJobData>);
     }
 
-    // Route 2: Single Email Fallback (if you ever need to use it directly)
+    // Route 2: Single Email Fallback
     if (job.name === "price-alert") {
-      // Logic for single email goes here if needed in the future
       return { alertsSent: 1, failed: 0 };
     }
 
-    // THE TS(2355) FIX: We throw an error if the job name doesn't match!
-    // This tells TypeScript "I will never reach the end of this function without returning or throwing."
     throw new Error(`Unknown job name: ${job.name}`);
   },
   {
     connection: redisConnection,
     concurrency: 1,
+    // 👇 ADD THESE TWO LINES TO STOP THE REDIS DRAIN 👇
+    drainDelay: 60000, // Tell the worker to sleep for 60 seconds when the queue is empty
+    stalledInterval: 300000, // Tell the worker to only check for crashed jobs every 5 minutes
   },
 );
 
