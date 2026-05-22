@@ -1,58 +1,58 @@
 import { Page, HTTPResponse } from "puppeteer";
 
-// ── 1. CATEGORY DISCOVERY (DOM EXTRACTION STRATEGY) ─────────────────────────
+// ── 1. CATEGORY DISCOVERY (SITEMAP FLANK STRATEGY) ──────────────────────────
 export async function getMangoCategories(
   page: Page,
   department: string = "man",
 ): Promise<string[]> {
   const isWoman = department.toLowerCase() === "woman";
   const deptSlug = isWoman ? "kadin" : "erkek";
-  const targetUrl = `https://shop.mango.com/tr/tr/${deptSlug}`;
+  const sitemapUrl =
+    "https://shop.mango.com/sitemap-catalog/sitemap-catalog_tr-tr.xml";
 
-  console.log(`   --> 🗺️  Navigating to Mango hub: ${targetUrl}`);
+  console.log(`   --> 🗺️  Bypassing SPA WAF - Fetching raw XML Sitemap...`);
 
   try {
-    // Rely entirely on the Stealth plugin, remove forced headers.
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    );
-
-    // Go to the page and wait for the network to settle
-    await page.goto(targetUrl, {
-      waitUntil: "networkidle2",
+    // 1. Navigate directly to the raw XML file
+    const response = await page.goto(sitemapUrl, {
+      waitUntil: "domcontentloaded",
       timeout: 60000,
     });
 
-    // Hard wait for 4 seconds to let React inject the mega-menu and clear initial WAF checks
-    await new Promise((r) => setTimeout(r, 4000));
+    if (!response) {
+      throw new Error("No response received from sitemap URL.");
+    }
 
-    // 👇 FIX: Explicitly pass the argument, define its type, and cast the return to string[]
-    const categoryLinks = (await page.evaluate((slug: string) => {
-      const links = Array.from(document.querySelectorAll("a"));
-      const validLinks = new Set<string>();
+    // 2. Extract the raw text from the HTTP response (Bypasses the browser DOM entirely)
+    const xmlText = await response.text();
 
-      for (const a of links) {
-        const href = a.href || "";
-        if (href.includes(`/c/${slug}`) && !href.includes("/p/")) {
-          validLinks.add(href.split("?")[0]);
-        }
+    // 3. Use Regex to find all Mango category URLs in the raw XML text
+    // Matches patterns like: https://shop.mango.com/tr/tr/c/kadin/ceketler...
+    const urlRegex = /https:\/\/shop\.mango\.com\/tr\/tr\/c\/[^\s<"']+/g;
+    const allMatches = xmlText.match(urlRegex) || [];
+
+    const validLinks = new Set<string>();
+
+    for (let link of allMatches) {
+      // 4. Clean and filter the links
+      link = link.trim();
+
+      if (link.includes(`/c/${deptSlug}`) && !link.includes("/p/")) {
+        validLinks.add(link);
       }
-      return Array.from(validLinks);
-    }, deptSlug)) as string[];
+    }
 
-    // 👇 FIX: categoryLinks is now explicitly a string array, so `link` is inferred correctly
-    const filteredLinks = categoryLinks.filter((link: string) =>
-      link.includes(`/c/${deptSlug}`),
-    );
+    const filteredLinks = Array.from(validLinks);
 
-    if (!filteredLinks || filteredLinks.length === 0) {
+    if (filteredLinks.length === 0) {
+      // If we fail here, Mango has completely changed their sitemap URL.
       throw new Error(
-        `0 links found. (Check the live browser window to see the block!)`,
+        `0 links found in XML text. WAF might be blocking the XML endpoint or the URL changed.`,
       );
     }
 
     console.log(
-      `   --> ✅ Discovered ${filteredLinks.length} ${department.toUpperCase()} categories.`,
+      `   --> ✅ Discovered ${filteredLinks.length} ${department.toUpperCase()} categories via XML flank.`,
     );
     return filteredLinks;
   } catch (error: any) {
