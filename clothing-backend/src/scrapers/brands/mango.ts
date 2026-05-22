@@ -13,30 +13,33 @@ export async function getMangoCategories(
   console.log(`   --> 🗺️  Bypassing SPA WAF - Fetching raw XML Sitemap...`);
 
   try {
-    // 1. Navigate directly to the raw XML file
-    const response = await page.goto(sitemapUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 60000,
+    // 1. Navigate directly to the raw XML file. Wait for network to quiet down.
+    await page.goto(sitemapUrl, {
+      waitUntil: "networkidle2",
+      timeout: 90000, // Gave it 90 seconds because the file is huge
     });
 
-    if (!response) {
-      throw new Error("No response received from sitemap URL.");
+    // 2. 🚨 FIX: Grab the text directly from the rendered page instead of the network cache!
+    const xmlText = await page.evaluate(() => {
+      // document.documentElement.textContent gets all text on the page natively
+      return (
+        document.documentElement.textContent ||
+        document.documentElement.outerHTML
+      );
+    });
+
+    if (!xmlText) {
+      throw new Error("Could not extract text from the XML page.");
     }
 
-    // 2. Extract the raw text from the HTTP response (Bypasses the browser DOM entirely)
-    const xmlText = await response.text();
-
-    // 3. Use Regex to find all Mango category URLs in the raw XML text
-    // Matches patterns like: https://shop.mango.com/tr/tr/c/kadin/ceketler...
+    // 3. Use Regex to find all Mango category URLs in the raw text
     const urlRegex = /https:\/\/shop\.mango\.com\/tr\/tr\/c\/[^\s<"']+/g;
     const allMatches = xmlText.match(urlRegex) || [];
 
     const validLinks = new Set<string>();
 
     for (let link of allMatches) {
-      // 4. Clean and filter the links
       link = link.trim();
-
       if (link.includes(`/c/${deptSlug}`) && !link.includes("/p/")) {
         validLinks.add(link);
       }
@@ -45,14 +48,13 @@ export async function getMangoCategories(
     const filteredLinks = Array.from(validLinks);
 
     if (filteredLinks.length === 0) {
-      // If we fail here, Mango has completely changed their sitemap URL.
       throw new Error(
-        `0 links found in XML text. WAF might be blocking the XML endpoint or the URL changed.`,
+        `0 links found in XML text. The pattern might have changed.`,
       );
     }
 
     console.log(
-      `   --> ✅ Discovered ${filteredLinks.length} ${department.toUpperCase()} categories via XML flank.`,
+      `   --> ✅ Discovered ${filteredLinks.length} ${department.toUpperCase()} categories via DOM text flank.`,
     );
     return filteredLinks;
   } catch (error: any) {
