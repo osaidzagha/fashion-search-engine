@@ -12,7 +12,22 @@ export async function getMangoCategories(
   console.log(`   --> 🗺️  Navigating to Mango hub: ${targetUrl}`);
 
   try {
-    // 1. Wait for network to be idle, not just the DOM
+    // 👇 INJECT REALISTIC BROWSER HEADERS SO MANGO'S API DOESN'T PANIC
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    );
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7", // Tells Mango we are in Turkey
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "sec-ch-ua":
+        '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+      "sec-ch-ua-mobile": "?0",
+      "sec-ch-ua-platform": '"Windows"',
+      "Upgrade-Insecure-Requests": "1",
+    });
+
+    // 1. Wait for network to be idle
     await page.goto(targetUrl, {
       waitUntil: "networkidle2",
       timeout: 60000,
@@ -27,7 +42,6 @@ export async function getMangoCategories(
 
       for (const a of links) {
         const href = a.href || "";
-        // Broaden the search string slightly
         if (href.includes(`/c/${slug}`) && !href.includes("/p/")) {
           validLinks.add(href.split("?")[0]);
         }
@@ -35,7 +49,6 @@ export async function getMangoCategories(
       return Array.from(validLinks);
     }, deptSlug);
 
-    // 3. Take a screenshot if we get blocked so we can see the enemy
     if (!categoryLinks || categoryLinks.length === 0) {
       await page.screenshot({ path: `mango-error-${department}.png` });
       throw new Error(
