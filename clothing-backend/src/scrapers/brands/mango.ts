@@ -1,71 +1,61 @@
 import { Page, HTTPResponse } from "puppeteer";
 
-// ── 1. CATEGORY DISCOVERY (SITEMAP STRATEGY) ────────────────────────────────
+// ── 1. CATEGORY DISCOVERY (DOM EXTRACTION STRATEGY) ─────────────────────────
 export async function getMangoCategories(
   page: Page,
   department: string = "man",
 ): Promise<string[]> {
   const isWoman = department.toLowerCase() === "woman";
   const deptSlug = isWoman ? "kadin" : "erkek";
-  const sitemapUrl =
-    "https://shop.mango.com/sitemap-catalog/sitemap-catalog_tr-tr.xml";
+
+  // Navigate directly to the department hub
+  const targetUrl = `https://shop.mango.com/tr/tr/${deptSlug}`;
 
   console.log(
-    `   --> 🗺️  Fetching Mango sitemap for department: ${department.toUpperCase()}`,
+    `   --> 🗺️  Extracting Mango categories from DOM for department: ${department.toUpperCase()}`,
   );
 
   try {
-    await page.goto("https://shop.mango.com/tr/tr", {
+    await page.goto(targetUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 120000, // 👈 INCREASED TIMEOUT
+      timeout: 120000,
     });
 
-    // 👇 THE MEMORY FIX: Parse XML inside the browser, not in Node.js RAM!
-    const categoryLinks = await page.evaluate(
-      async (url, slug) => {
-        try {
-          const res = await fetch(url, {
-            headers: { Accept: "text/xml,application/xml,*/*" },
-          });
-          if (!res.ok) return [];
-          const text = await res.text();
+    const categoryLinks = await page.evaluate((slug) => {
+      // 1. Gather all anchor tags on the page (even hidden menu ones)
+      const links = Array.from(document.querySelectorAll("a"));
+      const validLinks = new Set<string>();
 
-          // Parse it using the browser's native XML parser (Very memory efficient)
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(text, "text/xml");
-          const locs = Array.from(xmlDoc.querySelectorAll("loc"));
+      for (const a of links) {
+        const href = a.href || "";
 
-          const validLinks = new Set<string>();
-          for (let i = 0; i < locs.length; i++) {
-            const locText = locs[i].textContent;
-            if (
-              locText &&
-              locText.includes(`/c/${slug}/`) &&
-              !locText.includes("/p/")
-            ) {
-              validLinks.add(locText);
-            }
-          }
-          return Array.from(validLinks);
-        } catch {
-          return [];
+        // 2. Look for the category URL pattern
+        // Example: https://shop.mango.com/tr/tr/c/kadin/ceket/5ef3ad3b
+        if (
+          href.includes(`/c/${slug}/`) &&
+          !href.includes("/p/") // Ignore individual product links
+        ) {
+          // Remove messy query params like ?layout=...
+          const cleanLink = href.split("?")[0];
+          validLinks.add(cleanLink);
         }
-      },
-      sitemapUrl,
-      deptSlug,
-    );
+      }
+      return Array.from(validLinks);
+    }, deptSlug);
 
     if (!categoryLinks || categoryLinks.length === 0) {
-      throw new Error("Sitemap parsed but returned 0 links.");
+      throw new Error(
+        "DOM parsed but returned 0 category links. WAF block likely.",
+      );
     }
 
     console.log(
-      `   --> ✅ Sitemap returned ${categoryLinks.length} ${department.toUpperCase()} categories.`,
+      `   --> ✅ Discovered ${categoryLinks.length} ${department.toUpperCase()} categories.`,
     );
     return categoryLinks;
   } catch (error: any) {
     console.error(
-      `   --> ❌ Sitemap fetch failed for ${department}:`,
+      `   --> ❌ Category extraction failed for ${department}:`,
       error.message,
     );
     return [];
