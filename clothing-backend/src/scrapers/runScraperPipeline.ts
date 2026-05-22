@@ -49,17 +49,25 @@ export const runScraperPipeline = async (
 
     await page.setRequestInterception(true);
 
-    // ← Store the reference so safeWipe can remove it before disabling interception
     const requestHandler = (req: any) => {
       if (req.isInterceptResolutionHandled()) return;
       try {
         const type = req.resourceType();
         const allowImage =
           page.__interceptMode === "permissive" && type === "image";
-        if (req.isNavigationRequest() || type === "script" || allowImage) {
+
+        // 👇 FIX: Allow 'fetch', 'xhr', and 'stylesheet' so Mango's React App can load data!
+        if (
+          req.isNavigationRequest() ||
+          type === "script" ||
+          type === "fetch" ||
+          type === "xhr" ||
+          type === "stylesheet" ||
+          allowImage
+        ) {
           req.continue();
         } else {
-          req.abort();
+          req.abort(); // Still aborting fonts, media, and unneeded images to save RAM
         }
       } catch {
         // Stale CDP event — safe to ignore
