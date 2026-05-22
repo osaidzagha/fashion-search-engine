@@ -8,10 +8,13 @@ export const redisConnection = new IORedis(
     maxRetriesPerRequest: null,
     family: 4, // Prevents DNS IPv6 resolution crashes
     keepAlive: 10000,
+    lazyConnect: true, // IMPORTANT: Only connect when we actually push a job
     tls: process.env.REDIS_URL?.startsWith("rediss://")
       ? { rejectUnauthorized: false }
       : undefined,
     retryStrategy: (times) => {
+      // Don't retry endlessly if we hit the limit, just give up after 3 tries
+      if (times > 3) return null;
       console.warn(
         `⚠️ Redis connection dropped. Reconnecting... (Attempt ${times})`,
       );

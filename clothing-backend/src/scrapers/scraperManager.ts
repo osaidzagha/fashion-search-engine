@@ -82,7 +82,6 @@ export const stopScraper = async (brandSlug: string): Promise<boolean> => {
   return false;
 };
 
-// ─── Trigger Engine ───────────────────────────────────────────────────────────
 export const triggerScraper = async (
   brandSlug: string,
   runDocId: string,
@@ -93,7 +92,6 @@ export const triggerScraper = async (
   let browser: Browser | null = null;
 
   try {
-    // puppeteer-extra uses the exact same launch arguments!
     browser = (await puppeteer.launch({
       headless: true,
       args: [
@@ -102,12 +100,17 @@ export const triggerScraper = async (
         "--disable-dev-shm-usage",
         "--disable-gpu",
         "--no-zygote",
-        "--single-process",
+        "--disable-blink-features=AutomationControlled", // Evade bot detection
+        // "--single-process", <-- REMOVED: Triggers bot detection in headless
         "--js-flags=--max-old-space-size=256",
       ],
-    })) as unknown as Browser; // Type casting for strict TS environments
+    })) as unknown as Browser;
 
     activeBrowsers.set(brandSlug, browser);
+
+    // Override the user agent for all pages created in this browser
+    const userAgent =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
     const result = await runScraperPipeline(
       browser,
@@ -132,12 +135,20 @@ export const triggerScraper = async (
 
     console.log(`✅ ${job.brandName} complete.`);
 
-    await priceAlertQueue.add(
-      "check-price-drops",
-      { brandName: job.brandName, runId: runDocId },
-      { delay: 3_000 },
-    );
-    console.log(`🔔 Price alert job queued for ${job.brandName}.`);
+    // Wrap in Try/Catch so a dead Redis doesn't ruin a successful scrape
+    try {
+      await priceAlertQueue.add(
+        "check-price-drops",
+        { brandName: job.brandName, runId: runDocId },
+        { delay: 3_000 },
+      );
+      console.log(`🔔 Price alert job queued for ${job.brandName}.`);
+    } catch (redisErr) {
+      console.error(
+        `⚠️ Failed to queue price alerts (Redis limit likely exceeded):`,
+        redisErr,
+      );
+    }
   } catch (err) {
     console.error(`❌ ${job.brandName} failed:`, err);
     await ScraperRunModel.findByIdAndUpdate(runDocId, {
