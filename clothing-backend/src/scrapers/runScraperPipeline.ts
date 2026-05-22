@@ -399,7 +399,7 @@ export const runScraperPipeline = async (
         await new Promise((r) =>
           setTimeout(
             r,
-            testMode ? 1500 : Math.floor(Math.random() * 3000) + 4000,
+            testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000,
           ),
         );
       }
@@ -409,7 +409,7 @@ export const runScraperPipeline = async (
       await new Promise((r) =>
         setTimeout(
           r,
-          testMode ? 4000 : Math.floor(Math.random() * 5000) + 5000,
+          testMode ? 4000 : Math.floor(Math.random() * 3000) + 3000,
         ),
       );
     }
