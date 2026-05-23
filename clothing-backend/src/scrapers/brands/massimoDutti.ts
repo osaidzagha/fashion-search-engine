@@ -77,7 +77,7 @@ export async function getMassimoCategories(
       })()
     `);
 
-    await new Promise((r) => setTimeout(r, 2000));
+    await new Promise((r) => setTimeout(r, 1000));
 
     console.log(`  --> Switching to ${department} tab using HTML IDs...`);
     const targetId = department === "MAN" ? "#MEN" : "#WOMEN";
@@ -148,7 +148,7 @@ export async function getMassimoProductLinks(
         (function() {
           return new Promise(function(resolve) {
             var totalHeight = 0;
-            var distance = 800; 
+            var distance = 1000; 
             var scrolls = 0;
             var maxScrolls = 8; 
             
@@ -162,7 +162,7 @@ export async function getMassimoProductLinks(
                 clearInterval(timer);
                 resolve(undefined);
               }
-            }, 1200); 
+            }, 800); 
           });
         })()
       `);
