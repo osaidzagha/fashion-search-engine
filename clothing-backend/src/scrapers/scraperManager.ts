@@ -33,21 +33,32 @@ puppeteer.use(StealthPlugin());
 // ─── Process Registry ─────────────────────────────────────────────────────────
 const activeBrowsers = new Map<string, Browser>();
 
+// 👇 1. SPLIT ZARA INTO TWO VIRTUAL BRANDS
 const BRAND_JOBS: Record<string, any> = {
-  zara: {
+  "zara-man": {
     brandName: "Zara",
+    departments: ["MAN"], // Only runs MAN
+    getCategories: getZaraCategories,
+    getLinks: getZaraProductLinks,
+    scrapeProduct: scrapeZaraProductData,
+  },
+  "zara-woman": {
+    brandName: "Zara",
+    departments: ["WOMAN"], // Only runs WOMAN
     getCategories: getZaraCategories,
     getLinks: getZaraProductLinks,
     scrapeProduct: scrapeZaraProductData,
   },
   "massimo-dutti": {
     brandName: "Massimo Dutti",
+    departments: ["MAN", "WOMAN"],
     getCategories: getMassimoCategories,
     getLinks: getMassimoProductLinks,
     scrapeProduct: scrapeMassimoProductData,
   },
   mango: {
     brandName: "Mango",
+    departments: ["MAN", "WOMAN"],
     getCategories: getMangoCategories,
     getLinks: getMangoProductLinks,
     scrapeProduct: scrapeMangoProductData,
@@ -82,6 +93,7 @@ export const stopScraper = async (brandSlug: string): Promise<boolean> => {
   return false;
 };
 
+// ─── Trigger Engine ───────────────────────────────────────────────────────────
 export const triggerScraper = async (
   brandSlug: string,
   runDocId: string,
@@ -93,30 +105,27 @@ export const triggerScraper = async (
 
   try {
     browser = (await puppeteer.launch({
-      headless: true,
-      defaultViewport: null,
+      headless: true, // Make sure this is back to true for GitHub!
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
         "--disable-gpu",
         "--no-zygote",
-        "--disable-blink-features=AutomationControlled", // Evade bot detection
-        // "--single-process", <-- REMOVED: Triggers bot detection in headless
+        "--disable-blink-features=AutomationControlled",
         "--js-flags=--max-old-space-size=256",
       ],
     })) as unknown as Browser;
 
     activeBrowsers.set(brandSlug, browser);
 
-    // Override the user agent for all pages created in this browser
     const userAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
     const result = await runScraperPipeline(
       browser,
       job.brandName,
-      ["MAN", "WOMAN"],
+      job.departments, // 👈 2. INJECT THE DYNAMIC DEPARTMENTS HERE
       job.getCategories,
       job.getLinks,
       job.scrapeProduct,

@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false # If Zara crashes, let Mango keep running
       matrix:
-        brand: [zara, mango, massimo-dutti] # The slugs matching your knownBrandSlugs
+        brand: [zara-man, zara-woman, mango, massimo-dutti] # The slugs matching your knownBrandSlugs
 
     steps:
       - uses: actions/checkout@v4
