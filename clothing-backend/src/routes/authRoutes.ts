@@ -5,6 +5,7 @@ import {
   verifyEmail,
   resendOTP,
 } from "../controllers/authController";
+import { forgotPassword, resetPassword } from "../controllers/authController";
 
 // 👇 Import your new Zod bouncers
 import { validate } from "../middlewares/validateRequest";
@@ -19,5 +20,8 @@ router.post("/login", validate(loginSchema), loginUser);
 // OTP routes
 router.post("/verify", verifyEmail);
 router.post("/resend-otp", resendOTP);
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;

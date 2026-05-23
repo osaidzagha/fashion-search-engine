@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { registerUser } from "../services/api";
 import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
+import { Eye, EyeOff } from "lucide-react"; // 👈 IMPORT ICONS
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
@@ -28,6 +28,10 @@ const Register = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
+
+  // 👈 NEW STATES FOR VISIBILITY
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const navigate = useNavigate();
 
@@ -58,9 +62,7 @@ const Register = () => {
 
       const data = await res.json();
 
-      // ── Already registered but unverified → resend OTP and go to verify page
       if (!res.ok && data.message === "User already exists") {
-        // Check if unverified — try resending OTP
         const resendRes = await fetch(`${API_BASE}/api/auth/resend-otp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -92,7 +94,6 @@ const Register = () => {
         return;
       }
 
-      // ✅ FIX: Use data.email from the backend response to prevent trailing space bugs
       toast.success(
         data.message || "Account created! Check your email for the code.",
       );
@@ -158,17 +159,31 @@ const Register = () => {
               <label className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onFocus={() => setPasswordFocused(true)}
-                required
-                placeholder="Min. 6 characters"
-                className="w-full bg-transparent border border-borderLight dark:border-borderLight-dark px-4 py-3 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200 placeholder:text-textMuted/40"
-              />
+              {/* 👈 WRAPPED IN RELATIVE DIV */}
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onFocus={() => setPasswordFocused(true)}
+                  required
+                  placeholder="Min. 6 characters"
+                  className="w-full bg-transparent border border-borderLight dark:border-borderLight-dark px-4 py-3 pr-12 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200 placeholder:text-textMuted/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff size={16} strokeWidth={1.5} />
+                  ) : (
+                    <Eye size={16} strokeWidth={1.5} />
+                  )}
+                </button>
+              </div>
 
-              {/* Password rules — show once user starts typing */}
+              {/* Password rules */}
               {(passwordFocused || password.length > 0) && (
                 <div className="flex flex-col gap-1.5 mt-2">
                   {RULES.map((rule) => {
@@ -176,20 +191,12 @@ const Register = () => {
                     return (
                       <div key={rule.id} className="flex items-center gap-2">
                         <span
-                          className={`text-[10px] transition-colors duration-200 ${
-                            passed
-                              ? "text-green-500"
-                              : "text-textMuted dark:text-textMuted-dark"
-                          }`}
+                          className={`text-[10px] transition-colors duration-200 ${passed ? "text-green-500" : "text-textMuted dark:text-textMuted-dark"}`}
                         >
                           {passed ? "✓" : "○"}
                         </span>
                         <span
-                          className={`font-sans text-[10px] tracking-wide transition-colors duration-200 ${
-                            passed
-                              ? "text-green-500"
-                              : "text-textMuted dark:text-textMuted-dark"
-                          }`}
+                          className={`font-sans text-[10px] tracking-wide transition-colors duration-200 ${passed ? "text-green-500" : "text-textMuted dark:text-textMuted-dark"}`}
                         >
                           {rule.label}
                         </span>
@@ -205,20 +212,35 @@ const Register = () => {
               <label className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
                 Confirm Password
               </label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="Repeat your password"
-                className={`w-full bg-transparent border px-4 py-3 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none transition-colors duration-200 placeholder:text-textMuted/40 ${
-                  confirmPassword.length > 0
-                    ? passwordsMatch
-                      ? "border-green-500"
-                      : "border-accentRed"
-                    : "border-borderLight dark:border-borderLight-dark focus:border-textPrimary dark:focus:border-textPrimary-dark"
-                }`}
-              />
+              {/* 👈 WRAPPED IN RELATIVE DIV */}
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Repeat your password"
+                  className={`w-full bg-transparent border px-4 py-3 pr-12 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none transition-colors duration-200 placeholder:text-textMuted/40 ${
+                    confirmPassword.length > 0
+                      ? passwordsMatch
+                        ? "border-green-500"
+                        : "border-accentRed"
+                      : "border-borderLight dark:border-borderLight-dark focus:border-textPrimary dark:focus:border-textPrimary-dark"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors focus:outline-none"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={16} strokeWidth={1.5} />
+                  ) : (
+                    <Eye size={16} strokeWidth={1.5} />
+                  )}
+                </button>
+              </div>
+
               {confirmPassword.length > 0 && !passwordsMatch && (
                 <p className="font-sans text-[10px] text-accentRed mt-0.5">
                   Passwords don't match

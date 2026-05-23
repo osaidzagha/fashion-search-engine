@@ -14,6 +14,7 @@ import Collection from "../pages/Collection";
 // Layouts & Utils
 import StoreLayout from "./StoreLayout";
 import ProtectedRoute from "../utils/ProtectedRoute";
+import ForgotPassword from "../pages/ForgotPassword";
 
 export default function AnimatedRoutes() {
   const location = useLocation();
@@ -36,6 +37,7 @@ export default function AnimatedRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />{" "}
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         {/* 👈 ROUTE ADDED */}
         <Route element={<ProtectedRoute adminOnly={true} />}>
           <Route path="/admin" element={<AdminDashboard />} />

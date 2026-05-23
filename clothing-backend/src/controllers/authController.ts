@@ -263,3 +263,111 @@ export const resendOTP = async (
     return res.status(500).json({ message: "Server error." });
   }
 };
+
+// ─── POST /api/auth/forgot-password ──────────────────────────────────────────
+export const forgotPassword = async (
+  req: Request,
+  res: Response,
+): Promise<Response | any> => {
+  try {
+    const safeEmail = sanitizeEmail(req.body.email);
+    if (!safeEmail)
+      return res.status(400).json({ message: "Email is required." });
+
+    const user = await UserModel.findOne({ email: safeEmail });
+
+    // For security, do not reveal if the user exists or not
+    if (!user) {
+      return res
+        .status(200)
+        .json({
+          message:
+            "If an account exists with that email, a reset code has been sent.",
+        });
+    }
+
+    // Generate a new 6-digit OTP
+    const otp = generateOTP();
+    user.verificationToken = otp; // Reusing this field for the password reset OTP
+    user.verificationExpires = otpExpiry();
+    await user.save();
+
+    console.log("=========================================");
+    console.log(`DEBUG OTP (PASSWORD RESET) FOR ${safeEmail}: ${otp}`);
+    console.log("=========================================");
+
+    try {
+      // You can update sendVerificationEmail later to accept a "type" parameter to change the email wording
+      await sendVerificationEmail(safeEmail, otp);
+    } catch (mailError) {
+      console.error("⚠️ [forgotPassword] Email failed:", mailError);
+    }
+
+    return res
+      .status(200)
+      .json({
+        message:
+          "If an account exists with that email, a reset code has been sent.",
+      });
+  } catch (error) {
+    console.error("❌ [forgotPassword] Error:", error);
+    return res.status(500).json({ message: "Server error." });
+  }
+};
+
+// ─── POST /api/auth/reset-password ───────────────────────────────────────────
+export const resetPassword = async (
+  req: Request,
+  res: Response,
+): Promise<Response | any> => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty())
+    return res.status(400).json({ errors: errors.array() });
+
+  try {
+    const safeEmail = sanitizeEmail(req.body.email);
+    const { otp, newPassword } = req.body;
+
+    if (!safeEmail || !otp || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Email, OTP, and new password are required." });
+    }
+
+    const user = await UserModel.findOne({ email: safeEmail });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid request." });
+    }
+
+    // Check if OTP matches and is not expired
+    if (
+      user.verificationToken !== otp ||
+      !user.verificationExpires ||
+      user.verificationExpires < new Date()
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired reset code." });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update password and clear the OTP fields
+    user.password = hashedPassword;
+    user.verificationToken = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    return res
+      .status(200)
+      .json({ message: "Password reset successfully. You can now log in." });
+  } catch (error) {
+    console.error("❌ [resetPassword] Error:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error during password reset." });
+  }
+};

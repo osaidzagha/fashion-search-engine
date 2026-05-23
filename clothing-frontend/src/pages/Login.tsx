@@ -5,10 +5,12 @@ import { loginUser } from "../services/api";
 import { setCredentials } from "../store/authSlice";
 import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
+import { Eye, EyeOff } from "lucide-react"; // 👈 IMPORT ICONS
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // 👈 NEW STATE
   const [loading, setLoading] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -18,22 +20,18 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // ✅ FIX: Await the toast promise so we can catch any errors
       const response = await toast.promise(loginUser({ email, password }), {
         loading: "Authenticating...",
         success: "Welcome back to Dope.",
         error: (err: any) => err.message || "Invalid credentials.",
       });
 
-      // Only runs if the API call was successful
       const { token, ...userData } = response;
       dispatch(setCredentials({ user: userData, token }));
       navigate("/");
     } catch (err) {
       console.error("Login error:", err);
-      // We don't need to do anything else here, the toast already showed the error message to the user!
     } finally {
-      // ✅ FIX: This ALWAYS runs, preventing the button from being stuck on "Signing in..."
       setLoading(false);
     }
   };
@@ -68,16 +66,40 @@ const Login = () => {
             </div>
 
             <div className="flex flex-col gap-2">
-              <label className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full bg-transparent border border-borderLight dark:border-borderLight-dark px-4 py-3 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
-              />
+              <div className="flex justify-between items-center">
+                <label className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                  Password
+                </label>
+                {/* 👈 FORGOT PASSWORD LINK */}
+                <Link
+                  to="/forgot-password"
+                  className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-200"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
+
+              {/* 👈 PASSWORD INPUT WITH EYE TOGGLE */}
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full bg-transparent border border-borderLight dark:border-borderLight-dark px-4 py-3 pr-12 text-textPrimary dark:text-textPrimary-dark font-sans text-sm focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeOff size={16} strokeWidth={1.5} />
+                  ) : (
+                    <Eye size={16} strokeWidth={1.5} />
+                  )}
+                </button>
+              </div>
             </div>
 
             <button
