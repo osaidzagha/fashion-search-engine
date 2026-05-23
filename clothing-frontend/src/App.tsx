@@ -1,4 +1,15 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+} from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { logout } from "./store/authSlice"; // Adjust if your logout action is named differently
+import toast from "react-hot-toast";
+
+// Existing imports...
 import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
 import Login from "./pages/Login";
@@ -17,6 +28,37 @@ import Collection from "./pages/Collection";
 import StoreLayout from "./components/StoreLayout";
 import AnimatedRoutes from "./components/AnimatedRoutes";
 
+// ─── THE CATCHER'S MITT ───────────────────────────────────────────────────────
+function GlobalAuthListener() {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      // 1. Wipe the frontend state
+      dispatch(logout());
+
+      // 2. Alert the user
+      toast.error("Your session has expired. Please log in again.", {
+        duration: 4000,
+        position: "top-center",
+      });
+
+      // 3. Kick them to the login screen
+      navigate("/login");
+    };
+
+    // Start listening when the app loads
+    window.addEventListener("auth-expired", handleAuthExpired);
+
+    // Clean up the listener when the app unmounts
+    return () => window.removeEventListener("auth-expired", handleAuthExpired);
+  }, [navigate, dispatch]);
+
+  return null; // This component is invisible!
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function App() {
   return (
     <CompareProvider>
@@ -24,9 +66,10 @@ export default function App() {
         <Toaster /* ... your toast config ... */ />
 
         <Router>
+          {/* 👇 Drop the listener inside the Router! */}
+          <GlobalAuthListener />
           <ScrollToTop />
 
-          {/* 👇 Drop it in here! */}
           <AnimatedRoutes />
 
           <CompareBar />

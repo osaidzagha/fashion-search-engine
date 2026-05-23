@@ -1,5 +1,4 @@
 import express from "express";
-import { body } from "express-validator";
 import {
   registerUser,
   loginUser,
@@ -7,24 +6,17 @@ import {
   resendOTP,
 } from "../controllers/authController";
 
+// 👇 Import your new Zod bouncers
+import { validate } from "../middlewares/validateRequest";
+import { registerSchema, loginSchema } from "../validators/authValidator";
+
 const router = express.Router();
 
-router.post(
-  "/register",
-  [
-    body("email").isEmail().normalizeEmail(),
-    body("password").isLength({ min: 6 }),
-    body("name").trim().notEmpty(),
-  ],
-  registerUser,
-);
+// 👇 The validate middleware intercepts the request BEFORE it hits your controller
+router.post("/register", validate(registerSchema), registerUser);
+router.post("/login", validate(loginSchema), loginUser);
 
-router.post(
-  "/login",
-  [body("email").isEmail().normalizeEmail(), body("password").notEmpty()],
-  loginUser,
-);
-// 👈 Changed to POST, no longer uses a URL parameter
+// OTP routes
 router.post("/verify", verifyEmail);
 router.post("/resend-otp", resendOTP);
 

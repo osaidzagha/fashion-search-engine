@@ -3,10 +3,26 @@ import { FetchProductParams, PaginatedResponse, Product } from "../types";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const AUTH_URL = `${BASE_URL}/api/auth`;
 
-// ─── Helper: authenticated fetch ─────────────────────────────────────────────
-function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+// ─── Custom Error Class (The Zod Catcher) ──────────────────────────────────
+export class ApiError extends Error {
+  public status: number;
+  public validationErrors?: { field: string; message: string }[];
+
+  constructor(message: string, status: number, errors?: any[]) {
+    super(message);
+    this.status = status;
+    this.validationErrors = errors;
+  }
+}
+
+// ─── The Global Interceptor ──────────────────────────────────────────────────
+async function globalFetch(
+  url: string,
+  options: RequestInit = {},
+): Promise<Response> {
   const token = localStorage.getItem("token");
-  return fetch(url, {
+
+  const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -14,6 +30,32 @@ function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
       ...(options.headers || {}),
     },
   });
+
+  // 🚨 GLOBAL 401 HANDLER (The Logout Reflex)
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    // Broadcast an event to the React app to wipe Redux and redirect to login
+    window.dispatchEvent(new Event("auth-expired"));
+    throw new ApiError("Session expired. Please log in again.", 401);
+  }
+
+  // 🚨 GLOBAL ERROR PARSER
+  if (!response.ok) {
+    let errorMessage = "An unexpected error occurred";
+    let errorsArray = [];
+
+    try {
+      const data = await response.json();
+      errorMessage = data.message || errorMessage;
+      errorsArray = data.errors || []; // Grabs the Zod errors if they exist!
+    } catch (e) {
+      errorMessage = `Server Error (${response.status})`;
+    }
+
+    throw new ApiError(errorMessage, response.status, errorsArray);
+  }
+
+  return response;
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
@@ -40,10 +82,9 @@ export const fetchProductsFromAPI = async (
     if (filters.sort) urlParams.set("sort", filters.sort);
     if (filters.mode) urlParams.set("mode", filters.mode);
 
-    const response = await fetch(
+    const response = await globalFetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,
     );
-    if (!response.ok) throw new Error("Network response was not ok");
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch products:", error);
@@ -53,8 +94,7 @@ export const fetchProductsFromAPI = async (
 
 export async function fetchProductById(id: string): Promise<Product | null> {
   try {
-    const response = await fetch(`${BASE_URL}/api/products/${id}`);
-    if (!response.ok) throw new Error("Network response was not ok");
+    const response = await globalFetch(`${BASE_URL}/api/products/${id}`);
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch product:", error);
@@ -64,8 +104,9 @@ export async function fetchProductById(id: string): Promise<Product | null> {
 
 export async function fetchRelatedProducts(id: string): Promise<Product[]> {
   try {
-    const response = await fetch(`${BASE_URL}/api/products/${id}/related`);
-    if (!response.ok) throw new Error("Network response was not ok");
+    const response = await globalFetch(
+      `${BASE_URL}/api/products/${id}/related`,
+    );
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch related products:", error);
@@ -79,24 +120,10 @@ export const loginUser = async (credentials: {
   email: string;
   password: string;
 }) => {
-  const response = await fetch(`${AUTH_URL}/login`, {
+  const response = await globalFetch(`${AUTH_URL}/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
   });
-
-  // ✅ SAFE ERROR HANDLING
-  if (!response.ok) {
-    let errorMsg = "Login failed";
-    try {
-      const data = await response.json();
-      errorMsg = data.message || errorMsg;
-    } catch (e) {
-      errorMsg = `Server Error (${response.status}). The server might be waking up.`;
-    }
-    throw new Error(errorMsg);
-  }
-
   return await response.json();
 };
 
@@ -105,46 +132,18 @@ export const registerUser = async (userData: {
   email: string;
   password: string;
 }) => {
-  const response = await fetch(`${AUTH_URL}/register`, {
+  const response = await globalFetch(`${AUTH_URL}/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(userData),
   });
-
-  // ✅ SAFE ERROR HANDLING: Prevents "stuck on loading"
-  if (!response.ok) {
-    let errorMsg = "Registration failed";
-    try {
-      const data = await response.json();
-      errorMsg = data.message || errorMsg;
-    } catch (e) {
-      errorMsg = `Server error (${response.status}). Please try again in 1 minute.`;
-    }
-    throw new Error(errorMsg);
-  }
-
   return await response.json();
 };
 
-// ✅ NEW: Added for OTP verification
 export const verifyOTP = async (verifyData: { email: string; otp: string }) => {
-  const response = await fetch(`${AUTH_URL}/verify`, {
+  const response = await globalFetch(`${AUTH_URL}/verify`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(verifyData),
   });
-
-  if (!response.ok) {
-    let errorMsg = "Verification failed";
-    try {
-      const data = await response.json();
-      errorMsg = data.message || errorMsg;
-    } catch (e) {
-      errorMsg = "Server error during verification.";
-    }
-    throw new Error(errorMsg);
-  }
-
   return await response.json();
 };
 
@@ -152,9 +151,7 @@ export const verifyOTP = async (verifyData: { email: string; otp: string }) => {
 
 export const fetchWatchlist = async (): Promise<Product[]> => {
   try {
-    const response = await authFetch(`${BASE_URL}/api/watchlist`);
-    if (response.status === 401) return [];
-    if (!response.ok) throw new Error("Failed to fetch watchlist");
+    const response = await globalFetch(`${BASE_URL}/api/watchlist`);
     return await response.json();
   } catch (error) {
     console.error("Failed to fetch watchlist:", error);
@@ -164,10 +161,10 @@ export const fetchWatchlist = async (): Promise<Product[]> => {
 
 export const addToWatchlist = async (productId: string): Promise<boolean> => {
   try {
-    const response = await authFetch(`${BASE_URL}/api/watchlist/${productId}`, {
+    await globalFetch(`${BASE_URL}/api/watchlist/${productId}`, {
       method: "POST",
     });
-    return response.ok;
+    return true; // If globalFetch doesn't throw an error, it succeeded
   } catch (error) {
     console.error("Failed to add to watchlist:", error);
     return false;
@@ -178,10 +175,10 @@ export const removeFromWatchlist = async (
   productId: string,
 ): Promise<boolean> => {
   try {
-    const response = await authFetch(`${BASE_URL}/api/watchlist/${productId}`, {
+    await globalFetch(`${BASE_URL}/api/watchlist/${productId}`, {
       method: "DELETE",
     });
-    return response.ok;
+    return true; // If globalFetch doesn't throw an error, it succeeded
   } catch (error) {
     console.error("Failed to remove from watchlist:", error);
     return false;
@@ -199,8 +196,7 @@ export const checkIsTracked = async (productId: string): Promise<boolean> => {
 
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const response = await fetch(`${BASE_URL}/api/categories`);
-    if (!response.ok) throw new Error("Failed to fetch categories");
+    const response = await globalFetch(`${BASE_URL}/api/categories`);
     return await response.json();
   } catch (error) {
     console.error("Categories API error:", error);
@@ -209,16 +205,11 @@ export const fetchCategories = async (): Promise<string[]> => {
 };
 
 export const toggleCampaignHeroAPI = async (productId: string) => {
-  const response = await authFetch(
+  const response = await globalFetch(
     `${BASE_URL}/api/admin/products/${productId}/campaign`,
     {
       method: "PUT",
     },
   );
-
-  if (!response.ok) {
-    const data = await response.json();
-    throw new Error(data.message || "Failed to update campaign status");
-  }
   return await response.json();
 };

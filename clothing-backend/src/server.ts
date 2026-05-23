@@ -1,5 +1,5 @@
 import "dotenv/config";
-import express, { NextFunction, Request, Response } from "express";
+import express, { Request, Response } from "express";
 import cors from "cors";
 import mongoose from "mongoose";
 import productRoutes from "./routes/productRoutes";
@@ -11,6 +11,9 @@ import { redisConnection } from "./queues/queues";
 import { cleanupStaleRuns } from "./scrapers/scraperManager";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+
+// 👇 IMPORT THE NEW ERROR HANDLER
+import { errorHandler } from "./middlewares/errorHandler";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -38,25 +41,22 @@ const authLimiter = rateLimit({
 });
 app.use("/api/auth", authLimiter);
 
-// ── Routes ────────────────────────────────────────────────────────
-app.use("/api/products", productRoutes);
-app.use("/api/auth", authRoutes);
-app.use("/api/watchlist", watchlistRoutes);
-app.use("/api/admin", adminRoutes);
-
-// ── Global error handler LAST ─────────────────────────────────────
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Something went wrong" });
-});
-
-// ── Health check ──────────────────────────────────────────────────
+// ── Health check (MOVED ABOVE ERROR HANDLER) ──────────────────────
 app.get("/", (req: Request, res: Response) => {
   res.json({
     status: "ok",
     message: "Fashion backend is running 🚀",
   });
 });
+
+// ── Routes ────────────────────────────────────────────────────────
+app.use("/api/products", productRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/watchlist", watchlistRoutes);
+app.use("/api/admin", adminRoutes);
+
+// ── Global error handler (MUST BE ABSOLUTE LAST) ──────────────────
+app.use(errorHandler);
 
 // ── Database + server start ───────────────────────────────────────
 mongoose
@@ -68,7 +68,7 @@ mongoose
     console.log("✅ Database indexes synchronized");
 
     app.listen(PORT, () => {
-      console.log(`🚀 Server running`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
 
     console.log("🔔 Price alert worker online.");
