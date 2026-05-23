@@ -1,8 +1,8 @@
 export type SubCategory =
-  | { label: string; type: "search"; q: string }
-  | { label: string; type: "sale"; q: string }
-  | { label: string; type: "newest"; q: string }
-  | { label: string; type: "brand"; q: string };
+  | { label: string; type: "search"; q: string; depts?: string[] }
+  | { label: string; type: "sale"; q: string; depts?: string[] }
+  | { label: string; type: "newest"; q: string; depts?: string[] }
+  | { label: string; type: "brand"; q: string; depts?: string[] };
 
 export interface TopCategory {
   label: string;
@@ -92,24 +92,27 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Shorts",
         type: "search",
-        q: "shorts bermuda",
+        q: "shorts bermuda", // Removed adjectives
       },
       {
         label: "Skirts",
         type: "search",
-        q: "skirt skort midi maxi mini",
+        q: "skirt skort", // FIXED: Removed "midi maxi mini"
+        depts: ["WOMAN"], // Tagged for Women
       },
 
       // ── One-pieces ───────────────────────────────────────────────────────
       {
         label: "Dresses",
         type: "search",
-        q: "dress gown midi maxi mini",
+        q: "dress gown", // FIXED: Removed "midi maxi mini"
+        depts: ["WOMAN"], // Tagged for Women
       },
       {
         label: "Jumpsuits & Rompers",
         type: "search",
         q: "jumpsuit playsuit romper overall",
+        depts: ["WOMAN"], // Tagged for Women
       },
 
       // ── Specialty ────────────────────────────────────────────────────────
@@ -127,7 +130,8 @@ export const TAXONOMY: TopCategory[] = [
       {
         label: "Lingerie",
         type: "search",
-        q: "lingerie bra brief panty bralette thong",
+        q: "lingerie bra brief panty bralette thong", // Thong kept here
+        depts: ["WOMAN"], // Tagged for Women
       },
       {
         label: "Nightwear & Sleepwear",
@@ -182,11 +186,12 @@ export const TAXONOMY: TopCategory[] = [
         label: "Heels",
         type: "search",
         q: "heel pump stiletto wedge platform kitten",
+        depts: ["WOMAN"], // Tagged for Women
       },
       {
         label: "Sandals",
         type: "search",
-        q: "sandal slide flip-flop thong",
+        q: "sandal slide flip-flop", // FIXED: Removed thong
       },
       {
         label: "New Arrivals in Shoes",
@@ -235,6 +240,7 @@ export const TAXONOMY: TopCategory[] = [
         label: "Hair Accessories",
         type: "search",
         q: "headband scrunchie barrette hairpin",
+        depts: ["WOMAN"], // Tagged for Women
       },
       {
         label: "Wallets & Cardholders",
@@ -284,6 +290,7 @@ export const TAXONOMY: TopCategory[] = [
         label: "Clutches & Evening Bags",
         type: "search",
         q: "clutch minaudiere pochette evening",
+        depts: ["WOMAN"], // Tagged for Women
       },
       {
         label: "Shoulder Bags",

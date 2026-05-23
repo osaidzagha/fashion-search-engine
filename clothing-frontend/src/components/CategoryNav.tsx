@@ -5,14 +5,28 @@ import { TAXONOMY, SubCategory } from "../constants/taxonomy";
 
 export const CategoryNav: React.FC = () => {
   const navigate = useNavigate();
-  const activeDepartment = useSelector(
-    (state: any) => state.auth?.department || state.shop?.department,
+
+  // 👇 FIX 1: Point to the exact same Redux state as your Navbar!
+  const selectDepartments = useSelector(
+    (state: any) => state.products?.selectDepartments || [],
   );
+
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  // Determine exactly what department is active
+  const isMen =
+    selectDepartments.includes("Men") || selectDepartments.includes("MEN");
+  const isWomen =
+    selectDepartments.includes("Women") || selectDepartments.includes("WOMEN");
 
   const handleNavClick = (item: SubCategory) => {
     const params = new URLSearchParams();
-    if (activeDepartment) params.set("departments", activeDepartment);
+
+    // 👇 FIX 2: Correctly pass the department array to the URL
+    if (selectDepartments.length > 0) {
+      params.set("departments", selectDepartments.join(","));
+    }
+
     params.set("title", item.label);
 
     switch (item.type) {
@@ -22,13 +36,11 @@ export const CategoryNav: React.FC = () => {
         break;
       case "sale":
         params.set("onSale", "true");
-        // 👇 FIX: Pass the keywords and mode for Sale items!
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
       case "newest":
         params.set("sort", "newest");
-        // 👇 FIX: Pass the keywords and mode for Newest items!
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
@@ -42,6 +54,17 @@ export const CategoryNav: React.FC = () => {
   };
 
   const activeCategoryData = TAXONOMY.find((c) => c.key === activeMenu);
+
+  // 👇 FIX 3: THE MAGIC FILTER (The Disappearing UI)
+  const filteredSubCategories = activeCategoryData?.items.filter((item) => {
+    // If Men is selected, hide any category explicitly tagged for Women (Skirts, Heels, Lingerie)
+    if (isMen && item.depts?.includes("WOMAN")) return false;
+
+    // Future-proofing: If Women is selected, hide any category explicitly tagged for Men
+    if (isWomen && item.depts?.includes("MAN")) return false;
+
+    return true; // Otherwise, show it!
+  });
 
   return (
     <div
@@ -89,7 +112,8 @@ export const CategoryNav: React.FC = () => {
       >
         <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-12 md:py-10">
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 md:gap-x-12">
-            {activeCategoryData?.items.map((item, idx) => {
+            {/* 👇 Use our new filtered array here! */}
+            {filteredSubCategories?.map((item, idx) => {
               const isSale = item.type === "sale";
               const isNew = item.type === "newest";
               const isFeatured = isSale || isNew;

@@ -119,6 +119,18 @@ const excludeMap: Record<string, string> = {
     "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
   accessories:
     "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
+  // ── Fix the "Bucket" Bug ──
+  // Mongo splits "bucket-hat" into "bucket" and "hat". If it sees "bucket", exclude bags!
+  bucket: "bag bags tote shopper backpack crossbody",
+
+  // ── Fix the "Heel" Bug ──
+  // If someone clicks the Heels category, strictly exclude men's sneakers
+  heel: "sneaker sneakers trainer trainers",
+  heels: "sneaker sneakers trainer trainers",
+
+  // ── Fix the "Thong" Bug ──
+  // If someone searches for a thong (lingerie), exclude sandals!
+  thong: "sandal sandals flip-flop slide shoe shoes",
 };
 
 // ─── Build a filter from query params ────────────────────────────────────────
