@@ -204,3 +204,26 @@ export const triggerScraper = async (
     }
   }
 };
+
+// ─── Sequential Fallback ──────────────────────────────────────────────────────
+// Used by scheduler.ts for server-side cron.
+// GitHub Actions uses the matrix (parallel), but this stays
+// for local runs and Render's internal scheduler.
+export const runAllScrapers = async (testMode = false): Promise<void> => {
+  console.log("🚀 MASTER CRON: Starting all scrapers sequentially...");
+
+  for (const slug of Object.keys(BRAND_JOBS)) {
+    const job = BRAND_JOBS[slug];
+
+    const runDoc = await ScraperRunModel.create({
+      brand: job.brandName,
+      status: "running",
+      startedAt: new Date(),
+    });
+
+    console.log(`\n⏳ CRON: Starting ${slug}...`);
+    await triggerScraper(slug, runDoc._id.toString(), testMode);
+  }
+
+  console.log("\n✅ MASTER CRON: All scraper jobs complete.");
+};
