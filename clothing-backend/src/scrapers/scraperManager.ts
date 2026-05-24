@@ -1,7 +1,6 @@
-// 👇 NEW IMPORTS FOR STEALTH
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { Browser } from "puppeteer"; // Keep for TypeScript types
+import { Browser } from "puppeteer";
 
 import { runScraperPipeline } from "./runScraperPipeline";
 import {
@@ -15,53 +14,65 @@ import {
   scrapeMangoProductData,
 } from "./brands/mango";
 import {
-  getPullAndBearCategories,
-  getPullAndBearProductLinks,
-  scrapePullAndBearProductData,
-} from "./brands/pullAndBear";
-import {
   getMassimoCategories,
   getMassimoProductLinks,
   scrapeMassimoProductData,
 } from "./brands/massimoDutti";
 import { ScraperRunModel } from "../models/ScraperRun";
+import { ProductModel } from "../models/Product";
 import { priceAlertQueue } from "../queues/queues";
 
-// Initialize the stealth plugin
 puppeteer.use(StealthPlugin());
 
 // ─── Process Registry ─────────────────────────────────────────────────────────
 const activeBrowsers = new Map<string, Browser>();
 
-// 👇 1. SPLIT ZARA INTO TWO VIRTUAL BRANDS
+// ─── Brand Jobs ───────────────────────────────────────────────────────────────
+// Each entry is a separate GitHub Actions matrix job.
+// Zara, Mango, and Massimo Dutti are all split by department so
+// no single job risks hitting the 90-minute timeout.
 const BRAND_JOBS: Record<string, any> = {
   "zara-man": {
     brandName: "Zara",
-    departments: ["MAN"], // Only runs MAN
+    departments: ["MAN"],
     getCategories: getZaraCategories,
     getLinks: getZaraProductLinks,
     scrapeProduct: scrapeZaraProductData,
   },
   "zara-woman": {
     brandName: "Zara",
-    departments: ["WOMAN"], // Only runs WOMAN
+    departments: ["WOMAN"],
     getCategories: getZaraCategories,
     getLinks: getZaraProductLinks,
     scrapeProduct: scrapeZaraProductData,
   },
-  "massimo-dutti": {
+  "mango-man": {
+    brandName: "Mango",
+    departments: ["MAN"],
+    getCategories: getMangoCategories,
+    getLinks: getMangoProductLinks,
+    scrapeProduct: scrapeMangoProductData,
+  },
+  "mango-woman": {
+    brandName: "Mango",
+    departments: ["WOMAN"],
+    getCategories: getMangoCategories,
+    getLinks: getMangoProductLinks,
+    scrapeProduct: scrapeMangoProductData,
+  },
+  "massimo-dutti-man": {
     brandName: "Massimo Dutti",
-    departments: ["MAN", "WOMAN"],
+    departments: ["MAN"],
     getCategories: getMassimoCategories,
     getLinks: getMassimoProductLinks,
     scrapeProduct: scrapeMassimoProductData,
   },
-  mango: {
-    brandName: "Mango",
-    departments: ["MAN", "WOMAN"],
-    getCategories: getMangoCategories,
-    getLinks: getMangoProductLinks,
-    scrapeProduct: scrapeMangoProductData,
+  "massimo-dutti-woman": {
+    brandName: "Massimo Dutti",
+    departments: ["WOMAN"],
+    getCategories: getMassimoCategories,
+    getLinks: getMassimoProductLinks,
+    scrapeProduct: scrapeMassimoProductData,
   },
 };
 
@@ -71,13 +82,29 @@ export const brandNameForSlug = (slug: string) => BRAND_JOBS[slug]?.brandName;
 // ─── The Janitor (Startup Cleanup) ────────────────────────────────────────────
 export const cleanupStaleRuns = async (): Promise<void> => {
   console.log("🧹 Cleaning up stale scraper runs...");
+
+  // Mark any run that was mid-flight when the server restarted
   await ScraperRunModel.updateMany(
     { status: "running" },
     { status: "error", completedAt: new Date() },
   );
+
+  // Mark products not seen in 10 days as unavailable (ghost detection).
+  // 10-day threshold gives a 3-day buffer over the 7-day staleness TTL,
+  // so a product must be missed on multiple consecutive runs before being ghosted.
+  const tenDaysAgo = new Date(Date.now() - 10 * 86400000);
+  const ghostResult = await ProductModel.updateMany(
+    { lastSeenAt: { $lt: tenDaysAgo }, available: { $ne: false } },
+    { $set: { available: false } },
+  );
+  if (ghostResult.modifiedCount > 0) {
+    console.log(
+      `👻 Marked ${ghostResult.modifiedCount} ghost products as unavailable.`,
+    );
+  }
+
   await priceAlertQueue.drain();
   await priceAlertQueue.obliterate({ force: true });
-
   console.log("✅ Queue flushed and stale runs marked as error.");
 };
 
@@ -100,12 +127,17 @@ export const triggerScraper = async (
   testMode = false,
 ): Promise<void> => {
   const job = BRAND_JOBS[brandSlug];
+  if (!job) {
+    throw new Error(`Unknown brand slug: "${brandSlug}"`);
+  }
+
   const startedAt = Date.now();
   let browser: Browser | null = null;
 
   try {
     browser = (await puppeteer.launch({
-      headless: true, // Make sure this is back to true for GitHub!
+      headless: true,
+      protocolTimeout: 120000,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -119,13 +151,10 @@ export const triggerScraper = async (
 
     activeBrowsers.set(brandSlug, browser);
 
-    const userAgent =
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
-
     const result = await runScraperPipeline(
       browser,
       job.brandName,
-      job.departments, // 👈 2. INJECT THE DYNAMIC DEPARTMENTS HERE
+      job.departments,
       job.getCategories,
       job.getLinks,
       job.scrapeProduct,
@@ -143,9 +172,11 @@ export const triggerScraper = async (
       completedAt: new Date(),
     });
 
-    console.log(`✅ ${job.brandName} complete.`);
+    console.log(
+      `✅ ${brandSlug} complete — ${result.newItems} new, ${result.updatedItems} updated, ${result.errorCount} errors.`,
+    );
 
-    // Wrap in Try/Catch so a dead Redis doesn't ruin a successful scrape
+    // Wrap in try/catch so a dead Redis doesn't fail an otherwise successful scrape
     try {
       await priceAlertQueue.add(
         "check-price-drops",
@@ -160,7 +191,7 @@ export const triggerScraper = async (
       );
     }
   } catch (err) {
-    console.error(`❌ ${job.brandName} failed:`, err);
+    console.error(`❌ ${brandSlug} failed:`, err);
     await ScraperRunModel.findByIdAndUpdate(runDocId, {
       status: "error",
       durationMs: Date.now() - startedAt,
@@ -172,27 +203,4 @@ export const triggerScraper = async (
       activeBrowsers.delete(brandSlug);
     }
   }
-};
-
-export const runAllScrapers = async (testMode = false): Promise<void> => {
-  console.log(
-    "🚀 MASTER CRON: Starting all registered scrapers sequentially...",
-  );
-  const brandSlugs = Object.keys(BRAND_JOBS);
-
-  for (const slug of brandSlugs) {
-    const job = BRAND_JOBS[slug];
-
-    const runDoc = await ScraperRunModel.create({
-      brand: job.brandName,
-      status: "running",
-      startedAt: new Date(),
-    });
-
-    console.log(`\n⏳ CRON: Queuing ${job.brandName}...`);
-
-    await triggerScraper(slug, runDoc._id.toString(), testMode);
-  }
-
-  console.log("\n✅ MASTER CRON: All scraper jobs have completed.");
 };

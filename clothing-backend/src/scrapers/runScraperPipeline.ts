@@ -1,7 +1,7 @@
 import { Browser, Page } from "puppeteer";
 import { Product } from "./interface";
 import { ProductModel } from "../models/Product";
-import { InterceptPage, asInterceptPage, setMode } from "./pageTypes";
+import { InterceptPage, asInterceptPage } from "./pageTypes";
 
 const shuffleArray = (array: any[]) =>
   [...array].sort(() => Math.random() - 0.5);
@@ -21,6 +21,16 @@ export interface PipelineResult {
   errorCount: number;
 }
 
+const VOLATILE_KEYWORDS = [
+  "new",
+  "sale",
+  "indirim",
+  "best-seller",
+  "special",
+  "promotions",
+  "trend",
+];
+
 export const runScraperPipeline = async (
   browser: Browser,
   brandName: string,
@@ -35,6 +45,38 @@ export const runScraperPipeline = async (
   let errorCount = 0;
   let zaraCookies: any[] = [];
 
+  // ─── 1. RUN MODE ──────────────────────────────────────────────────────────
+  const scrapeMode = process.env.SCRAPE_MODE || "full";
+  console.log(`\n⚙️ INITIALIZING IN [${scrapeMode.toUpperCase()}] MODE`);
+
+  // ─── 2. DELTA SKIP MEMORY ─────────────────────────────────────────────────
+  // FIX #3: Filter by department so mango-man doesn't load WOMAN products into memory
+  const staleThresholdDays = 7;
+  const staleDate = new Date(Date.now() - staleThresholdDays * 86400000);
+
+  console.log(
+    `🧠 Fetching recent links (last ${staleThresholdDays} days) for Delta Skipping...`,
+  );
+  const existingProducts = await ProductModel.find(
+    {
+      brand: brandName,
+      department: { $in: departments }, // FIX #3: scope to this job's departments only
+      updatedAt: { $gt: staleDate },
+    },
+    { link: 1, sizes: 1, price: 1 },
+  ).lean();
+
+  const knownLinksMap = new Map(
+    existingProducts.map((p) => [
+      p.link ? p.link.split("?")[0].toLowerCase() : "",
+      { price: p.price, sizes: (p.sizes as string[]) || [] },
+    ]),
+  );
+  console.log(
+    `🧠 Memory loaded: ${knownLinksMap.size} fresh products for ${brandName} [${departments.join(", ")}].`,
+  );
+
+  // ─── PAGE SETUP ───────────────────────────────────────────────────────────
   const setupPage = async (raw: Page): Promise<InterceptPage> => {
     await raw.setViewport({ width: 1920, height: 1080 });
     await raw.setCacheEnabled(false);
@@ -46,7 +88,6 @@ export const runScraperPipeline = async (
     await raw.setUserAgent(defaultUA.replace(/HeadlessChrome/g, "Chrome"));
 
     const page = asInterceptPage(raw);
-
     await page.setRequestInterception(true);
 
     const requestHandler = (req: any) => {
@@ -56,7 +97,6 @@ export const runScraperPipeline = async (
         const allowImage =
           page.__interceptMode === "permissive" && type === "image";
 
-        // 👇 FIX: Allow 'fetch', 'xhr', and 'stylesheet' so Mango's React App can load data!
         if (
           req.isNavigationRequest() ||
           type === "script" ||
@@ -67,7 +107,7 @@ export const runScraperPipeline = async (
         ) {
           req.continue();
         } else {
-          req.abort(); // Still aborting fonts, media, and unneeded images to save RAM
+          req.abort();
         }
       } catch {
         // Stale CDP event — safe to ignore
@@ -75,8 +115,6 @@ export const runScraperPipeline = async (
     };
 
     page.on("request", requestHandler);
-
-    // ← Attach the remover to the page itself so safeWipe can call it
     (page as any).__removeRequestHandler = () => {
       page.off("request", requestHandler);
     };
@@ -84,7 +122,7 @@ export const runScraperPipeline = async (
     return page;
   };
 
-  // ─── Zara geo warmup ──────────────────────────────────────────────────────
+  // ─── ZARA GEO WARMUP ──────────────────────────────────────────────────────
   const zaraGeoWarmup = async (page: InterceptPage): Promise<void> => {
     console.log(
       "   --> 🌍 Running Zara geo-warmup (modal trigger strategy)...",
@@ -174,30 +212,36 @@ export const runScraperPipeline = async (
 
     try {
       const freshCookies = await page.cookies();
-      if (freshCookies.length > 0) {
-        zaraCookies = freshCookies;
+      const safeCookies = freshCookies.filter((c) =>
+        ["store", "inditex_country", "selectedCountry"].includes(c.name),
+      );
+      if (safeCookies.length > 0) {
+        zaraCookies = safeCookies;
         console.log(
-          `   --> 🍪 Warmup complete — ${zaraCookies.length} cookies harvested.`,
+          `   --> 🍪 Warmup complete — ${zaraCookies.length} safe geo-cookies harvested.`,
         );
       }
     } catch {}
   };
 
+  // ─── SAFE WIPE ────────────────────────────────────────────────────────────
   const safeWipe = async (current: InterceptPage): Promise<InterceptPage> => {
     if (brandName === "Zara" && !current.isClosed()) {
       try {
         const harvested = await current.cookies();
-        if (harvested.length > 0) {
-          zaraCookies = harvested;
+        const safeCookies = harvested.filter((c) =>
+          ["store", "inditex_country", "selectedCountry"].includes(c.name),
+        );
+        if (safeCookies.length > 0) {
+          zaraCookies = safeCookies;
           console.log(
-            `   --> 🍪 Harvested ${zaraCookies.length} session cookies.`,
+            `   --> 🍪 Transplanting ${zaraCookies.length} geo-cookies (destroyed trackers).`,
           );
         }
       } catch {}
     }
 
     if (!current.isClosed()) {
-      // ← Remove the listener FIRST, then disable interception
       try {
         (current as any).__removeRequestHandler?.();
       } catch {}
@@ -227,7 +271,42 @@ export const runScraperPipeline = async (
     return next;
   };
 
-  // ─── Main loop ────────────────────────────────────────────────────────────
+  // ─── SCRAPE WITH RETRY ────────────────────────────────────────────────────
+  const scrapeWithRetry = async (
+    currentPage: InterceptPage,
+    link: string,
+    category: string,
+    dept: string,
+    maxRetries = 2,
+  ): Promise<{ product: Product | null; page: InterceptPage }> => {
+    let page = currentPage;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const product = await scrapeProduct(page, link, category, dept);
+        return { product, page };
+      } catch (err: any) {
+        const isTerminal =
+          page.isClosed() ||
+          err.message?.includes("detached") ||
+          err.message?.includes("Target closed");
+
+        if (isTerminal || attempt === maxRetries) {
+          throw err;
+        }
+
+        console.log(
+          `   --> ⚠️ Retry ${attempt + 1}/${maxRetries} for ${link.split("/").pop()}`,
+        );
+        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+        page = await safeWipe(page);
+      }
+    }
+
+    return { product: null, page };
+  };
+
+  // ─── MAIN LOOP ────────────────────────────────────────────────────────────
   let page = await setupPage(await browser.newPage());
 
   for (const dept of departments) {
@@ -261,12 +340,21 @@ export const runScraperPipeline = async (
       continue;
     }
 
-    console.log(
-      `  --> 🛡️ Processing all ${categories.length} discovered links.`,
-    );
+    // ─── CATEGORY DIET ──────────────────────────────────────────────────────
+    let targetCategories = categories;
+    if (scrapeMode === "daily" && !testMode) {
+      const filtered = categories.filter((cat) =>
+        VOLATILE_KEYWORDS.some((k) => cat.toLowerCase().includes(k)),
+      );
+      targetCategories =
+        filtered.length > 0 ? filtered : shuffleArray(categories).slice(0, 20);
+      console.log(
+        `  --> 🥗 CATEGORY DIET: Reduced from ${categories.length} to ${targetCategories.length} high-value categories.`,
+      );
+    }
 
-    const shuffled = shuffleArray(categories);
-    const toScrape = testMode ? shuffled.slice(0, 1) : shuffled.slice(0, 7);
+    const shuffled = shuffleArray(targetCategories);
+    const toScrape = testMode ? shuffled.slice(0, 1) : shuffled;
 
     for (const categoryUrl of toScrape) {
       if (page.isClosed()) {
@@ -275,8 +363,19 @@ export const runScraperPipeline = async (
       }
 
       console.log(`\n📂 CATEGORY: ${categoryUrl}`);
-      console.log("  --> 🧹 Wiping tab memory for new category...");
       page = await safeWipe(page);
+
+      // Shared keyword list so category diet and delta skip stay in sync
+      const isVolatileCategory = VOLATILE_KEYWORDS.some((k) =>
+        categoryUrl.toLowerCase().includes(k),
+      );
+
+      // Clean up Zara-style ID suffixes: "tops-l1036" → "tops"
+      const rawCat =
+        categoryUrl.split("/").pop()?.replace(".html", "") || "Unknown";
+      const cleanCategoryName = rawCat
+        .replace(/-[lpa0-9]+$/i, "")
+        .replace(/-/g, " ");
 
       let links: string[] = [];
       try {
@@ -299,15 +398,10 @@ export const runScraperPipeline = async (
         continue;
       }
 
-      console.log(
-        "  --> 🧹 Wiping bloated grid memory before scraping products...",
-      );
       page = await safeWipe(page);
 
       const shuffledLinks = shuffleArray(links);
-      const toTest = testMode
-        ? shuffledLinks.slice(0, 2)
-        : shuffledLinks.slice(0, 50);
+      const toTest = testMode ? shuffledLinks.slice(0, 2) : shuffledLinks;
       let productCount = 0;
 
       for (const link of toTest) {
@@ -316,71 +410,36 @@ export const runScraperPipeline = async (
           break;
         }
 
+        const cleanLink = link.split("?")[0].toLowerCase();
+
+        // ─── DELTA SKIP ───────────────────────────────────────────────────
+        if (
+          scrapeMode === "daily" &&
+          !isVolatileCategory &&
+          knownLinksMap.has(cleanLink)
+        ) {
+          console.log(
+            `  --> ⏭️ Delta Skip: Already scraped & fresh -> ${cleanLink.split("/").pop()}`,
+          );
+          continue;
+        }
+
         if (productCount > 0 && productCount % 10 === 0) {
           console.log("   --> ♻️ Recycling page to free up RAM...");
           page = await safeWipe(page);
         }
 
-        const category =
-          categoryUrl.split("/").pop()?.replace(".html", "") || "Unknown";
-
+        // ─── SCRAPE WITH RETRY ────────────────────────────────────────────
+        let product: Product | null = null;
         try {
-          const product = await scrapeProduct(page, link, category, dept);
-
-          if (product) {
-            const existing = await ProductModel.findOne(
-              { id: product.id },
-              { price: 1 },
-            ).lean();
-            const oldPrice = existing?.price ?? null;
-            const isNew = oldPrice === null;
-            const priceChanged = isNew || product.price !== oldPrice;
-
-            const updateQuery: any = {
-              $set: {
-                name: product.name,
-                price: product.price,
-                department: product.department,
-                originalPrice: product.originalPrice,
-                color: product.color,
-                description: product.description,
-                composition: product.composition,
-                images: product.images,
-                sizes: product.sizes,
-                videos: product.videos,
-              },
-              $setOnInsert: {
-                timestamp: new Date(),
-                brand: product.brand,
-                category: product.category,
-                link: product.link,
-                currency: product.currency,
-              },
-            };
-
-            if (priceChanged) {
-              updateQuery.$push = {
-                priceHistory: {
-                  $each: [{ price: product.price, date: new Date() }],
-                  $slice: -30,
-                },
-              };
-            }
-
-            await ProductModel.findOneAndUpdate(
-              { id: product.id },
-              updateQuery,
-              {
-                upsert: true,
-                returnDocument: "after",
-              },
-            );
-
-            isNew ? newItems++ : updatedItems++;
-            console.log(
-              `   --> 💾 Saved: ${product.name}${priceChanged ? " (price recorded)" : " (price unchanged)"}`,
-            );
-          }
+          const result = await scrapeWithRetry(
+            page,
+            link,
+            cleanCategoryName,
+            dept,
+          );
+          product = result.product;
+          page = result.page;
         } catch (err: any) {
           if (
             page.isClosed() ||
@@ -392,6 +451,101 @@ export const runScraperPipeline = async (
           }
           console.error(`   --> ❌ Scraper crashed on ${link}:`, err.message);
           errorCount++;
+          productCount++;
+          continue;
+        }
+
+        if (product) {
+          // ─── DATA VALIDATION ──────────────────────────────────────────
+          const isValid =
+            typeof product.name === "string" &&
+            product.name.length > 2 &&
+            typeof product.price === "number" &&
+            product.price > 0 &&
+            Array.isArray(product.images) &&
+            product.images.length > 0;
+
+          if (!isValid) {
+            console.log(
+              `   --> ⚠️ Invalid product data, skipping: ${product.name || link}`,
+            );
+            errorCount++;
+            productCount++;
+            continue;
+          }
+
+          // ─── FIX #1: Read OLD data BEFORE updating the map ────────────
+          const existingData = knownLinksMap.get(cleanLink);
+          const oldPrice = existingData?.price ?? null;
+          const isNew = oldPrice === null;
+          const priceChanged = isNew || product.price !== oldPrice;
+
+          // FIX #2: Sort before comparing to avoid false positives
+          const oldSizes = existingData?.sizes ?? [];
+          const sizesChanged =
+            JSON.stringify([...oldSizes].sort()) !==
+            JSON.stringify([...(product.sizes || [])].sort());
+
+          // Update in-memory map AFTER reading old data
+          knownLinksMap.set(cleanLink, {
+            price: product.price,
+            sizes: product.sizes || [],
+          });
+
+          // ─── BUILD UPDATE QUERY ───────────────────────────────────────
+          const updateQuery: any = {
+            $set: {
+              name: product.name,
+              price: product.price,
+              department: product.department,
+              originalPrice: product.originalPrice,
+              color: product.color,
+              description: product.description,
+              composition: product.composition,
+              images: product.images,
+              sizes: product.sizes,
+              videos: product.videos,
+              lastSeenAt: new Date(),
+              available: true,
+            },
+            $setOnInsert: {
+              timestamp: new Date(),
+              brand: product.brand,
+              category: cleanCategoryName,
+              link: product.link,
+              currency: product.currency,
+            },
+          };
+
+          const pushes: any = {};
+          if (priceChanged) {
+            pushes.priceHistory = {
+              $each: [{ price: product.price, date: new Date() }],
+              $slice: -30,
+            };
+          }
+          if (sizesChanged && !isNew) {
+            pushes.stockHistory = {
+              $each: [{ sizes: product.sizes, date: new Date() }],
+              $slice: -30,
+            };
+          }
+          if (Object.keys(pushes).length > 0) {
+            updateQuery.$push = pushes;
+          }
+
+          await ProductModel.findOneAndUpdate({ id: product.id }, updateQuery, {
+            upsert: true,
+          });
+
+          isNew ? newItems++ : updatedItems++;
+
+          const tag = priceChanged
+            ? "(💰 Price Update)"
+            : sizesChanged
+              ? "(📦 Stock Update)"
+              : "(✓)";
+          console.log(`   --> 💾 Saved: ${product.name} ${tag}`);
         }
 
         productCount++;

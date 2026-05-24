@@ -18,6 +18,9 @@ export interface IProduct extends Document {
   videos?: string[];
   isCampaignHero?: boolean;
   priceHistory?: { price: number; date: Date }[];
+  stockHistory?: { sizes: string[]; date: Date }[];
+  lastSeenAt?: Date;
+  available?: boolean;
 }
 
 const ProductSchema: Schema = new Schema(
@@ -44,10 +47,19 @@ const ProductSchema: Schema = new Schema(
         date: { type: Date, default: Date.now },
       },
     ],
+    stockHistory: [
+      {
+        sizes: { type: [String], default: [] },
+        date: { type: Date, default: Date.now },
+      },
+    ],
+    lastSeenAt: { type: Date, default: Date.now },
+    available: { type: Boolean, default: true },
   },
-  { timestamps: true }, // adds createdAt and updatedAt automatically
+  { timestamps: true },
 );
 
+// ─── Search Indexes ───────────────────────────────────────────────────────────
 ProductSchema.index(
   { name: "text", brand: "text", color: "text", description: "text" },
   {
@@ -56,8 +68,15 @@ ProductSchema.index(
   },
 );
 
+// ─── Sorting & Filtering Indexes ──────────────────────────────────────────────
 ProductSchema.index({ department: 1, brand: 1, price: 1 });
 ProductSchema.index({ originalPrice: -1, price: 1 });
 ProductSchema.index({ color: 1, sizes: 1 });
+
+// Makes the ghost product cleanup query fast (used in cleanupStaleRuns)
+ProductSchema.index({ lastSeenAt: 1, available: 1 });
+
+// Makes the delta skip query fast (brand + department + updatedAt filter)
+ProductSchema.index({ brand: 1, department: 1, updatedAt: 1 });
 
 export const ProductModel = mongoose.model<IProduct>("Product", ProductSchema);

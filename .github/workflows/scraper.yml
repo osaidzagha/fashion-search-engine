@@ -1,18 +1,46 @@
-name: Zara Scraper
+name: Fashion Scraper
 
 on:
   schedule:
     - cron: "0 3 * * *" # 3am UTC daily
   workflow_dispatch:
+    inputs:
+      scrape_mode:
+        description: "Scrape Mode"
+        required: true
+        default: "daily"
+        type: choice
+        options:
+          - daily
+          - full
+      brand:
+        description: "Single brand to run (leave empty to run all)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - zara-man
+          - zara-woman
+          - mango-man
+          - mango-woman
+          - massimo-dutti-man
+          - massimo-dutti-woman
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
-      fail-fast: false # If Zara crashes, let Mango keep running
+      fail-fast: false
       matrix:
-        brand: [zara-man, zara-woman, mango, massimo-dutti] # The slugs matching your knownBrandSlugs
+        brand:
+          - zara-man
+          - zara-woman
+          - mango-man
+          - mango-woman
+          - massimo-dutti-man
+          - massimo-dutti-woman
 
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +59,8 @@ jobs:
         run: cd clothing-backend && npm run build
 
       - name: Run scraper for ${{ matrix.brand }}
-        # Notice we pass the matrix brand as an argument to the script
+        # matrix context is only valid at step level, not job level
+        if: inputs.brand == '' || inputs.brand == matrix.brand
         run: cd clothing-backend && node dist/scrapers/runNow.js ${{ matrix.brand }}
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
@@ -42,3 +71,4 @@ jobs:
           CLIENT_URL: ${{ secrets.CLIENT_URL }}
           NODE_ENV: production
           PORT: 10000
+          SCRAPE_MODE: ${{ inputs.scrape_mode || 'daily' }}
