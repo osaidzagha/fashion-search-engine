@@ -46,7 +46,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
-  // ── Desktop hover ──
   const handleMouseEnter = useCallback(() => {
     setIsPlaying(true);
     if (videoRef.current) videoRef.current.play().catch(() => {});
@@ -60,7 +59,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     }
   }, []);
 
-  // ── Mobile: tap the video badge to play/pause ──
   const handleVideoToggle = useCallback(
     (e: React.TouchEvent) => {
       e.preventDefault();
@@ -118,7 +116,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             muted
             loop
             playsInline
-            preload="none" // ← don't preload on mobile — saves bandwidth
+            preload="none"
             onLoadedData={() => setVideoReady(true)}
             className={[
               "absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ease-elegant",
@@ -148,7 +146,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             "absolute top-2 right-2 z-20 w-7 h-7 rounded-full border-none flex items-center justify-center shadow-md transition-all duration-300",
             isComparing
               ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark cursor-pointer"
-              : "bg-bgPrimary/90 dark:bg-bgPrimary-dark/90 text-textPrimary dark:text-textPrimary-dark",
+              : "bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 text-textPrimary dark:text-textPrimary-dark",
             isQueueFull && !isComparing
               ? "opacity-40 cursor-not-allowed"
               : "cursor-pointer",
@@ -173,7 +171,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
 
-        {/* ── Mobile video play button — tap to play ── */}
+        {/* Mobile video play button */}
         {videoSrc && (
           <button
             onTouchStart={handleVideoToggle}
@@ -210,16 +208,21 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
       {/* ── Info ── */}
       <div className="pt-2.5 pb-1">
-        <p className="font-sans text-[8px] tracking-widest uppercase text-textSecondary dark:text-textSecondary-dark mb-0.5">
+        {/* Brand — was textSecondary (#888 light) → now (#444 light), much more readable */}
+        <p className="font-sans text-[9px] tracking-widest uppercase text-textSecondary dark:text-textSecondary-dark mb-0.5">
           {product.brand}
         </p>
+
+        {/* Name — textPrimary, already good, kept as-is */}
         <p className="font-heading text-[14px] md:text-[16px] font-light italic text-textPrimary dark:text-textPrimary-dark mb-1 leading-tight truncate">
           {product.name
             .split(" ")
             .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
             .join(" ")}
         </p>
+
         <div className="flex items-baseline gap-1.5">
+          {/* Price — was textTertiary (#666 light) → now (#555 light) for non-sale */}
           <p
             className={[
               "font-heading text-[13px] md:text-[14px] m-0",
@@ -230,6 +233,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           >
             {product.price.toLocaleString("tr-TR")} {product.currency}
           </p>
+
+          {/* Strikethrough original price — was textMuted (#a0a0a0 light) → now (#777 light) */}
           {isOnSale && (
             <p className="font-heading text-[11px] text-textMuted dark:text-textMuted-dark line-through m-0">
               {product.originalPrice!.toLocaleString("tr-TR")}
@@ -238,6 +243,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         </div>
       </div>
 
+      {/* Hover underline */}
       <div className="h-px w-full bg-textPrimary dark:bg-textPrimary-dark origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-smooth mt-1.5" />
     </Link>
   );
