@@ -24,9 +24,10 @@ app.use(helmet());
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      "https://fashion-search-engine-nine.vercel.app",
-      "https://dope-fashion.vercel.app",
+      "http://localhost:5173", // For your local development
+      "http://localhost:3000",
+      "https://dopewear.app", // Your new custom domain!
+      "https://www.dopewear.app",
     ],
     credentials: true,
   }),
