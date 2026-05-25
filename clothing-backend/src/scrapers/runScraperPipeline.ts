@@ -229,6 +229,11 @@ export const runScraperPipeline = async (
     if (brandName === "Zara" && !current.isClosed()) {
       try {
         const harvested = await current.cookies();
+        // 👇 CLAUDE'S FIX: Log the cookies Zara is actually using now
+        console.log(
+          `   --> 🍪 All cookies on page: ${harvested.map((c) => c.name).join(", ")}`,
+        );
+
         const safeCookies = harvested.filter((c) =>
           ["store", "inditex_country", "selectedCountry"].includes(c.name),
         );
@@ -403,10 +408,18 @@ export const runScraperPipeline = async (
       const shuffledLinks = shuffleArray(links);
       const toTest = testMode ? shuffledLinks.slice(0, 2) : shuffledLinks;
       let productCount = 0;
+      let consecutiveFailures = 0;
 
       for (const link of toTest) {
         if (page.isClosed()) {
           console.log("🛑 Browser closed.");
+          break;
+        }
+        // 👇 MY FIX: If 5 products fail in a row, Akamai blocked us. Bail out.
+        if (consecutiveFailures >= 5) {
+          console.log(
+            `  --> 🛑 CIRCUIT BREAKER TRIGGERED: 5 consecutive failures. IP likely blocked. Skipping rest of category.`,
+          );
           break;
         }
 
@@ -452,10 +465,12 @@ export const runScraperPipeline = async (
           console.error(`   --> ❌ Scraper crashed on ${link}:`, err.message);
           errorCount++;
           productCount++;
+          consecutiveFailures++;
           continue;
         }
 
         if (product) {
+          consecutiveFailures = 0;
           // ─── DATA VALIDATION ──────────────────────────────────────────
           const isValid =
             typeof product.name === "string" &&
@@ -546,6 +561,8 @@ export const runScraperPipeline = async (
               ? "(📦 Stock Update)"
               : "(✓)";
           console.log(`   --> 💾 Saved: ${product.name} ${tag}`);
+        } else {
+          consecutiveFailures++;
         }
 
         productCount++;

@@ -116,21 +116,38 @@ export async function scrapeZaraProductData(
     const productId = match[1];
 
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 40000 });
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 }); // 👇 Lowered to 25s
     } catch {
-      console.log(`  --> ⚠️ Page load timed out. Checking if DOM is usable...`);
-    }
-
-    try {
-      await page.waitForSelector("h1", { timeout: 15000 });
-    } catch {
-      console.log(
-        `  --> ❌ Page completely failed to load (Bot Blocked or Blank). Skipping.`,
-      );
+      console.log(`  --> ⚠️ Page load timed out. Fast failing...`);
       setMode(page, "restrictive");
       return null;
     }
 
+    try {
+      await page.waitForSelector("h1", { timeout: 10000 }); // 👇 Lowered to 10s
+    } catch {
+      // 👇 CLAUDE'S FIX: Explicit Bot Wall Detection
+      const isBlocked = await page
+        .evaluate(() => {
+          const body = document.body?.innerText || "";
+          return (
+            body.includes("Access Denied") ||
+            body.includes("Pardon Our Interruption") ||
+            document.title === "Access Denied" ||
+            document.querySelectorAll(".product-detail-info").length === 0
+          );
+        })
+        .catch(() => true);
+
+      if (isBlocked) {
+        console.log(`  --> 🚫 Bot wall detected. Bailing immediately.`);
+      } else {
+        console.log(`  --> ❌ Page blank or H1 missing. Skipping.`);
+      }
+
+      setMode(page, "restrictive");
+      return null;
+    }
     // ─── STEP 1: Wait for JS hydration ───────────────────────────────────────
     await page.evaluate(`
       (function() {

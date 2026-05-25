@@ -402,29 +402,35 @@ export async function scrapeMassimoProductData(
       })()
     `)) as any;
 
+    // 👇 CLAUDE'S FIX: Detach the heavy network listener BEFORE the expensive scroll
+    page.off("response", responseHandler);
+
     // ─── STEP 3: Deep Scroll ──────────────────────────────────────────────
-    await page.evaluate(`
-      (function() {
-        return new Promise(function(resolve) {
-          var totalHeight = 0;
-          var distance = 300;
-          var timer = setInterval(function() {
-            window.scrollBy(0, distance);
-            totalHeight += distance;
-            if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
-              clearInterval(timer);
-              resolve(undefined);
-            }
-          }, 300);
-        });
-      })()
-    `);
-
-    // 👇 BUMPED IDLE TIMEOUT
-    await page
-      .waitForNetworkIdle({ idleTime: 1500, timeout: 20000 })
-      .catch(() => {});
-
+    try {
+      await page.evaluate(`
+        (function() {
+          return new Promise(function(resolve) {
+            var totalHeight = 0, distance = 300;
+            var timer = setInterval(function() {
+              window.scrollBy(0, distance);
+              totalHeight += distance;
+              if (totalHeight >= document.body.scrollHeight - window.innerHeight || totalHeight > 8000) {
+                clearInterval(timer);
+                resolve(undefined);
+              }
+            }, 300);
+          });
+        })()
+      `);
+      // Lowered timeout from 20s to 10s
+      await page
+        .waitForNetworkIdle({ idleTime: 1500, timeout: 10000 })
+        .catch(() => {});
+    } catch (err) {
+      console.log(
+        `   --> ⚠️ Scroll/idle timed out, continuing with what we have`,
+      );
+    }
     // ─── STEP 4: Images & GHOST FRAME DEFENSE ─────────────────────────────
     const rawImages = (await page.evaluate(`
       (function() {
@@ -612,7 +618,6 @@ export async function scrapeMassimoProductData(
     } catch (err) {}
 
     // ─── Assemble ─────────────────────────────────────────────────────────────
-    page.off("response", responseHandler);
 
     const rawName = textData.name;
     const rawDescription = textData.description;
@@ -652,13 +657,10 @@ export async function scrapeMassimoProductData(
       department: department,
     };
   } catch (error: any) {
-    page.off("response", responseHandler);
     console.error(
       `   --> ❌ Massimo Dutti Scraper crashed on ${url}:`,
       error.message,
     );
     return null;
-  } finally {
-    page.off("response", responseHandler);
   }
 }
