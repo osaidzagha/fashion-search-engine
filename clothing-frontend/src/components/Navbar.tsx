@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
@@ -20,11 +20,29 @@ const Navbar = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  // ── NEW: user dropdown state ──
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
+    setIsUserMenuOpen(false);
   }, [location.pathname]);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
@@ -54,6 +72,7 @@ const Navbar = () => {
 
   const handleConfirmLogout = () => {
     setIsLogoutModalOpen(false);
+    setIsUserMenuOpen(false);
     dispatch(logout());
     toast("Logged out successfully", { icon: "👋" });
     navigate("/login");
@@ -99,6 +118,9 @@ const Navbar = () => {
         ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
         : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
     }`;
+
+  // ── Avatar initials (first name initial only, keeps Navbar lean) ──
+  const avatarInitial = userInfo?.name?.trim().charAt(0).toUpperCase() || "?";
 
   return (
     <>
@@ -148,7 +170,7 @@ const Navbar = () => {
             </button>
           </div>
 
-          {/* CENTER — Logo (always centered) */}
+          {/* CENTER — Logo */}
           <Link
             to="/"
             className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"
@@ -191,28 +213,90 @@ const Navbar = () => {
                   >
                     Watchlist
                   </button>
-                  <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                    Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
-                  </span>
-                  {userInfo.role === "admin" && (
-                    <Link
-                      to="/admin"
-                      className="font-sans text-[10px] tracking-widest uppercase text-accentRed hover:opacity-80 transition-opacity"
+
+                  {/* ── User avatar + dropdown ── */}
+                  <div className="relative" ref={userMenuRef}>
+                    <button
+                      onClick={() => setIsUserMenuOpen((o) => !o)}
+                      aria-label="User menu"
+                      aria-expanded={isUserMenuOpen}
+                      className="w-7 h-7 border border-borderLight dark:border-borderLight-dark flex items-center justify-center hover:border-textPrimary dark:hover:border-textPrimary-dark transition-colors duration-200"
                     >
-                      Admin
-                    </Link>
-                  )}
-                  <button
-                    onClick={() => setIsLogoutModalOpen(true)}
-                    className={`${navLinkBase} ${navLinkInactive}`}
-                  >
-                    Logout
-                  </button>
+                      <span className="font-sans text-[10px] tracking-widest text-textPrimary dark:text-textPrimary-dark leading-none">
+                        {avatarInitial}
+                      </span>
+                    </button>
+
+                    {/* Dropdown panel */}
+                    <div
+                      className={`absolute right-0 top-full mt-2 w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-sm transition-all duration-200 origin-top-right ${
+                        isUserMenuOpen
+                          ? "opacity-100 scale-100 pointer-events-auto"
+                          : "opacity-0 scale-95 pointer-events-none"
+                      }`}
+                    >
+                      {/* Greeting */}
+                      <div className="px-4 py-3 border-b border-borderLight dark:border-borderLight-dark">
+                        <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark">
+                          Signed in as
+                        </p>
+                        <p className="font-heading font-light text-sm leading-snug text-textPrimary dark:text-textPrimary-dark mt-0.5 truncate">
+                          {userInfo.name.split(" ")[0]}
+                        </p>
+                      </div>
+
+                      {/* Menu items */}
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            navigate("/profile");
+                          }}
+                          className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
+                        >
+                          Profile
+                        </button>
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            navigate("/profile?tab=preferences");
+                          }}
+                          className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
+                        >
+                          Settings
+                        </button>
+                        {userInfo.role === "admin" && (
+                          <button
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              navigate("/admin");
+                            }}
+                            className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-accentRed hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
+                          >
+                            Admin ↗
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Logout — separated */}
+                      <div className="border-t border-borderLight dark:border-borderLight-dark py-1">
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            setIsLogoutModalOpen(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
+                        >
+                          Logout
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
 
-            {/* Mobile-only: theme toggle as a small symbol */}
+            {/* Mobile-only: theme toggle */}
             <button
               onClick={toggleTheme}
               className={`md:hidden ${navLinkBase} ${navLinkInactive}`}
@@ -246,7 +330,6 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Divider */}
             <div className="h-px w-full bg-borderLight dark:bg-borderLight-dark" />
 
             {/* Auth section */}
@@ -269,9 +352,17 @@ const Navbar = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                  Hi, {userInfo?.name?.split(" ")[0] || "Guest"}!
-                </span>
+                {/* Greeting with initials badge */}
+                <div className="flex items-center gap-3">
+                  <div className="w-6 h-6 border border-borderLight dark:border-borderLight-dark flex items-center justify-center flex-shrink-0">
+                    <span className="font-sans text-[9px] text-textPrimary dark:text-textPrimary-dark">
+                      {avatarInitial}
+                    </span>
+                  </div>
+                  <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                    {userInfo.name.split(" ")[0]}
+                  </span>
+                </div>
                 <button
                   onClick={() => {
                     navigate("/watchlist");
@@ -280,6 +371,15 @@ const Navbar = () => {
                   className={`${navLinkBase} ${navLinkInactive} text-left`}
                 >
                   Watchlist
+                </button>
+                <button
+                  onClick={() => {
+                    navigate("/profile");
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`${navLinkBase} ${navLinkInactive} text-left`}
+                >
+                  Profile & Settings
                 </button>
                 {userInfo.role === "admin" && (
                   <Link

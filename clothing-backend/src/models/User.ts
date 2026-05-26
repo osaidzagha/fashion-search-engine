@@ -1,3 +1,17 @@
+// ─── ADD to your existing IUser interface ─────────────────────────────────────
+//
+//   preferences?: {
+//     priceAlertEnabled: boolean;
+//   };
+//
+// ─── ADD to your existing UserSchema ─────────────────────────────────────────
+//
+//   preferences: {
+//     priceAlertEnabled: { type: Boolean, default: true },
+//   },
+//
+// ─── Full updated file for reference ─────────────────────────────────────────
+
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IWatchlistItem {
@@ -16,6 +30,9 @@ export interface IUser extends Document {
   verificationToken?: string;
   verificationExpires?: Date;
   watchlist: IWatchlistItem[];
+  preferences: {
+    priceAlertEnabled: boolean;
+  };
 }
 
 const UserSchema: Schema = new Schema(
@@ -35,12 +52,15 @@ const UserSchema: Schema = new Schema(
         addedAt: { type: Date, default: Date.now },
       },
     ],
+    // ── NEW ──
+    preferences: {
+      priceAlertEnabled: { type: Boolean, default: true },
+    },
   },
   { timestamps: true },
 );
 
-// ✅ TTL: auto-delete unverified users 30 minutes after verificationExpires
-// Verified users are safe — verificationExpires is cleared on verification
+// TTL: auto-delete unverified users after verificationExpires
 UserSchema.index(
   { verificationExpires: 1 },
   {

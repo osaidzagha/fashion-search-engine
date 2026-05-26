@@ -8,23 +8,22 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import Watchlist from "../pages/Watchlist";
 import AdminDashboard from "../pages/AdminDashboard";
-import VerifyOTP from "../pages/VerifyOTP"; // 👈 IMPORT ADDED
+import VerifyOTP from "../pages/VerifyOTP";
 import Collection from "../pages/Collection";
+import Profile from "../pages/Profile";
+import ForgotPassword from "../pages/ForgotPassword";
 
 // Layouts & Utils
 import StoreLayout from "./StoreLayout";
 import ProtectedRoute from "../utils/ProtectedRoute";
-import ForgotPassword from "../pages/ForgotPassword";
 
 export default function AnimatedRoutes() {
   const location = useLocation();
 
   return (
-    // mode="wait" is CRITICAL. It tells the app: "Wait for the old page to completely fade out BEFORE sliding the new page in."
     <AnimatePresence mode="wait">
-      {/* We pass the location and a unique key so Framer Motion knows when the route changes */}
       <Routes location={location} key={location.pathname}>
-        {/* 🛍️ THE SHOPPING ZONE */}
+        {/* 🛍️ Public store routes (with Navbar + layout) */}
         <Route element={<StoreLayout />}>
           <Route path="/" element={<Home />} />
           <Route path="/product/:id" element={<ProductDetails />} />
@@ -33,12 +32,19 @@ export default function AnimatedRoutes() {
           <Route path="/collection/:type" element={<Collection />} />
           <Route path="/watchlist" element={<Watchlist />} />
         </Route>
-        {/* 🛑 THE FOCUS ZONE */}
+
+        {/* 🔓 Auth / focus routes (no layout) */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/verify-otp" element={<VerifyOTP />} />{" "}
+        <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        {/* 👈 ROUTE ADDED */}
+
+        {/* 🔐 Any logged-in user */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/profile" element={<Profile />} />
+        </Route>
+
+        {/* 🔐 Admin only */}
         <Route element={<ProtectedRoute adminOnly={true} />}>
           <Route path="/admin" element={<AdminDashboard />} />
         </Route>

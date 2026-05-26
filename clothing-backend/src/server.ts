@@ -8,6 +8,7 @@ import watchlistRoutes from "./routes/watchlistRoutes";
 import adminRoutes from "./routes/admin";
 import { priceAlertWorker } from "./queues/priceAlertWorker";
 import { redisConnection } from "./queues/queues";
+import userRoutes from "./routes/userRoutes";
 import { cleanupStaleRuns } from "./scrapers/scraperManager";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -55,6 +56,7 @@ app.use("/api/products", productRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/watchlist", watchlistRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/users", userRoutes);
 
 // ── Global error handler (MUST BE ABSOLUTE LAST) ──────────────────
 app.use(errorHandler);

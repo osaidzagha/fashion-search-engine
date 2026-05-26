@@ -14,6 +14,8 @@ import Home from "./pages/Home";
 import ProductDetails from "./pages/ProductDetails";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Profile from "./pages/Profile";
+
 import Watchlist from "./pages/Watchlist";
 import { CompareProvider } from "./context/CompareContext";
 import { Toaster } from "react-hot-toast";
