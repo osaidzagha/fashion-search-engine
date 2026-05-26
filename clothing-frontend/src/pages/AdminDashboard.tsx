@@ -1,14 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { useSelector } from "react-redux";
 import { toggleCampaignHeroAPI } from "../services/api";
 import PageTransition from "../components/PageTransition";
@@ -19,11 +10,6 @@ interface KpiItem {
   value: string | number;
   delta: string;
   up: boolean;
-}
-
-interface PriceDropPoint {
-  day: string;
-  drops: number;
 }
 
 interface ScraperStatus {
@@ -57,35 +43,24 @@ interface BrandBreakdown {
   count: number;
 }
 
+interface ActivityLogEntry {
+  time: string;
+  brand: string;
+  event: string;
+  detail: string;
+  type: "success" | "info" | "error";
+}
+
 interface DashboardData {
   kpiData: KpiItem[];
-  priceDropData: PriceDropPoint[];
+  priceDropData: any[];
   scraperStatus: ScraperStatus[];
   brandBreakdown: BrandBreakdown[];
-  activityLog: any[];
+  activityLog: ActivityLogEntry[];
   videoProducts: VideoProduct[];
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const CHART_TOKENS = {
-  light: {
-    grid: "#e8e4dc",
-    axis: "#a0a0a0",
-    area: "#1a1a1a",
-    tooltip: "#ffffff",
-    tooltipBorder: "#e8e4dc",
-    tooltipText: "#1a1a1a",
-  },
-  dark: {
-    grid: "#5a5754",
-    axis: "#8a8784",
-    area: "#f0ede6",
-    tooltip: "#1a1a18",
-    tooltipBorder: "#5a5754",
-    tooltipText: "#f0ede6",
-  },
-} as const;
-
 const NAV_ITEMS = [
   { id: "overview", label: "Overview" },
   { id: "scrapers", label: "Scrapers" },
@@ -97,6 +72,8 @@ const API_BASE =
 
 const GITHUB_ACTIONS_URL =
   "https://github.com/osaidzagha/fashion-search-engine/actions/workflows/scraper.yml";
+
+const CAMPAIGN_PAGE_SIZE = 12;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function resolveVideoSrc(p: VideoProduct): string | undefined {
@@ -120,44 +97,6 @@ function resolvePoster(p: VideoProduct): string {
 }
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label, isDark }: any) {
-  if (!active || !payload?.length) return null;
-  const t = isDark ? CHART_TOKENS.dark : CHART_TOKENS.light;
-  return (
-    <div
-      style={{
-        background: t.tooltip,
-        border: `1px solid ${t.tooltipBorder}`,
-        padding: "10px 14px",
-      }}
-    >
-      <p
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "18px",
-          color: t.tooltipText,
-          margin: 0,
-          lineHeight: 1,
-        }}
-      >
-        {payload[0].value}
-      </p>
-      <p
-        style={{
-          fontFamily: "'DM Sans', sans-serif",
-          fontSize: "8px",
-          letterSpacing: "0.15em",
-          textTransform: "uppercase",
-          color: t.axis,
-          margin: "5px 0 0",
-        }}
-      >
-        {label}
-      </p>
-    </div>
-  );
-}
-
 function KpiCard({ item }: { item: KpiItem }) {
   return (
     <div className="border border-borderLight dark:border-borderLight-dark p-4 md:p-5 flex flex-col gap-2 md:gap-3 bg-bgPrimary dark:bg-bgPrimary-dark">
@@ -176,8 +115,112 @@ function KpiCard({ item }: { item: KpiItem }) {
   );
 }
 
-function ScraperCard({ s }: { s: ScraperStatus }) {
+// ─── Activity Log (replaces the area chart) ───────────────────────────────────
+function ActivityLog({ entries }: { entries: ActivityLogEntry[] }) {
+  if (!entries || entries.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[200px]">
+        <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+          No recent activity
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col divide-y divide-borderLight dark:divide-borderLight-dark overflow-y-auto max-h-[280px]">
+      {entries.map((entry, i) => (
+        <div key={i} className="flex items-start gap-4 px-1 py-3">
+          {/* Status dot */}
+          <span
+            className={`mt-0.5 flex-shrink-0 w-1.5 h-1.5 rounded-full ${
+              entry.type === "success"
+                ? "bg-textPrimary dark:bg-textPrimary-dark"
+                : entry.type === "error"
+                  ? "bg-accentRed"
+                  : "bg-textMuted dark:bg-textMuted-dark"
+            }`}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="font-sans text-[9px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark truncate">
+                {entry.brand} — {entry.event}
+              </p>
+              <span className="flex-shrink-0 font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                {entry.time}
+              </span>
+            </div>
+            <p className="font-sans text-[8px] tracking-wider text-textMuted dark:text-textMuted-dark mt-0.5">
+              {entry.detail}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Scraper Card with Run / Stop ─────────────────────────────────────────────
+function ScraperCard({
+  s,
+  token,
+  onRunComplete,
+}: {
+  s: ScraperStatus;
+  token: string;
+  onRunComplete: () => void;
+}) {
   const isRunning = s.status === "running";
+  const [actionLoading, setActionLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleRun = async () => {
+    setActionLoading(true);
+    setLocalError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/scrape/${encodeURIComponent(s.brand)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to start scraper");
+      }
+      // Poll for updates
+      setTimeout(onRunComplete, 1000);
+    } catch (err: any) {
+      setLocalError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleStop = async () => {
+    setActionLoading(true);
+    setLocalError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/scrape/stop/${encodeURIComponent(s.brand)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "Failed to stop scraper");
+      }
+      setTimeout(onRunComplete, 500);
+    } catch (err: any) {
+      setLocalError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="border border-borderLight dark:border-borderLight-dark p-5 md:p-6 flex flex-col gap-4 md:gap-5 bg-bgPrimary dark:bg-bgPrimary-dark">
       <div className="flex items-start justify-between">
@@ -196,6 +239,7 @@ function ScraperCard({ s }: { s: ScraperStatus }) {
           {isRunning ? "● running" : s.status}
         </span>
       </div>
+
       <div className="grid grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
         {[
           { label: "Last Run", value: s.lastRun },
@@ -216,18 +260,46 @@ function ScraperCard({ s }: { s: ScraperStatus }) {
           </div>
         ))}
       </div>
-      <a
-        href={GITHUB_ACTIONS_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark text-center transition-all duration-300"
-      >
-        Run on GitHub ↗
-      </a>
+
+      {localError && (
+        <p className="font-sans text-[8px] tracking-widest uppercase text-accentRed">
+          {localError}
+        </p>
+      )}
+
+      {/* Run / Stop buttons */}
+      <div className="flex gap-2">
+        {isRunning ? (
+          <button
+            onClick={handleStop}
+            disabled={actionLoading}
+            className={`flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
+              actionLoading
+                ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark"
+                : "border-accentRed text-accentRed hover:bg-accentRed hover:text-white"
+            }`}
+          >
+            {actionLoading ? "Stopping…" : "Stop"}
+          </button>
+        ) : (
+          <button
+            onClick={handleRun}
+            disabled={actionLoading}
+            className={`flex-1 py-2.5 md:py-3 font-sans text-[9px] tracking-widest uppercase border transition-all duration-300 ${
+              actionLoading
+                ? "opacity-30 cursor-wait border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark"
+                : "border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark"
+            }`}
+          >
+            {actionLoading ? "Starting…" : "Run"}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
 
+// ─── Campaign Card ────────────────────────────────────────────────────────────
 function CampaignCard({
   product,
   onToggle,
@@ -367,13 +439,86 @@ function CampaignCard({
   );
 }
 
+// ─── Pagination Controls ──────────────────────────────────────────────────────
+function Pagination({
+  currentPage,
+  totalPages,
+  onPrev,
+  onNext,
+  onPage,
+}: {
+  currentPage: number;
+  totalPages: number;
+  onPrev: () => void;
+  onNext: () => void;
+  onPage: (n: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
+  // Build page numbers: always show first, last, current ± 1, with ellipsis
+  const pages: (number | "…")[] = [];
+  const add = new Set<number>();
+
+  [1, totalPages, currentPage - 1, currentPage, currentPage + 1].forEach(
+    (n) => {
+      if (n >= 1 && n <= totalPages) add.add(n);
+    },
+  );
+
+  const sorted = Array.from(add).sort((a, b) => a - b);
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) pages.push("…");
+    pages.push(n);
+  });
+
+  return (
+    <div className="flex items-center justify-center gap-1 pt-2">
+      <button
+        onClick={onPrev}
+        disabled={currentPage === 1}
+        className="px-3 py-2 font-sans text-[9px] tracking-widest uppercase border border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+      >
+        ←
+      </button>
+
+      {pages.map((p, i) =>
+        p === "…" ? (
+          <span
+            key={`ellipsis-${i}`}
+            className="px-2 font-sans text-[9px] tracking-widest text-textMuted dark:text-textMuted-dark"
+          >
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => onPage(p as number)}
+            className={`px-3 py-2 font-sans text-[9px] tracking-widest uppercase border transition-all duration-200 ${
+              currentPage === p
+                ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
+                : "border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark"
+            }`}
+          >
+            {p}
+          </button>
+        ),
+      )}
+
+      <button
+        onClick={onNext}
+        disabled={currentPage === totalPages}
+        className="px-3 py-2 font-sans text-[9px] tracking-widest uppercase border border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-200"
+      >
+        →
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [activeNav, setActiveNav] = useState("overview");
   const navigate = useNavigate();
-  const [isDarkMode] = useState(() =>
-    document.documentElement.classList.contains("dark"),
-  );
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -383,6 +528,14 @@ export default function AdminDashboard() {
     "all" | "live" | "standard"
   >("all");
   const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set());
+
+  // Campaign pagination
+  const [campaignPage, setCampaignPage] = useState(1);
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCampaignPage(1);
+  }, [campaignFilter]);
 
   // ── Data fetching ──
   const fetchDashboard = useCallback(
@@ -418,6 +571,7 @@ export default function AdminDashboard() {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  // Auto-poll while any scraper is running
   useEffect(() => {
     if (!data) return;
     const isRunning = data.scraperStatus?.some((s) => s.status === "running");
@@ -482,6 +636,16 @@ export default function AdminDashboard() {
     return true;
   });
 
+  // Pagination derived values
+  const totalCampaignPages = Math.max(
+    1,
+    Math.ceil(filteredCampaign.length / CAMPAIGN_PAGE_SIZE),
+  );
+  const pagedCampaign = filteredCampaign.slice(
+    (campaignPage - 1) * CAMPAIGN_PAGE_SIZE,
+    campaignPage * CAMPAIGN_PAGE_SIZE,
+  );
+
   if (loading && !data)
     return (
       <div className="flex min-h-screen items-center justify-center bg-bgPrimary dark:bg-bgPrimary-dark">
@@ -491,8 +655,6 @@ export default function AdminDashboard() {
       </div>
     );
   if (!data) return null;
-
-  const t = isDarkMode ? CHART_TOKENS.dark : CHART_TOKENS.light;
 
   return (
     <PageTransition>
@@ -566,57 +728,21 @@ export default function AdminDashboard() {
                 )}
 
                 <section className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-px bg-borderLight dark:bg-black border border-borderLight dark:border-borderLight-dark">
-                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-5 md:p-7 flex flex-col gap-6 min-w-0">
+                  {/* ── Activity Log (replaces the area chart) ── */}
+                  <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-5 md:p-7 flex flex-col gap-5">
                     <h3 className="font-heading font-light text-xl md:text-2xl text-textPrimary dark:text-textPrimary-dark">
-                      Price Drops
+                      Recent Activity
                     </h3>
-                    <div className="w-full h-[200px] min-w-0">
-                      <ResponsiveContainer width="100%" height={200}>
-                        <AreaChart
-                          data={data.priceDropData}
-                          margin={{ top: 10, right: 0, left: -20, bottom: 0 }}
-                        >
-                          <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                            stroke={t.grid}
-                          />
-                          <XAxis
-                            dataKey="day"
-                            tick={{ fontSize: 9, fill: t.axis }}
-                            axisLine={false}
-                            tickLine={false}
-                            dy={8}
-                          />
-                          <YAxis
-                            tick={{ fontSize: 9, fill: t.axis }}
-                            axisLine={false}
-                            tickLine={false}
-                          />
-                          <Tooltip
-                            content={<ChartTooltip isDark={isDarkMode} />}
-                            cursor={{ stroke: t.grid, strokeWidth: 1 }}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="drops"
-                            stroke={t.area}
-                            strokeWidth={1.5}
-                            fill={t.area}
-                            fillOpacity={0.1}
-                            dot={false}
-                          />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <ActivityLog entries={data.activityLog} />
                   </div>
 
+                  {/* ── Brand Distribution ── */}
                   <div className="bg-bgPrimary dark:bg-bgPrimary-dark p-5 md:p-7 flex flex-col gap-6">
                     <h3 className="font-heading font-light text-xl md:text-2xl text-textPrimary dark:text-textPrimary-dark">
                       Brand Distribution
                     </h3>
                     <div className="flex flex-col gap-4">
-                      {(data as any).brandBreakdown?.map((brand: any) => (
+                      {data.brandBreakdown?.map((brand) => (
                         <div key={brand._id} className="flex flex-col gap-2">
                           <div className="flex justify-between items-baseline">
                             <span className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
@@ -630,7 +756,7 @@ export default function AdminDashboard() {
                             <div
                               className="h-full bg-textPrimary dark:bg-textPrimary-dark"
                               style={{
-                                width: `${(brand.count / ((data.kpiData[0].value as number) || 1)) * 100}%`,
+                                width: `${(brand.count / ((data.kpiData[0]?.value as number) || 1)) * 100}%`,
                               }}
                             />
                           </div>
@@ -645,6 +771,7 @@ export default function AdminDashboard() {
             {/* ══ SCRAPERS ══ */}
             {activeNav === "scrapers" && (
               <section className="flex flex-col gap-6">
+                {/* Top bar: scheduler info + Run All via GitHub */}
                 <div className="border border-borderLight dark:border-borderLight-dark p-4 md:p-5 bg-bgPrimary dark:bg-bgPrimary-dark flex items-center justify-between gap-4">
                   <div>
                     <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-1">
@@ -660,12 +787,19 @@ export default function AdminDashboard() {
                     rel="noopener noreferrer"
                     className="flex-shrink-0 px-5 py-2.5 font-sans text-[9px] tracking-widest uppercase border border-textPrimary dark:border-textPrimary-dark text-textPrimary dark:text-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark transition-all duration-300"
                   >
-                    View on GitHub ↗
+                    Run All via GitHub ↗
                   </a>
                 </div>
+
+                {/* Per-brand scraper cards */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
                   {data.scraperStatus?.map((s) => (
-                    <ScraperCard key={s.brand} s={s} />
+                    <ScraperCard
+                      key={s.brand}
+                      s={s}
+                      token={token}
+                      onRunComplete={() => fetchDashboard(true)}
+                    />
                   ))}
                 </div>
               </section>
@@ -674,6 +808,7 @@ export default function AdminDashboard() {
             {/* ══ CAMPAIGN ══ */}
             {activeNav === "campaign" && (
               <section className="flex flex-col gap-6 md:gap-8">
+                {/* Header row: hero count + filter tabs */}
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-baseline gap-3">
                     <span className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
@@ -707,6 +842,24 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
+                {/* Page count indicator */}
+                {filteredCampaign.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                      Showing {(campaignPage - 1) * CAMPAIGN_PAGE_SIZE + 1}–
+                      {Math.min(
+                        campaignPage * CAMPAIGN_PAGE_SIZE,
+                        filteredCampaign.length,
+                      )}{" "}
+                      of {filteredCampaign.length}
+                    </p>
+                    <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+                      Page {campaignPage} / {totalCampaignPages}
+                    </p>
+                  </div>
+                )}
+
+                {/* Grid or empty state */}
                 {filteredCampaign.length === 0 ? (
                   <div className="border border-borderLight dark:border-borderLight-dark p-10 md:p-16 text-center">
                     <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
@@ -717,7 +870,7 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-px bg-borderLight dark:bg-borderLight-dark border border-borderLight dark:border-borderLight-dark">
-                    {filteredCampaign.map((product) => (
+                    {pagedCampaign.map((product) => (
                       <CampaignCard
                         key={product.id}
                         product={product}
@@ -728,6 +881,17 @@ export default function AdminDashboard() {
                     ))}
                   </div>
                 )}
+
+                {/* Pagination */}
+                <Pagination
+                  currentPage={campaignPage}
+                  totalPages={totalCampaignPages}
+                  onPrev={() => setCampaignPage((p) => Math.max(1, p - 1))}
+                  onNext={() =>
+                    setCampaignPage((p) => Math.min(totalCampaignPages, p + 1))
+                  }
+                  onPage={(n) => setCampaignPage(n)}
+                />
               </section>
             )}
           </div>
