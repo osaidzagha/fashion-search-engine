@@ -142,7 +142,18 @@ export async function getMassimoProductLinks(
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract links...`);
-
+      // 👇 NEW: Debug raw links to see why new-in is failing
+      if (attempt === 1) {
+        const rawLinks = await page.evaluate(() => {
+          return Array.from(document.querySelectorAll("a"))
+            .map((a) => a.href)
+            .filter((href) => href && href.includes("massimodutti.com"));
+        });
+        console.log(
+          `   --> 🐛 DEBUG: Found ${rawLinks.length} total raw links on page. Sample:`,
+          rawLinks.slice(0, 5),
+        );
+      }
       console.log("   --> 📜 Auto-scrolling to trigger lazy load...");
       await page.evaluate(`
         (function() {
@@ -339,71 +350,81 @@ export async function scrapeMassimoProductData(
 
     await new Promise((r) => setTimeout(r, 1500));
 
-    // ─── STEP 1: Text Hydration ───────────────────────────────────────────
-    await page.evaluate(`
-      (function() {
-        return new Promise(function(resolve) {
-          var maxWait = 25000; // 👇 BUMPED WAIT TO 25s
-          var waited = 0;
-          var interval = setInterval(function() {
-            var descEl  = document.querySelector('.md-pdp5-box--info-short, .md-pdp5-box--info');
-            var colorEl = document.querySelector('.md-color-selector-title-color');
-            var priceEl = document.querySelector('.formatted-price-detail-handler, [aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
-            
-            var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length > 0;
-            var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
-            var priceReady = priceEl && /[0-9]/.test(priceEl.textContent); 
+    // ─── STEP 1 & 2: Text Hydration and Extraction ────────────────────────
+    let textData: any = null;
 
-            waited += 100;
-            if ((descReady && colorReady && priceReady) || waited >= maxWait) {
-              clearInterval(interval);
-              resolve(undefined);
-            }
-          }, 100);
-        });
-      })()
-    `);
+    try {
+      await page.evaluate(`
+        (function() {
+          return new Promise(function(resolve) {
+            var maxWait = 25000; 
+            var waited = 0;
+            var interval = setInterval(function() {
+              var descEl  = document.querySelector('.md-pdp5-box--info-short, .md-pdp5-box--info');
+              var colorEl = document.querySelector('.md-color-selector-title-color');
+              var priceEl = document.querySelector('.formatted-price-detail-handler, [aria-label*="Discounted price"], [aria-label*="\\u0130ndirimli fiyat"]');
+              
+              var descReady  = descEl  && descEl.textContent  && descEl.textContent.trim().length > 0;
+              var colorReady = colorEl && colorEl.textContent && colorEl.textContent.trim().length > 0;
+              var priceReady = priceEl && /[0-9]/.test(priceEl.textContent); 
 
-    // ─── STEP 2: Read Text Data ───────────────────────────────────────────
-    const textData = (await page.evaluate(`
-      (function() {
-        function getText(selector) {
-          var el = document.querySelector(selector);
-          return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
-        }
+              waited += 100;
+              if ((descReady && colorReady && priceReady) || waited >= maxWait) {
+                clearInterval(interval);
+                resolve(undefined);
+              }
+            }, 100);
+          });
+        })()
+      `);
 
-        function getMDPrice(selector) {
-          var el = document.querySelector(selector);
-          if (!el) return '';
-          var aria = el.getAttribute('aria-label');
-          if (aria && /[0-9]/.test(aria)) return aria; 
-          return el.textContent ? el.textContent.trim() : '';
-        }
+      textData = await page.evaluate(`
+        (function() {
+          function getText(selector) {
+            var el = document.querySelector(selector);
+            return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
+          }
 
-        var originalRaw = getMDPrice('[aria-label*="Market Price"]') || getMDPrice('[aria-label*="Original"]') || getMDPrice('.is-through');
-        var currentRaw = getMDPrice('[aria-label*="Discounted price"]') || getMDPrice('.d-price-special') || getMDPrice('.price') || getMDPrice('.product-price');
+          function getMDPrice(selector) {
+            var el = document.querySelector(selector);
+            if (!el) return '';
+            var aria = el.getAttribute('aria-label');
+            if (aria && /[0-9]/.test(aria)) return aria; 
+            return el.textContent ? el.textContent.trim() : '';
+          }
 
-        if (!originalRaw || !currentRaw) {
-           var oldPriceEl = document.querySelector('.is-through');
-           var newPriceEl = document.querySelector('.d-price-special');
-           if (oldPriceEl && newPriceEl) {
-               originalRaw = originalRaw || oldPriceEl.textContent.trim();
-               currentRaw = currentRaw || newPriceEl.textContent.trim();
-           }
-        }
+          var originalRaw = getMDPrice('[aria-label*="Market Price"]') || getMDPrice('[aria-label*="Original"]') || getMDPrice('.is-through');
+          var currentRaw = getMDPrice('[aria-label*="Discounted price"]') || getMDPrice('.d-price-special') || getMDPrice('.price') || getMDPrice('.product-price');
 
-        return {
-          name: getText('h1.md-product-heading-title-txt') || getText('h1'),
-          description: getText('.md-pdp5-box--info-short') || getText('.md-pdp5-box--info p') || getText('.md-pdp5-box--info'),
-          color: getText('.md-color-selector-title-color') || getText('.md-color-selector-title-label') || getText('.md-color-selector-title'),
-          currentRaw: currentRaw,
-          originalRaw: originalRaw,
-        };
-      })()
-    `)) as any;
+          if (!originalRaw || !currentRaw) {
+             var oldPriceEl = document.querySelector('.is-through');
+             var newPriceEl = document.querySelector('.d-price-special');
+             if (oldPriceEl && newPriceEl) {
+                 originalRaw = originalRaw || oldPriceEl.textContent.trim();
+                 currentRaw = currentRaw || newPriceEl.textContent.trim();
+             }
+          }
 
-    // 👇 CLAUDE'S FIX: Detach the heavy network listener BEFORE the expensive scroll
-    page.off("response", responseHandler);
+          return {
+            name: getText('h1.md-product-heading-title-txt') || getText('h1'),
+            description: getText('.md-pdp5-box--info-short') || getText('.md-pdp5-box--info p') || getText('.md-pdp5-box--info'),
+            color: getText('.md-color-selector-title-color') || getText('.md-color-selector-title-label') || getText('.md-color-selector-title'),
+            currentRaw: currentRaw,
+            originalRaw: originalRaw,
+          };
+        })()
+      `);
+    } catch (err: any) {
+      console.log(
+        `  --> ⚠️ Text hydration failed or timed out: ${err.message}`,
+      );
+      return null; // Fast fail and move to the next product
+    }
+
+    if (!textData || !textData.name) {
+      console.log(`  --> ⚠️ Missing core product text data. Skipping.`);
+      return null;
+    }
 
     // ─── STEP 3: Deep Scroll ──────────────────────────────────────────────
     try {

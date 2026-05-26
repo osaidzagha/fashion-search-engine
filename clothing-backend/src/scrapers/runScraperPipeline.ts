@@ -212,8 +212,24 @@ export const runScraperPipeline = async (
 
     try {
       const freshCookies = await page.cookies();
-      const safeCookies = freshCookies.filter((c) =>
-        ["store", "inditex_country", "selectedCountry"].includes(c.name),
+      const safeCookies = freshCookies.filter(
+        (
+          c, // 👇 Changed 'harvested' to 'freshCookies'
+        ) =>
+          [
+            "ak_bmsc",
+            "bm_sz",
+            "bm_sv",
+            "bm_mi",
+            "_abck",
+            "ITXSESSIONID",
+            "ITXDEVICEID",
+            "UAITXID",
+            "rskxRunCookie",
+            "lastRskxRun",
+            "OptanonConsent",
+            "CookiesConsent",
+          ].includes(c.name),
       );
       if (safeCookies.length > 0) {
         zaraCookies = safeCookies;
@@ -229,14 +245,28 @@ export const runScraperPipeline = async (
     if (brandName === "Zara" && !current.isClosed()) {
       try {
         const harvested = await current.cookies();
-        // 👇 CLAUDE'S FIX: Log the cookies Zara is actually using now
         console.log(
           `   --> 🍪 All cookies on page: ${harvested.map((c) => c.name).join(", ")}`,
         );
 
+        // 👇 FIX: Update the filter to include Akamai and current Zara session cookies
         const safeCookies = harvested.filter((c) =>
-          ["store", "inditex_country", "selectedCountry"].includes(c.name),
+          [
+            "ak_bmsc",
+            "bm_sz",
+            "bm_sv",
+            "bm_mi",
+            "_abck",
+            "ITXSESSIONID",
+            "ITXDEVICEID",
+            "UAITXID",
+            "rskxRunCookie",
+            "lastRskxRun",
+            "OptanonConsent",
+            "CookiesConsent",
+          ].includes(c.name),
         );
+
         if (safeCookies.length > 0) {
           zaraCookies = safeCookies;
           console.log(
