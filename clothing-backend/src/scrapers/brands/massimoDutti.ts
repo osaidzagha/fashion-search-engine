@@ -194,9 +194,17 @@ export async function getMassimoProductLinks(
           return Array.from(document.querySelectorAll('a'))
             .map(function(a) { return a.href; })
             .filter(function(href) {
-              var hasStrictIdFormat = /-l[a-zA-Z0-9]{8}(\\?|$)/.test(href);
+              if (!href) return false;
+              
+              // 👇 NEW FIX: Relaxed regex. Matches any URL ending in -l followed by 6 to 12 alphanumeric characters.
+              var hasProductId = /-l[a-zA-Z0-9]{6,12}(\\?|$)/.test(href);
+              
+              // Also ensure it's not a generic category, lookbook, or banner
+              var isNotCategory = !href.match(/-n[0-9]+(\\?|$)/);
               var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
-              return hasStrictIdFormat && isNotBanner;
+              var isNotEditorial = !href.includes('/editorial');
+              
+              return hasProductId && isNotCategory && isNotBanner && isNotEditorial;
             })
             .map(function(href) { return href.split('?')[0]; })
             .filter(function(href, index, self) { return self.indexOf(href) === index; });
