@@ -212,24 +212,21 @@ export const runScraperPipeline = async (
 
     try {
       const freshCookies = await page.cookies();
-      const safeCookies = freshCookies.filter(
-        (
-          c, // 👇 Changed 'harvested' to 'freshCookies'
-        ) =>
-          [
-            "ak_bmsc",
-            "bm_sz",
-            "bm_sv",
-            "bm_mi",
-            "_abck",
-            "ITXSESSIONID",
-            "ITXDEVICEID",
-            "UAITXID",
-            "rskxRunCookie",
-            "lastRskxRun",
-            "OptanonConsent",
-            "CookiesConsent",
-          ].includes(c.name),
+      const safeCookies = freshCookies.filter((c) =>
+        [
+          "ak_bmsc",
+          "bm_sz",
+          "bm_sv",
+          "bm_mi",
+          "_abck",
+          "ITXSESSIONID",
+          "ITXDEVICEID",
+          "UAITXID",
+          "rskxRunCookie",
+          "lastRskxRun",
+          "OptanonConsent",
+          "CookiesConsent",
+        ].includes(c.name),
       );
       if (safeCookies.length > 0) {
         zaraCookies = safeCookies;
@@ -249,7 +246,6 @@ export const runScraperPipeline = async (
           `   --> 🍪 All cookies on page: ${harvested.map((c) => c.name).join(", ")}`,
         );
 
-        // 👇 FIX: Update the filter to include Akamai and current Zara session cookies
         const safeCookies = harvested.filter((c) =>
           [
             "ak_bmsc",
@@ -326,8 +322,9 @@ export const runScraperPipeline = async (
           err.message?.includes("detached") ||
           err.message?.includes("Target closed");
 
-        if (isTerminal || attempt === maxRetries) {
-          throw err; // Out of retries or fatal browser crash
+        // Terminal errors always bubble up immediately
+        if (isTerminal) {
+          throw err;
         }
 
         const isBlock =
@@ -335,12 +332,21 @@ export const runScraperPipeline = async (
           err.message?.includes("TIMEOUT") ||
           err.message?.includes("timed out");
 
+        // On final attempt: blocks return null (not a crash), other errors bubble up
+        if (attempt === maxRetries) {
+          if (isBlock) {
+            console.log(
+              `   --> 🛡️ Block persisted after ${maxRetries} retries. Moving on.`,
+            );
+            return { product: null, page };
+          }
+          throw err;
+        }
+
+        // Still have retries left — wipe session and try again
         console.log(
           `   --> 🛡️ ${isBlock ? "Block Detected" : "Error"}. Recycling session & Retrying (${attempt + 1}/${maxRetries}) for ${link.split("?")[0].split("/").pop()}`,
         );
-
-        // Instant recycle to transplant cookies and bypass the fingerprint lock.
-        // No long setTimeout delays wasting time.
         page = await safeWipe(page);
       }
     }
@@ -452,7 +458,7 @@ export const runScraperPipeline = async (
           console.log("🛑 Browser closed.");
           break;
         }
-        // 👇 MY FIX: If 5 products fail in a row, Akamai blocked us. Bail out.
+        // If 5 products fail in a row, Akamai has blocked us hard. Bail out.
         if (consecutiveFailures >= 5) {
           console.log(
             `  --> 🛑 CIRCUIT BREAKER TRIGGERED: 5 consecutive failures. IP likely blocked. Skipping rest of category.`,
@@ -610,7 +616,7 @@ export const runScraperPipeline = async (
         if (brandName === "Zara") {
           delay = testMode ? 4000 : Math.floor(Math.random() * 5000) + 6000; // Wait 6 to 11 seconds for Zara
           console.log(
-            `   --> ⏳ Zara Rate Limit Evasion: Waiting ${delay / 1000}s before next product...`,
+            `   --> ⏳ Zara Rate Limit Evasion: Waiting ${(delay / 1000).toFixed(1)}s before next product...`,
           );
         }
 

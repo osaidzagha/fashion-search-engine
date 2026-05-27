@@ -115,18 +115,18 @@ export async function scrapeZaraProductData(
     }
     const productId = match[1];
 
+    // ─── Page load — timeout is treated as a bot wall ─────────────────────
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 }); // 👇 Lowered to 25s
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
     } catch {
+      console.log("  --> 🚫 Bot wall detected. Bailing immediately.");
       throw new Error("BOT_WALL_DETECTED");
-      setMode(page, "restrictive");
-      return null;
     }
 
+    // ─── H1 check — missing H1 after load = blocked session ──────────────
     try {
-      await page.waitForSelector("h1", { timeout: 10000 }); // 👇 Lowered to 10s
+      await page.waitForSelector("h1", { timeout: 10000 });
     } catch {
-      // 👇 CLAUDE'S FIX: Explicit Bot Wall Detection
       const isBlocked = await page
         .evaluate(() => {
           const body = document.body?.innerText || "";
@@ -140,14 +140,15 @@ export async function scrapeZaraProductData(
         .catch(() => true);
 
       if (isBlocked) {
+        console.log("  --> 🚫 Bot wall detected. Bailing immediately.");
         throw new Error("BOT_WALL_DETECTED");
       } else {
         console.log(`  --> ❌ Page blank or H1 missing. Skipping.`);
+        setMode(page, "restrictive");
+        return null;
       }
-
-      setMode(page, "restrictive");
-      return null;
     }
+
     // ─── STEP 1: Wait for JS hydration ───────────────────────────────────────
     await page.evaluate(`
       (function() {
@@ -383,8 +384,19 @@ export async function scrapeZaraProductData(
       department,
     };
   } catch (error: any) {
-    console.error(`  --> ❌ Zara Scraper crashed on ${url}:`, error);
-    setMode(page, "restrictive"); // always restore on error
+    // ─── Re-throw bot wall / timeout errors so the pipeline retry engine ──
+    // can catch them, immediately run safeWipe(), and retry the same product.
+    // Swallowing them here would make scrapeWithRetry receive null (a clean
+    // skip) instead of a recoverable error, breaking the retry mechanism.
+    if (
+      error.message?.includes("BOT_WALL") ||
+      error.message?.includes("TIMEOUT")
+    ) {
+      setMode(page, "restrictive");
+      throw error;
+    }
+    console.error(`  --> ❌ Zara Scraper crashed on ${url}:`, error.message);
+    setMode(page, "restrictive");
     return null;
   }
 }

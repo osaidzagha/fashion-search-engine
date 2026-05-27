@@ -685,6 +685,16 @@ export async function scrapeMassimoProductData(
       department: department,
     };
   } catch (error: any) {
+    // 👇 NEW: Re-throw timeout errors so the pipeline knows to recycle and retry!
+    if (
+      error.message?.includes("TIMEOUT") ||
+      error.message?.includes("timed out") ||
+      error.message?.includes("timeout")
+    ) {
+      throw error;
+    }
+
+    // Genuine crashes (bad selectors, network failure) get swallowed and skipped
     console.error(
       `   --> ❌ Massimo Dutti Scraper crashed on ${url}:`,
       error.message,
