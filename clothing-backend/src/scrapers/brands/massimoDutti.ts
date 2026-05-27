@@ -342,14 +342,13 @@ export async function scrapeMassimoProductData(
   page.on("response", responseHandler);
 
   try {
-    // 👇 BUMPED TIMEOUT TO 120s
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
+    // Fast-fail if the page gets stuck loading background assets
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
     await dismissModals(page);
 
     try {
-      // 👇 BUMPED H1 TIMEOUT
       await page.waitForSelector("h1.md-product-heading-title-txt", {
-        timeout: 25000,
+        timeout: 10000,
       });
     } catch {
       console.log(`  --> ⚠️ Product H1 didn't load, skipping: ${url}`);

@@ -118,7 +118,7 @@ export async function scrapeZaraProductData(
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 }); // 👇 Lowered to 25s
     } catch {
-      console.log(`  --> ⚠️ Page load timed out. Fast failing...`);
+      throw new Error("BOT_WALL_DETECTED");
       setMode(page, "restrictive");
       return null;
     }
@@ -140,7 +140,7 @@ export async function scrapeZaraProductData(
         .catch(() => true);
 
       if (isBlocked) {
-        console.log(`  --> 🚫 Bot wall detected. Bailing immediately.`);
+        throw new Error("BOT_WALL_DETECTED");
       } else {
         console.log(`  --> ❌ Page blank or H1 missing. Skipping.`);
       }

@@ -306,7 +306,7 @@ export const runScraperPipeline = async (
     return next;
   };
 
-  // ─── SCRAPE WITH RETRY ────────────────────────────────────────────────────
+  // ─── SCRAPE WITH SMART RETRY ──────────────────────────────────────────────
   const scrapeWithRetry = async (
     currentPage: InterceptPage,
     link: string,
@@ -327,13 +327,20 @@ export const runScraperPipeline = async (
           err.message?.includes("Target closed");
 
         if (isTerminal || attempt === maxRetries) {
-          throw err;
+          throw err; // Out of retries or fatal browser crash
         }
 
+        const isBlock =
+          err.message?.includes("BOT_WALL") ||
+          err.message?.includes("TIMEOUT") ||
+          err.message?.includes("timed out");
+
         console.log(
-          `   --> ⚠️ Retry ${attempt + 1}/${maxRetries} for ${link.split("/").pop()}`,
+          `   --> 🛡️ ${isBlock ? "Block Detected" : "Error"}. Recycling session & Retrying (${attempt + 1}/${maxRetries}) for ${link.split("?")[0].split("/").pop()}`,
         );
-        await new Promise((r) => setTimeout(r, 4000 * (attempt + 1)));
+
+        // Instant recycle to transplant cookies and bypass the fingerprint lock.
+        // No long setTimeout delays wasting time.
         page = await safeWipe(page);
       }
     }
@@ -597,12 +604,17 @@ export const runScraperPipeline = async (
 
         productCount++;
         if (page.isClosed()) break;
-        await new Promise((r) =>
-          setTimeout(
-            r,
-            testMode ? 1500 : Math.floor(Math.random() * 2000) + 2000,
-          ),
-        );
+
+        // Add significant jitter to evade Akamai rate limits
+        let delay = testMode ? 2000 : Math.floor(Math.random() * 3000) + 3000;
+        if (brandName === "Zara") {
+          delay = testMode ? 4000 : Math.floor(Math.random() * 5000) + 6000; // Wait 6 to 11 seconds for Zara
+          console.log(
+            `   --> ⏳ Zara Rate Limit Evasion: Waiting ${delay / 1000}s before next product...`,
+          );
+        }
+
+        await new Promise((r) => setTimeout(r, delay));
       }
 
       if (page.isClosed()) break;
