@@ -131,7 +131,6 @@ export async function getMassimoProductLinks(
   console.log(`📂 Visiting Massimo Dutti category: ${url}`);
 
   try {
-    // 👇 BUMPED TIMEOUT TO 120s
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
 
     // Give the heavy React page a few seconds to hydrate
@@ -142,34 +141,19 @@ export async function getMassimoProductLinks(
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract links...`);
-      // 👇 NEW: Debug raw links to see why new-in is failing
-      if (attempt === 1) {
-        const rawLinks = await page.evaluate(() => {
-          return Array.from(document.querySelectorAll("a"))
-            .map((a) => a.href)
-            .filter((href) => href && href.includes("massimodutti.com"));
-        });
-        console.log(
-          `   --> 🐛 DEBUG: Found ${rawLinks.length} total raw links on page. Sample:`,
-          rawLinks.slice(0, 5),
-        );
-      }
-      console.log("   --> 📜 Auto-scrolling to trigger lazy load...");
+
+      console.log("   --> 📜 Auto-scrolling to force lazy load...");
       await page.evaluate(`
         (function() {
           return new Promise(function(resolve) {
-            var totalHeight = 0;
-            var distance = 1000; 
             var scrolls = 0;
-            var maxScrolls = 8; 
+            var maxScrolls = 12; // Force 12 deep scrolls regardless of page height
             
             var timer = setInterval(function() {
-              var scrollHeight = document.body.scrollHeight;
-              window.scrollBy(0, distance);
-              totalHeight += distance;
+              window.scrollBy(0, 800);
               scrolls++;
 
-              if (totalHeight >= scrollHeight || scrolls >= maxScrolls) {
+              if (scrolls >= maxScrolls) {
                 clearInterval(timer);
                 resolve(undefined);
               }
@@ -181,7 +165,6 @@ export async function getMassimoProductLinks(
       await new Promise((r) => setTimeout(r, 2000));
 
       try {
-        // 👇 BUMPED WAIT TIMEOUT
         await page.waitForSelector('a[href*="-l"]', { timeout: 25000 });
       } catch (e) {
         console.log(
@@ -196,10 +179,10 @@ export async function getMassimoProductLinks(
             .filter(function(href) {
               if (!href) return false;
               
-              // 👇 NEW FIX: Relaxed regex. Matches any URL ending in -l followed by 6 to 12 alphanumeric characters.
-              var hasProductId = /-l[a-zA-Z0-9]{6,12}(\\?|$)/.test(href);
+              // 👇 STRICT REGEX: Must be -l followed by 6 to 12 DIGITS ONLY.
+              // This completely ignores "store-locator" and grabs real product IDs.
+              var hasProductId = /-l\\d{6,12}(\\?|$)/.test(href);
               
-              // Also ensure it's not a generic category, lookbook, or banner
               var isNotCategory = !href.match(/-n[0-9]+(\\?|$)/);
               var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
               var isNotEditorial = !href.includes('/editorial');
@@ -223,12 +206,6 @@ export async function getMassimoProductLinks(
       );
       await page.evaluate(() => window.scrollTo(0, 0));
       await new Promise((r) => setTimeout(r, 3000));
-    }
-
-    if (productLinks.length === 0) {
-      console.log(
-        `  --> ❌ Failed to find any links after ${maxRetries} attempts.`,
-      );
     }
 
     return productLinks;

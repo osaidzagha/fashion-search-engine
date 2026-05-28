@@ -177,7 +177,20 @@ export async function scrapeZaraProductData(
           var el = document.querySelector(selector);
           return el && el.textContent ? el.textContent.replace(/\\s+/g, ' ').trim() : '';
         }
-        var name        = getText('h1.product-detail-info__header-name') || getText('h1');
+        var name = 
+  getText('h1.product-detail-info__header-name') || 
+  getText('h1.product-detail-info__name') || 
+  (function() {
+    var h1s = Array.from(document.querySelectorAll('h1'));
+    for (var i=0; i<h1s.length; i++) {
+      var text = h1s[i].textContent || '';
+      // Ignore generic modal greetings
+      if (text && text.trim().length > 2 && !text.toLowerCase().includes('hello') && !text.toLowerCase().includes('welcome')) {
+        return text.replace(/\\s+/g, ' ').trim();
+      }
+    }
+    return '';
+  })();
         var description = getText('.product-detail-description') || getText('[class*="product-detail-info__description"]');
         var color       = getText('.product-color-extended-name') || getText('[class*="color-extended"]');
         var compItems   = Array.from(document.querySelectorAll('.product-detail-composition__item.product-detail-composition__part'));
