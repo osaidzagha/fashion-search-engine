@@ -20,17 +20,14 @@ const Navbar = () => {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  // ── NEW: user dropdown state ──
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
   }, [location.pathname]);
 
-  // Close user dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (
@@ -119,7 +116,6 @@ const Navbar = () => {
         : "text-textMuted dark:text-textMuted-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
     }`;
 
-  // ── Avatar initials (first name initial only, keeps Navbar lean) ──
   const avatarInitial = userInfo?.name?.trim().charAt(0).toUpperCase() || "?";
 
   return (
@@ -127,9 +123,8 @@ const Navbar = () => {
       <nav className="sticky top-0 z-[100] bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500 w-full">
         {/* ── Main bar ── */}
         <div className="flex justify-between items-center px-6 md:px-12 py-4 relative">
-          {/* LEFT — desktop: dept toggles | mobile: hamburger */}
+          {/* LEFT */}
           <div className="flex items-center">
-            {/* Desktop dept toggles */}
             <div className="hidden md:flex gap-6">
               <button
                 onClick={() => handleDepartmentToggle("Men")}
@@ -145,7 +140,6 @@ const Navbar = () => {
               </button>
             </div>
 
-            {/* Mobile hamburger → animated X */}
             <button
               onClick={() => setIsMobileMenuOpen((o) => !o)}
               className="md:hidden flex flex-col justify-center gap-[5px] w-6 h-6"
@@ -178,9 +172,8 @@ const Navbar = () => {
             Dope
           </Link>
 
-          {/* RIGHT — desktop: full links | mobile: theme icon only */}
+          {/* RIGHT */}
           <div className="flex items-center gap-6">
-            {/* Desktop-only links */}
             <div className="hidden md:flex items-center gap-6">
               <button
                 onClick={toggleTheme}
@@ -227,7 +220,7 @@ const Navbar = () => {
                       </span>
                     </button>
 
-                    {/* Dropdown panel */}
+                    {/* Dropdown — minimal: Profile + Log Out only */}
                     <div
                       className={`absolute right-0 top-full mt-2 w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-sm transition-all duration-200 origin-top-right ${
                         isUserMenuOpen
@@ -245,7 +238,6 @@ const Navbar = () => {
                         </p>
                       </div>
 
-                      {/* Menu items */}
                       <div className="py-1">
                         <button
                           onClick={() => {
@@ -256,15 +248,7 @@ const Navbar = () => {
                         >
                           Profile
                         </button>
-                        <button
-                          onClick={() => {
-                            setIsUserMenuOpen(false);
-                            navigate("/profile?tab=preferences");
-                          }}
-                          className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
-                        >
-                          Settings
-                        </button>
+
                         {userInfo.role === "admin" && (
                           <button
                             onClick={() => {
@@ -278,7 +262,7 @@ const Navbar = () => {
                         )}
                       </div>
 
-                      {/* Logout — separated */}
+                      {/* Log Out — separated */}
                       <div className="border-t border-borderLight dark:border-borderLight-dark py-1">
                         <button
                           onClick={() => {
@@ -287,7 +271,7 @@ const Navbar = () => {
                           }}
                           className="w-full text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark hover:bg-borderLight/40 dark:hover:bg-borderLight-dark/20 transition-colors duration-150"
                         >
-                          Logout
+                          Log Out
                         </button>
                       </div>
                     </div>
@@ -314,7 +298,6 @@ const Navbar = () => {
           }`}
         >
           <div className="px-6 py-6 flex flex-col gap-6 bg-bgPrimary dark:bg-bgPrimary-dark">
-            {/* Dept toggles */}
             <div className="flex gap-6">
               <button
                 onClick={() => handleDepartmentToggle("Men")}
@@ -332,7 +315,6 @@ const Navbar = () => {
 
             <div className="h-px w-full bg-borderLight dark:bg-borderLight-dark" />
 
-            {/* Auth section */}
             {!userInfo ? (
               <div className="flex flex-col gap-4">
                 <Link
@@ -352,7 +334,6 @@ const Navbar = () => {
               </div>
             ) : (
               <div className="flex flex-col gap-4">
-                {/* Greeting with initials badge */}
                 <div className="flex items-center gap-3">
                   <div className="w-6 h-6 border border-borderLight dark:border-borderLight-dark flex items-center justify-center flex-shrink-0">
                     <span className="font-sans text-[9px] text-textPrimary dark:text-textPrimary-dark">
@@ -379,7 +360,7 @@ const Navbar = () => {
                   }}
                   className={`${navLinkBase} ${navLinkInactive} text-left`}
                 >
-                  Profile & Settings
+                  Profile
                 </button>
                 {userInfo.role === "admin" && (
                   <Link
@@ -397,7 +378,7 @@ const Navbar = () => {
                   }}
                   className={`${navLinkBase} ${navLinkInactive} text-left`}
                 >
-                  Logout
+                  Log Out
                 </button>
               </div>
             )}

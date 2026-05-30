@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { RootState } from "../store/store";
 import { setCredentials, logout } from "../store/authSlice";
@@ -13,16 +13,24 @@ const API_BASE =
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Tab = "general" | "security" | "preferences";
 
-// ─── Shared UI atoms ──────────────────────────────────────────────────────────
-function SectionLabel({ children }: { children: React.ReactNode }) {
+const TABS: { id: Tab; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "security", label: "Security" },
+  { id: "preferences", label: "Preferences" },
+];
+
+// ─── Atoms ────────────────────────────────────────────────────────────────────
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-1">
+    <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5">
       {children}
     </p>
   );
 }
 
-function FieldInput({
+/** Editable input — name only */
+function EditableInput({
   label,
   type = "text",
   value,
@@ -38,16 +46,86 @@ function FieldInput({
   autoComplete?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <SectionLabel>{label}</SectionLabel>
+    <div className="flex flex-col">
+      <FieldLabel>{label}</FieldLabel>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        className="w-full bg-transparent border-b border-borderLight dark:border-borderLight-dark py-2.5 font-sans text-[13px] tracking-wide text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted dark:placeholder:text-textMuted-dark focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
+        className="w-full bg-transparent border-b border-borderLight dark:border-borderLight-dark py-3 font-sans text-[13px] tracking-wide text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/50 dark:placeholder:text-textMuted-dark/50 focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
       />
+    </div>
+  );
+}
+
+/** Read-only display field — email */
+function ReadOnlyField({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+}) {
+  return (
+    <div className="flex flex-col">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="flex items-center justify-between border-b border-borderLight/60 dark:border-borderLight-dark/60 py-3">
+        <span className="font-sans text-[13px] tracking-wide text-textPrimary dark:text-textPrimary-dark">
+          {value}
+        </span>
+        {note && (
+          <span className="font-sans text-[8px] tracking-[0.15em] uppercase text-textMuted/60 dark:text-textMuted-dark/60 ml-4 flex-shrink-0">
+            {note}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Sharp password input for security tab */
+function PasswordInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  autoComplete,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  autoComplete?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <div className="flex flex-col">
+      <FieldLabel>{label}</FieldLabel>
+      <div className="relative group">
+        <input
+          type={visible ? "text" : "password"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder || "••••••••"}
+          autoComplete={autoComplete}
+          className="w-full bg-transparent border-b border-borderLight dark:border-borderLight-dark py-3 pr-10 font-sans text-[13px] tracking-widest text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/40 dark:placeholder:text-textMuted-dark/40 placeholder:tracking-normal focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
+        />
+        {/* show/hide toggle */}
+        <button
+          type="button"
+          onClick={() => setVisible((v) => !v)}
+          tabIndex={-1}
+          className="absolute right-0 bottom-3 font-sans text-[8px] tracking-[0.15em] uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-150"
+          aria-label={visible ? "Hide password" : "Show password"}
+        >
+          {visible ? "Hide" : "Show"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -82,7 +160,6 @@ function ActionButton({
   );
 }
 
-// ─── Toggle switch ─────────────────────────────────────────────────────────────
 function Toggle({
   enabled,
   onChange,
@@ -112,7 +189,6 @@ function Toggle({
   );
 }
 
-// ─── Avatar initials ──────────────────────────────────────────────────────────
 function Avatar({ name }: { name: string }) {
   const initials = name
     .split(" ")
@@ -121,7 +197,7 @@ function Avatar({ name }: { name: string }) {
     .join("");
 
   return (
-    <div className="w-16 h-16 border border-borderLight dark:border-borderLight-dark flex items-center justify-center bg-bgPrimary dark:bg-bgPrimary-dark flex-shrink-0">
+    <div className="w-16 h-16 border border-borderLight dark:border-borderLight-dark flex items-center justify-center flex-shrink-0">
       <span className="font-heading font-light text-2xl leading-none text-textPrimary dark:text-textPrimary-dark">
         {initials || "?"}
       </span>
@@ -129,7 +205,6 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-// ─── Inline error banner ──────────────────────────────────────────────────────
 function ErrorBanner({ message }: { message: string }) {
   return (
     <p className="font-sans text-[9px] tracking-widest uppercase text-accentRed border border-accentRed px-4 py-2.5">
@@ -138,66 +213,63 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-const TABS: { id: Tab; label: string }[] = [
-  { id: "general", label: "General" },
-  { id: "security", label: "Security" },
-  { id: "preferences", label: "Preferences" },
-];
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Profile() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
   const { userInfo, token } = useSelector((state: RootState) => state.auth);
 
-  const [activeTab, setActiveTab] = useState<Tab>("general");
+  // Honour ?tab= query param (e.g. from any future deep-link)
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam && ["general", "security", "preferences"].includes(tabParam)
+      ? tabParam
+      : "general",
+  );
 
-  // ── General form state ──
+  // ── General ──
   const [name, setName] = useState(userInfo?.name || "");
-  const [email, setEmail] = useState(userInfo?.email || "");
   const [generalLoading, setGeneralLoading] = useState(false);
   const [generalError, setGeneralError] = useState("");
 
-  // ── Security form state ──
+  // ── Security ──
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState("");
 
-  // ── Preferences state ──
+  // ── Preferences ──
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [priceAlertEnabled, setPriceAlertEnabled] = useState(true);
   const [prefLoading, setPrefLoading] = useState(false);
 
-  // ── Delete account state ──
+  // ── Delete account ──
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!userInfo) navigate("/login");
   }, [userInfo, navigate]);
 
-  // Sync dark mode from DOM on mount
   useEffect(() => {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
 
-  // ── Helpers ──
   const authHeaders = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
 
-  // ── General submit ──
+  // ── General save (name only) ──
   const handleGeneralSave = async () => {
     setGeneralError("");
-    if (!name.trim() || !email.trim()) {
-      setGeneralError("Name and email are required.");
+    if (!name.trim()) {
+      setGeneralError("Name cannot be empty.");
       return;
     }
     setGeneralLoading(true);
@@ -205,20 +277,14 @@ export default function Profile() {
       const res = await fetch(`${API_BASE}/api/users/profile`, {
         method: "PUT",
         headers: authHeaders,
-        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+        body: JSON.stringify({ name: name.trim() }),
       });
       const json = await res.json();
       if (!res.ok) {
         setGeneralError(json.message || "Update failed.");
         return;
       }
-      // Sync Redux + localStorage so Navbar stays in sync
-      dispatch(
-        setCredentials({
-          user: json.user,
-          token: token!,
-        }),
-      );
+      dispatch(setCredentials({ user: json.user, token: token! }));
       toast.success("Profile updated.");
     } catch {
       setGeneralError("Network error. Please try again.");
@@ -227,11 +293,11 @@ export default function Profile() {
     }
   };
 
-  // ── Password submit ──
+  // ── Password save ──
   const handlePasswordSave = async () => {
     setSecurityError("");
     if (!currentPassword || !newPassword || !confirmPassword) {
-      setSecurityError("All password fields are required.");
+      setSecurityError("All fields are required.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -240,6 +306,10 @@ export default function Profile() {
     }
     if (newPassword.length < 8) {
       setSecurityError("New password must be at least 8 characters.");
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setSecurityError("New password must differ from your current password.");
       return;
     }
     setSecurityLoading(true);
@@ -265,20 +335,13 @@ export default function Profile() {
     }
   };
 
-  // ── Dark mode toggle (local, no API) ──
   const handleDarkModeToggle = (val: boolean) => {
     const html = document.documentElement;
-    if (val) {
-      html.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      html.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    val ? html.classList.add("dark") : html.classList.remove("dark");
+    localStorage.setItem("theme", val ? "dark" : "light");
     setIsDarkMode(val);
   };
 
-  // ── Price alert toggle (API) ──
   const handleAlertToggle = async (val: boolean) => {
     setPriceAlertEnabled(val);
     setPrefLoading(true);
@@ -289,7 +352,7 @@ export default function Profile() {
         body: JSON.stringify({ priceAlertEnabled: val }),
       });
       if (!res.ok) {
-        setPriceAlertEnabled(!val); // rollback
+        setPriceAlertEnabled(!val);
         toast.error("Failed to save preference.");
       } else {
         toast.success(val ? "Price alerts enabled." : "Price alerts disabled.");
@@ -302,7 +365,6 @@ export default function Profile() {
     }
   };
 
-  // ── Delete account ──
   const handleDeleteAccount = async () => {
     setDeleteError("");
     if (!deletePassword) {
@@ -340,14 +402,14 @@ export default function Profile() {
         <div className="border-b border-borderLight dark:border-borderLight-dark px-6 md:px-12 py-10 md:py-14">
           <div className="max-w-4xl mx-auto flex items-end gap-6">
             <Avatar name={userInfo.name} />
-            <div>
-              <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-1">
+            <div className="min-w-0">
+              <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5">
                 Member Account
               </p>
-              <h1 className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark">
+              <h1 className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark truncate">
                 {userInfo.name}
               </h1>
-              <p className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark mt-1.5">
+              <p className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark mt-2">
                 {userInfo.email}
               </p>
             </div>
@@ -378,63 +440,52 @@ export default function Profile() {
               {/* ══ GENERAL ══ */}
               {activeTab === "general" && (
                 <div className="flex flex-col gap-8">
-                  <div>
-                    <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-6">
-                      Account Details
-                    </p>
-                    <div className="flex flex-col gap-6">
-                      <FieldInput
-                        label="Full Name"
-                        value={name}
-                        onChange={setName}
-                        placeholder="Your full name"
-                        autoComplete="name"
-                      />
-                      <FieldInput
-                        label="Email Address"
-                        type="email"
-                        value={email}
-                        onChange={setEmail}
-                        placeholder="your@email.com"
-                        autoComplete="email"
-                      />
-                    </div>
+                  <div className="flex flex-col gap-7">
+                    <EditableInput
+                      label="Full Name"
+                      value={name}
+                      onChange={setName}
+                      placeholder="Your full name"
+                      autoComplete="name"
+                    />
+                    {/* Email is locked — changing it is a security concern */}
+                    <ReadOnlyField
+                      label="Email Address"
+                      value={userInfo.email}
+                      note="Cannot be changed"
+                    />
                   </div>
 
                   {generalError && <ErrorBanner message={generalError} />}
 
-                  <div>
-                    <ActionButton
-                      onClick={handleGeneralSave}
-                      loading={generalLoading}
-                    >
-                      Save Changes
-                    </ActionButton>
-                  </div>
+                  <ActionButton
+                    onClick={handleGeneralSave}
+                    loading={generalLoading}
+                  >
+                    Save Changes
+                  </ActionButton>
 
                   {/* ── Danger Zone ── */}
-                  <div className="pt-8 mt-4 border-t border-borderLight dark:border-borderLight-dark flex flex-col gap-4">
+                  <div className="pt-8 mt-2 border-t border-borderLight dark:border-borderLight-dark flex flex-col gap-4">
                     <div>
-                      <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-accentRed mb-1">
+                      <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-accentRed mb-2">
                         Danger Zone
                       </p>
-                      <p className="font-sans text-[11px] tracking-wide text-textMuted dark:text-textMuted-dark">
+                      <p className="font-sans text-[11px] tracking-wide leading-relaxed text-textMuted dark:text-textMuted-dark">
                         Permanently delete your account and all associated data.
                         This action cannot be undone.
                       </p>
                     </div>
-                    <div>
-                      <ActionButton
-                        onClick={() => {
-                          setDeleteError("");
-                          setDeletePassword("");
-                          setDeleteModalOpen(true);
-                        }}
-                        destructive
-                      >
-                        Delete Account
-                      </ActionButton>
-                    </div>
+                    <ActionButton
+                      onClick={() => {
+                        setDeleteError("");
+                        setDeletePassword("");
+                        setDeleteModalOpen(true);
+                      }}
+                      destructive
+                    >
+                      Delete Account
+                    </ActionButton>
                   </div>
                 </div>
               )}
@@ -443,32 +494,29 @@ export default function Profile() {
               {activeTab === "security" && (
                 <div className="flex flex-col gap-8">
                   <div>
-                    <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-textMuted dark:text-textMuted-dark mb-6">
+                    <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark mb-7">
                       Change Password
                     </p>
-                    <div className="flex flex-col gap-6">
-                      <FieldInput
+                    <div className="flex flex-col gap-7">
+                      <PasswordInput
                         label="Current Password"
-                        type="password"
                         value={currentPassword}
                         onChange={setCurrentPassword}
-                        placeholder="••••••••"
                         autoComplete="current-password"
                       />
-                      <FieldInput
+                      {/* Visual separator before new password group */}
+                      <div className="h-px w-8 bg-borderLight dark:bg-borderLight-dark" />
+                      <PasswordInput
                         label="New Password"
-                        type="password"
                         value={newPassword}
                         onChange={setNewPassword}
                         placeholder="Min. 8 characters"
                         autoComplete="new-password"
                       />
-                      <FieldInput
+                      <PasswordInput
                         label="Confirm New Password"
-                        type="password"
                         value={confirmPassword}
                         onChange={setConfirmPassword}
-                        placeholder="••••••••"
                         autoComplete="new-password"
                       />
                     </div>
@@ -476,21 +524,24 @@ export default function Profile() {
 
                   {securityError && <ErrorBanner message={securityError} />}
 
-                  <div>
-                    <ActionButton
-                      onClick={handlePasswordSave}
-                      loading={securityLoading}
-                    >
-                      Update Password
-                    </ActionButton>
-                  </div>
+                  <ActionButton
+                    onClick={handlePasswordSave}
+                    loading={securityLoading}
+                  >
+                    Update Password
+                  </ActionButton>
+
+                  {/* Note about email not being changeable here */}
+                  <p className="font-sans text-[9px] tracking-wide text-textMuted/60 dark:text-textMuted-dark/60 leading-relaxed">
+                    Your registered email address cannot be changed. If you need
+                    to update it, please contact support.
+                  </p>
                 </div>
               )}
 
               {/* ══ PREFERENCES ══ */}
               {activeTab === "preferences" && (
                 <div className="flex flex-col gap-0 border border-borderLight dark:border-borderLight-dark divide-y divide-borderLight dark:divide-borderLight-dark">
-                  {/* Dark mode */}
                   <div className="flex items-center justify-between px-5 py-5">
                     <div>
                       <p className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
@@ -506,15 +557,13 @@ export default function Profile() {
                     />
                   </div>
 
-                  {/* Price alerts */}
                   <div className="flex items-center justify-between px-5 py-5">
                     <div>
                       <p className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
                         Price Drop Alerts
                       </p>
                       <p className="font-sans text-[9px] tracking-wide text-textMuted dark:text-textMuted-dark mt-0.5">
-                        Receive email notifications when watched items drop in
-                        price
+                        Email notifications when watched items drop in price
                       </p>
                     </div>
                     <Toggle
@@ -540,14 +589,11 @@ export default function Profile() {
         onConfirm={handleDeleteAccount}
         onCancel={() => setDeleteModalOpen(false)}
       >
-        {/* Password field injected into modal body */}
-        <div className="flex flex-col gap-1.5 mt-4">
-          <FieldInput
+        <div className="flex flex-col gap-2 mt-4">
+          <PasswordInput
             label="Password"
-            type="password"
             value={deletePassword}
             onChange={setDeletePassword}
-            placeholder="Confirm your password"
             autoComplete="current-password"
           />
           {deleteError && <ErrorBanner message={deleteError} />}
