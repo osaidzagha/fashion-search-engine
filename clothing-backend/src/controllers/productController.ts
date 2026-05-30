@@ -769,3 +769,34 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
+// ─── GET /api/products/trending ──────────────────────────────────────────────
+export const getTrendingProducts = async (req: Request, res: Response) => {
+  try {
+    const deptFilter: any = {};
+    if (req.query.departments) {
+      const depts = (req.query.departments as string).split(",");
+      const regexParts = depts.map((d) => {
+        const upper = d.trim().toUpperCase();
+        if (upper === "MAN" || upper === "MEN") return "\\b(man|men|mens|men's)\\b";
+        return "\\b(woman|women|womens|women's)\\b";
+      });
+      deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
+    }
+
+    const products = await ProductModel.find({
+      $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
+      images: { $exists: true, $not: { $size: 0 } },
+      ...deptFilter,
+    },
+    { description: 0, composition: 0, videos: 0 })
+      .sort({ updatedAt: -1 })
+      .limit(12)
+      .lean();
+
+    return res.status(200).json(products);
+  } catch (error) {
+    console.error("Error fetching trending products:", error);
+    return res.status(500).json({ message: "Server Error" });
+  }
+};

@@ -7,6 +7,7 @@ import {
   getSearchSuggestions,
   getRelatedProducts,
   getCategories,
+  getTrendingProducts, // ← add this
 } from "../controllers/productController";
 import { protect, admin } from "../middlewares/authMiddleware";
 
@@ -18,6 +19,7 @@ const router = Router();
 router.get("/featured", getFeaturedProducts);
 router.get("/suggestions", getSearchSuggestions);
 router.get("/categories", getCategories);
+router.get("/trending", getTrendingProducts);
 router.get("/", getProducts);
 
 // ✅ Related products route (Uses your new controller!)

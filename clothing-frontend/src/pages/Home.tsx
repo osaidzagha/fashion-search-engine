@@ -123,29 +123,35 @@ export default function Home() {
   );
 
   const [featured, setFeatured] = useState<FeaturedData | null>(null);
+  const [trending, setTrending] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    const fetchFeatured = async () => {
+    const fetchAll = async () => {
       setLoading(true);
       try {
         const queryParams = new URLSearchParams();
         if (selectDepartments?.length) {
           queryParams.set("departments", selectDepartments.join(","));
         }
-        const res = await fetch(
-          `${BASE_URL}/api/products/featured?${queryParams.toString()}`,
-        );
-        const data = await res.json();
-        if (!cancelled) setFeatured(data);
+        const [featuredRes, trendingRes] = await Promise.all([
+          fetch(`${BASE_URL}/api/products/featured?${queryParams.toString()}`),
+          fetch(`${BASE_URL}/api/products/trending?${queryParams.toString()}`),
+        ]);
+        const data = await featuredRes.json();
+        const trendingData = await trendingRes.json();
+        if (!cancelled) {
+          setFeatured(data);
+          setTrending(trendingData);
+        }
       } catch (err) {
         console.error("Failed to load featured products", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
-    fetchFeatured();
+    fetchAll();
     return () => {
       cancelled = true;
     };
@@ -166,14 +172,13 @@ export default function Home() {
       ? "Men's Collection"
       : selectDepartments?.[0] === "Women" || selectDepartments?.[0] === "WOMAN"
         ? "Women's Collection"
-        : "Zara · Massimo Dutti";
+        : "Zara · Massimo Dutti · Mango";
 
   return (
     <PageTransition>
       <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark overflow-x-hidden">
-        {/* ══ HERO — always rendered immediately, never blocked ══════════════ */}
+        {/* ══ HERO ══════════════════════════════════════════════════════════ */}
         <section className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)]">
-          {/* LEFT — text + search: shows instantly */}
           <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-8 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
             <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4 lg:mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
               {deptLabel}
@@ -194,10 +199,8 @@ export default function Home() {
             </div>
           </div>
 
-          {/* RIGHT — skeleton shimmer while loading, real content after */}
           <div className="relative w-full h-[55vw] min-h-[260px] max-h-[420px] lg:max-h-none lg:h-auto lg:min-h-full bg-black overflow-hidden">
             {loading ? (
-              /* Skeleton shimmer — no black void */
               <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 animate-pulse">
                 <div className="absolute bottom-6 left-6 space-y-3">
                   <div className="h-2 w-12 bg-white/10 rounded" />
@@ -219,7 +222,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ══ EDITOR'S CHOICE — skeleton shown immediately ══════════════════ */}
+        {/* ══ EDITOR'S CHOICE ═══════════════════════════════════════════════ */}
         <Section
           title="Editor's Choice"
           subtitle={
@@ -239,7 +242,26 @@ export default function Home() {
           </div>
         </Section>
 
-        {/* ══ SALE — skeleton shown immediately ═════════════════════════════ */}
+        {/* ══ PRICE MOVEMENT ════════════════════════════════════════════════ */}
+        {(loading || trending.length > 0) && (
+          <Section
+            title="Price movement"
+            subtitle="Recently changed"
+            accentLabel="Live Tracking"
+            accentColor="text-accentRed"
+            loading={loading}
+          >
+            <div className={CAROUSEL}>
+              {trending.map((p) => (
+                <div key={p.id} className={CARD_WRAPPER}>
+                  <ProductCard product={p} />
+                </div>
+              ))}
+            </div>
+          </Section>
+        )}
+
+        {/* ══ SALE ══════════════════════════════════════════════════════════ */}
         <Section
           title="Price drops, right now."
           accentLabel="Limited Time"
@@ -265,7 +287,7 @@ export default function Home() {
           </div>
         </Section>
 
-        {/* ══ NEW IN — skeleton shown immediately ═══════════════════════════ */}
+        {/* ══ NEW IN ════════════════════════════════════════════════════════ */}
         <Section
           title="New in"
           subtitle="Latest arrivals"
@@ -291,14 +313,13 @@ export default function Home() {
         </Section>
 
         {/* ══ BRAND SPLIT ═══════════════════════════════════════════════════ */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 border-t border-borderLight dark:border-borderLight-dark">
+        <section className="grid grid-cols-1 sm:grid-cols-3 border-t border-borderLight dark:border-borderLight-dark">
           {loading ? (
-            /* Skeleton brand tiles */
             <>
-              {[0, 1].map((i) => (
+              {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${i === 0 ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark" : ""}`}
+                  className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${i < 2 ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark" : ""}`}
                 >
                   <div className="h-2 w-10 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded mb-3" />
                   <div className="h-8 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
@@ -321,6 +342,26 @@ export default function Home() {
                   </p>
                   <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
                     Zara
+                  </h3>
+                </div>
+                <span className="text-textMuted dark:text-textMuted-dark">
+                  →
+                </span>
+              </div>
+              <div
+                onClick={() => {
+                  dispatch(clearFilters());
+                  dispatch(setSearchTerm(""));
+                  navigate("/collection/mango");
+                }}
+                className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
+              >
+                <div>
+                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                    Brand
+                  </p>
+                  <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
+                    Mango
                   </h3>
                 </div>
                 <span className="text-textMuted dark:text-textMuted-dark">
@@ -357,7 +398,7 @@ export default function Home() {
             Dope
           </span>
           <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-            Price tracking · Zara & Massimo Dutti · Turkey
+            Price tracking · Zara · Mango · Massimo Dutti · Turkey
           </span>
         </footer>
       </div>

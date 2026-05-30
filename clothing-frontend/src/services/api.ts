@@ -213,3 +213,19 @@ export const toggleCampaignHeroAPI = async (productId: string) => {
   );
   return await response.json();
 };
+
+export async function fetchTrendingProducts(
+  departments?: string[],
+): Promise<Product[]> {
+  try {
+    const params = new URLSearchParams();
+    if (departments?.length) params.set("departments", departments.join(","));
+    const response = await globalFetch(
+      `${BASE_URL}/api/products/trending?${params.toString()}`,
+    );
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch trending products:", error);
+    return [];
+  }
+}
