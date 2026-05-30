@@ -31,7 +31,7 @@ const synonymMap: Record<string, string> = {
   // ── ONE-PIECES ──
   dress: "dress gown",
 
-  // ── ACTIVEWEAR (NEW) ──
+  // ── ACTIVEWEAR ──
   activewear:
     "sport sports training running gym fitness ski legging tracksuit yoga",
   sport: "activewear training running gym fitness ski active",
@@ -46,45 +46,26 @@ const synonymMap: Record<string, string> = {
   leather: "leather faux nappa suede",
 };
 
-// ─── The Master Exclusion Map ─────────────────────────────────────────────────
+// ─── Exclusion map ────────────────────────────────────────────────────────────
 const excludeMap: Record<string, string> = {
-  // ── Bottoms ──────────────────────────────────────────────────────────────
   trousers: "short shorts suit blazer dress skirt",
   pant: "short shorts suit blazer dress skirt",
   pants: "short shorts suit blazer dress skirt",
   jeans: "short shorts skirt dress jacket shirt",
   short: "sleeve dress jacket coat boot boots skirt",
   shorts: "sleeve dress jacket coat boot boots skirt",
-
-  // ── Tops ─────────────────────────────────────────────────────────────────
   shirt: "jacket coat blazer dress skirt pant trousers",
   top: "jacket coat bag handle stitched shoe sneakers skirt pants",
   tops: "jacket coat bag handle stitched shoe sneakers skirt pants",
-
-  // ── Outerwear — THE KEY FIX ───────────────────────────────────────────────
-  // "jacket" already excluded blazer; now also exclude "sportcoat" and "tailored"
   jacket:
     "shirt dress skirt pants blazer suit tuxedo waistcoat sportcoat tailored",
-
-  // NEW: "blazer" key stops blazers from appearing in Jackets category.
-  // When taxonomy searches "blazer" (in Suits), exclude casual outerwear words
-  // so a "BLAZER JACKET" phrasing doesn't pull puffers/bombers into Suits.
   blazer: "bomber puffer windbreaker anorak padded quilted gilet tracksuit",
-
   coat: "shirt dress skirt pants",
-
-  // ── Knitwear ─────────────────────────────────────────────────────────────
   sweater: "sweatpant sweatpants jogger joggers",
   sweatpant: "sweater cardigan",
   sweatpants: "sweater cardigan",
-
-  // ── One-pieces ───────────────────────────────────────────────────────────
   dress: "shirt pant pants trouser trousers shoe shoes boot boots sneaker",
-
-  // ── Suits — strip activewear/swimwear from suit results ──────────────────
   suit: "swimsuit tracksuit bodysuit jumpsuit playsuit romper",
-
-  // ── Footwear ─────────────────────────────────────────────────────────────
   boot: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   boots: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   shoe: "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
@@ -92,12 +73,8 @@ const excludeMap: Record<string, string> = {
     "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
-
-  // ── Bags ─────────────────────────────────────────────────────────────────
   bag: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
   bags: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
-
-  // ── Misc ─────────────────────────────────────────────────────────────────
   trunk: "swimsuit swim boardshort",
   trunks: "luggage suitcase bag",
   belt: "jeans pant pants trousers trouser skirt dress shirt jacket coat",
@@ -107,8 +84,6 @@ const excludeMap: Record<string, string> = {
   chain: "bag handbag shoe shoes boot boots loafer loafers",
   ring: "zip zipper detail bag shoe neck",
   watch: "cap beanie hat",
-
-  // ── Jewelry & Accessories ─────────────────────────────────────────────────
   jewelry:
     "shoe shoes boot boots clog clogs sneaker sneakers bag bags backpack crossbody socks jacket coat sweater",
   jewellery:
@@ -119,21 +94,13 @@ const excludeMap: Record<string, string> = {
     "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
   accessories:
     "shoe shoes boot boots clog clogs sneaker sneakers jacket coat sweater",
-  // ── Fix the "Bucket" Bug ──
-  // Mongo splits "bucket-hat" into "bucket" and "hat". If it sees "bucket", exclude bags!
   bucket: "bag bags tote shopper backpack crossbody",
-
-  // ── Fix the "Heel" Bug ──
-  // If someone clicks the Heels category, strictly exclude men's sneakers
   heel: "sneaker sneakers trainer trainers",
   heels: "sneaker sneakers trainer trainers",
-
-  // ── Fix the "Thong" Bug ──
-  // If someone searches for a thong (lingerie), exclude sandals!
   thong: "sandal sandals flip-flop slide shoe shoes",
 };
 
-// ─── Build a filter from query params ────────────────────────────────────────
+// ─── Build base filter from query params ──────────────────────────────────────
 function buildBaseFilter(query: any): any {
   const filter: any = {};
 
@@ -147,6 +114,7 @@ function buildBaseFilter(query: any): any {
       filter.price = { $lte: priceNum };
     }
   }
+
   if (query.brand) {
     filter.brand = {
       $in: (query.brand as string).split(",").map((b: string) => b.trim()),
@@ -187,164 +155,131 @@ function buildBaseFilter(query: any): any {
   return filter;
 }
 
+// ─── Build search filter from raw search string ───────────────────────────────
+function applySearchFilter(
+  filter: any,
+  rawSearch: string,
+  isCategoryMode: boolean,
+): void {
+  const cleanSearch = rawSearch.replace(/[-&|©]/g, " ");
+
+  if (isCategoryMode) {
+    const rawTerms = cleanSearch
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 1);
+
+    let expandedTerms: string[] = [];
+    let excludeTerms: string[] = [];
+
+    rawTerms.forEach((word) => {
+      const isPlural =
+        word.endsWith("s") &&
+        !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+      const singular = isPlural ? word.slice(0, -1) : word;
+
+      expandedTerms.push(word);
+
+      const mappedSynonyms = synonymMap[word] || synonymMap[singular];
+      if (mappedSynonyms) expandedTerms.push(...mappedSynonyms.split(/\s+/));
+
+      const mappedExcludes = excludeMap[word] || excludeMap[singular];
+      if (mappedExcludes) excludeTerms.push(...mappedExcludes.split(/\s+/));
+    });
+
+    const uniqueTerms = Array.from(new Set(expandedTerms)).map((w) =>
+      w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+    );
+
+    if (uniqueTerms.length > 0) {
+      const regexPattern = `\\b(${uniqueTerms.join("|")})\\b`;
+      filter.$or = [
+        { category: new RegExp(regexPattern, "i") },
+        { name: new RegExp(regexPattern, "i") },
+      ];
+    }
+
+    const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
+    if (uniqueExcludeTerms.length > 0) {
+      const excludeRegex = new RegExp(
+        `\\b(${uniqueExcludeTerms.join("|")})\\b`,
+        "i",
+      );
+      filter.$and = filter.$and || [];
+      filter.$and.push({ name: { $not: excludeRegex } });
+      filter.$and.push({ category: { $not: excludeRegex } });
+    }
+  } else {
+    const userWords = cleanSearch
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((w) => w.length > 0);
+
+    if (userWords.length > 0) {
+      let textSearchTerms: string[] = [];
+      let excludeTerms: string[] = [];
+
+      userWords.forEach((word) => {
+        const isPlural =
+          word.endsWith("s") &&
+          !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+        const singular = isPlural ? word.slice(0, -1) : word;
+
+        textSearchTerms.push(word);
+
+        const mappedSynonyms = synonymMap[word] || synonymMap[singular];
+        if (mappedSynonyms)
+          textSearchTerms.push(...mappedSynonyms.split(/\s+/));
+
+        const mappedExcludes = excludeMap[word] || excludeMap[singular];
+        if (mappedExcludes) excludeTerms.push(...mappedExcludes.split(/\s+/));
+      });
+
+      const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
+      const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
+
+      let finalMongoSearchString = uniqueSearchTerms.join(" ");
+      if (uniqueExcludeTerms.length > 0) {
+        finalMongoSearchString +=
+          " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
+      }
+
+      filter.$text = { $search: finalMongoSearchString };
+
+      if (uniqueExcludeTerms.length > 0) {
+        const excludeRegex = new RegExp(
+          `\\b(${uniqueExcludeTerms.join("|")})\\b`,
+          "i",
+        );
+        filter.$and = filter.$and || [];
+        filter.$and.push({ name: { $not: excludeRegex } });
+        filter.$and.push({ category: { $not: excludeRegex } });
+      }
+    }
+  }
+}
+
 // ─── GET /api/products ────────────────────────────────────────────────────────
 export const getProducts = async (req: Request, res: Response) => {
   try {
     const page = Number(req.query.page) || 1;
     const limit = Math.min(Number(req.query.limit) || 20, 50);
     const skip = (page - 1) * limit;
+    const sortParam = req.query.sort as string | undefined;
 
     const baseFilter = buildBaseFilter(req.query);
-    let sortOption: any = {};
-    if (req.query.sort === "lowest") sortOption.price = 1;
-    else if (req.query.sort === "highest") sortOption.price = -1;
-
     let filter: any = { ...baseFilter };
 
     const rawSearch = (
       (req.query.search as string) || (req.query.q as string)
     )?.trim();
 
-    const isCategoryMode = req.query.mode === "category";
-
     if (rawSearch) {
-      const cleanSearch = rawSearch.replace(/[-&|©]/g, " ");
-
-      if (isCategoryMode) {
-        // ── CATEGORY NAV: Inject Synonyms into the Regex ──────────
-        const rawTerms = cleanSearch
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 1);
-
-        let expandedTerms: string[] = [];
-        let excludeTerms: string[] = []; // 👈 Keep track of exclusions
-
-        rawTerms.forEach((word) => {
-          const isPlural =
-            word.endsWith("s") &&
-            !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
-          const singular = isPlural ? word.slice(0, -1) : word;
-
-          expandedTerms.push(word);
-
-          const mappedSynonyms = synonymMap[word] || synonymMap[singular];
-          if (mappedSynonyms) {
-            expandedTerms.push(...mappedSynonyms.split(/\s+/));
-          }
-
-          const mappedExcludes = excludeMap[word] || excludeMap[singular];
-          if (mappedExcludes) {
-            excludeTerms.push(...mappedExcludes.split(/\s+/));
-          }
-        });
-
-        const uniqueTerms = Array.from(new Set(expandedTerms)).map((w) =>
-          w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        );
-
-        if (uniqueTerms.length > 0) {
-          const regexPattern = `\\b(${uniqueTerms.join("|")})\\b`;
-          const regex = new RegExp(regexPattern, "i");
-
-          filter.$or = [{ category: regex }, { name: regex }];
-        }
-
-        // Apply Exclusions
-        const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
-        if (uniqueExcludeTerms.length > 0) {
-          const excludePattern = uniqueExcludeTerms.join("|");
-          const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
-          filter.$and = filter.$and || [];
-          filter.$and.push({ name: { $not: excludeRegex } });
-          filter.$and.push({ category: { $not: excludeRegex } });
-        }
-      } else {
-        // ── USER SEARCH: existing $text + synonym + exclusion logic ───────────
-        const userWords = cleanSearch
-          .toLowerCase()
-          .split(/\s+/)
-          .filter((w) => w.length > 0);
-
-        if (userWords.length > 0) {
-          let textSearchTerms: string[] = [];
-          let excludeTerms: string[] = [];
-
-          userWords.forEach((word) => {
-            const isPlural =
-              word.endsWith("s") &&
-              !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
-            const singular = isPlural ? word.slice(0, -1) : word;
-
-            textSearchTerms.push(word);
-
-            const mappedSynonyms = synonymMap[word] || synonymMap[singular];
-            if (mappedSynonyms) {
-              textSearchTerms.push(...mappedSynonyms.split(/\s+/));
-            }
-
-            const mappedExcludes = excludeMap[word] || excludeMap[singular];
-            if (mappedExcludes) {
-              excludeTerms.push(...mappedExcludes.split(/\s+/));
-            }
-          });
-
-          const uniqueSearchTerms = Array.from(new Set(textSearchTerms));
-          const uniqueExcludeTerms = Array.from(new Set(excludeTerms));
-
-          let finalMongoSearchString = uniqueSearchTerms.join(" ");
-          if (uniqueExcludeTerms.length > 0) {
-            finalMongoSearchString +=
-              " " + uniqueExcludeTerms.map((ex) => `-${ex}`).join(" ");
-          }
-
-          filter.$text = { $search: finalMongoSearchString };
-
-          if (uniqueExcludeTerms.length > 0) {
-            const excludePattern = uniqueExcludeTerms.join("|");
-            const excludeRegex = new RegExp(`\\b(${excludePattern})\\b`, "i");
-            filter.$and = filter.$and || [];
-            filter.$and.push({ name: { $not: excludeRegex } });
-            filter.$and.push({ category: { $not: excludeRegex } });
-          }
-        }
-      }
+      applySearchFilter(filter, rawSearch, req.query.mode === "category");
     }
 
-    // ── 1. THE PAYLOAD DIET (EXCLUSION STRATEGY) ──
-    let projection: any = {
-      priceHistory: 0,
-      description: 0,
-      composition: 0,
-      videos: 0,
-    };
-
-    // Fix sort — "newest" must override text score sort
-    if (
-      filter.$text &&
-      Object.keys(sortOption).length === 0 &&
-      req.query.sort !== "newest"
-    ) {
-      projection.score = { $meta: "textScore" };
-      sortOption = { score: { $meta: "textScore" } };
-    }
-
-    // "newest" always wins regardless of text index
-    if (req.query.sort === "newest") {
-      sortOption = { timestamp: -1 };
-    }
-
-    // ── 2. THE LEAN QUERY ──
-    const [allProducts, total] = await Promise.all([
-      ProductModel.find(filter, projection)
-        .sort(Object.keys(sortOption).length ? sortOption : { timestamp: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      ProductModel.countDocuments(filter),
-    ]);
-
-    const [facetResult] = await ProductModel.aggregate([
+    // ── Facet query (sizes + colors) — always the same regardless of sort ──
+    const facetPipeline: any[] = [
       { $match: filter },
       {
         $facet: {
@@ -362,15 +297,119 @@ export const getProducts = async (req: Request, res: Response) => {
           ],
         },
       },
+    ];
+
+    // ── DISCOUNT SORT: requires aggregation pipeline ──────────────────────────
+    // Can't use a simple .sort() because discountPct is a computed field.
+    // We only include products with originalPrice > price (genuinely on sale).
+    if (sortParam === "discount") {
+      const discountPipeline: any[] = [
+        {
+          $match: {
+            ...filter,
+            // Only products actually on sale are meaningful here
+            originalPrice: { $exists: true, $ne: null, $gt: 0 },
+            $expr: { $gt: ["$originalPrice", "$price"] },
+          },
+        },
+        {
+          $addFields: {
+            discountPct: {
+              $multiply: [
+                {
+                  $divide: [
+                    { $subtract: ["$originalPrice", "$price"] },
+                    "$originalPrice",
+                  ],
+                },
+                100,
+              ],
+            },
+          },
+        },
+        { $sort: { discountPct: -1 } },
+        // Payload diet — strip heavy fields
+        {
+          $project: {
+            priceHistory: 0,
+            description: 0,
+            composition: 0,
+            videos: 0,
+          },
+        },
+        // Run count and paginated results in parallel
+        {
+          $facet: {
+            data: [{ $skip: skip }, { $limit: limit }],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const [discountResult, facetResult] = await Promise.all([
+        ProductModel.aggregate(discountPipeline),
+        ProductModel.aggregate(facetPipeline),
+      ]);
+
+      const products = discountResult[0]?.data || [];
+      const total = discountResult[0]?.totalCount?.[0]?.count || 0;
+      const [facet] = facetResult;
+
+      return res.status(200).json({
+        products,
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        availableSizes: (facet?.sizes || []).map((s: any) => s._id),
+        availableColors: (facet?.colors || []).map((c: any) => c._id),
+      });
+    }
+
+    // ── STANDARD SORTS (lowest / highest / newest / text score) ──────────────
+    let sortOption: any = {};
+    let projection: any = {
+      priceHistory: 0,
+      description: 0,
+      composition: 0,
+      videos: 0,
+    };
+
+    if (sortParam === "lowest") {
+      sortOption = { price: 1 };
+    } else if (sortParam === "highest") {
+      sortOption = { price: -1 };
+    } else if (sortParam === "newest") {
+      sortOption = { timestamp: -1 };
+    } else if (filter.$text) {
+      // Text search — sort by relevance score
+      projection.score = { $meta: "textScore" };
+      sortOption = { score: { $meta: "textScore" } };
+    }
+
+    // Default fallback sort
+    if (Object.keys(sortOption).length === 0) {
+      sortOption = { timestamp: -1 };
+    }
+
+    const [allProducts, total, facetResult] = await Promise.all([
+      ProductModel.find(filter, projection)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ProductModel.countDocuments(filter),
+      ProductModel.aggregate(facetPipeline),
     ]);
+
+    const [facet] = facetResult;
 
     return res.status(200).json({
       products: allProducts,
       totalCount: total,
       totalPages: Math.ceil(total / limit),
       currentPage: page,
-      availableSizes: (facetResult?.sizes || []).map((s: any) => s._id),
-      availableColors: (facetResult?.colors || []).map((c: any) => c._id),
+      availableSizes: (facet?.sizes || []).map((s: any) => s._id),
+      availableColors: (facet?.colors || []).map((c: any) => c._id),
     });
   } catch (error) {
     console.error("Error fetching products:", error);
@@ -389,18 +428,15 @@ export const getProductById = async (req: Request, res: Response) => {
   }
 };
 
-// ─── DELETE /api/admin/products/:id ───────────────────────────────────────────
+// ─── DELETE /api/admin/products/:id ──────────────────────────────────────────
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
-    // Assuming your products use a custom string 'id' from the scraper, not just MongoDB's '_id'
     const deletedProduct = await ProductModel.findOneAndDelete({
       id: req.params.id,
     });
-
     if (!deletedProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
-
     return res.status(200).json({ message: "Product permanently deleted" });
   } catch (error) {
     console.error("Error deleting product:", error);
@@ -408,7 +444,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
   }
 };
 
-// ─── GET /api/products/featured ───────────────────────────────────────────────
+// ─── GET /api/products/featured ──────────────────────────────────────────────
 export const getFeaturedProducts = async (req: Request, res: Response) => {
   try {
     const deptFilter: any = {};
@@ -425,7 +461,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const NON_CLOTHING_CATEGORY_RE =
       /hair|perfume|fragrance|cologne|accessori|belt|wallet|watch|jewel/i;
 
-    // THE OMNI-QUERY: Shared video search logic
     const videoOmniQuery = {
       $or: [
         { video: { $exists: true, $nin: [null, ""] } },
@@ -448,7 +483,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       trousers,
       knitwear,
     ] = await Promise.allSettled([
-      // ── 1. On sale — Sorted by RECENCY first, then discount ──
       ProductModel.aggregate([
         {
           $match: {
@@ -471,12 +505,10 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
             },
           },
         },
-        // Prioritize fresh drops over older, steeper discounts
         { $sort: { timestamp: -1, discountPct: -1 } },
         { $limit: 12 },
       ]),
 
-      // ── 2. New In — Brand Agnostic (Now includes Mango & Future Brands!) ──
       ProductModel.find({
         images: { $exists: true, $not: { $size: 0 } },
         ...deptFilter,
@@ -485,22 +517,19 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .limit(15)
         .lean(),
 
-      // ── 3. Editor's Choice (All Videos) ──
       ProductModel.find(videoOmniQuery)
         .sort({ timestamp: -1 })
         .limit(20)
         .lean(),
 
-      // ── 4. Dedicated Campaign Heroes ──
       ProductModel.find({
         isCampaignHero: true,
-        ...videoOmniQuery, // Ensure it actually has a video
+        ...videoOmniQuery,
       })
         .sort({ timestamp: -1 })
         .limit(30)
         .lean(),
 
-      // ── Category hero tiles ──
       ProductModel.findOne({
         category: { $regex: "jacket", $options: "i" },
         images: { $exists: true, $not: { $size: 0 } },
@@ -537,7 +566,6 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const rawVideoProducts: any[] = getValue(withVideoRaw) || [];
     const campaignHeroes: any[] = getValue(campaignHeroesRaw) || [];
 
-    // Filter non-clothing from Editor's Choice
     const withVideo = rawVideoProducts.filter(
       (p) =>
         !NON_CLOTHING_CATEGORY_RE.test(p.category || "") &&
@@ -546,7 +574,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       onSale: getValue(onSaleRaw) || [],
-      newIn: getValue(newInRaw) || [], // Unified array!
+      newIn: getValue(newInRaw) || [],
       withVideo,
       campaignHeroes,
       categoryTiles: {
@@ -561,6 +589,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Server Error" });
   }
 };
+
 // ─── GET /api/products/suggestions ───────────────────────────────────────────
 export const getSearchSuggestions = async (req: Request, res: Response) => {
   try {
@@ -595,7 +624,7 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
   }
 };
 
-// ─── GET /api/categories ─────────────────────────────────────────────────────
+// ─── GET /api/categories ──────────────────────────────────────────────────────
 export const getCategories = async (req: Request, res: Response) => {
   try {
     const potentialCategories = [
@@ -627,28 +656,6 @@ export const getCategories = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    const results = await ProductModel.aggregate([
-      { $match: deptFilter },
-      {
-        $group: {
-          _id: null,
-          allNames: { $push: { $toLower: "$name" } },
-          allCats: { $push: { $toLower: "$category" } },
-        },
-      },
-    ]);
-
-    // better: just do one $facet with regex per category
-    const pipeline = potentialCategories.map((cat) => ({
-      $match: {
-        ...deptFilter,
-        $or: [
-          { name: { $regex: cat, $options: "i" } },
-          { category: { $regex: cat, $options: "i" } },
-        ],
-      },
-    }));
-
     const active: string[] = [];
     await Promise.all(
       potentialCategories.map(async (cat) => {
@@ -670,13 +677,13 @@ export const getCategories = async (req: Request, res: Response) => {
   }
 };
 
-// DELETE /api/products/:id/media
+// ─── DELETE /api/products/:id/media ──────────────────────────────────────────
 export const deleteProductMedia = async (
   req: Request,
   res: Response,
 ): Promise<void> => {
   try {
-    const { id } = req.params; // This is the string ID like 'pb_03671510'
+    const { id } = req.params;
     const { mediaUrls } = req.body;
 
     if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) {
@@ -684,15 +691,9 @@ export const deleteProductMedia = async (
       return;
     }
 
-    // Notice we use findOneAndUpdate({ id: id }) to match your custom ID string
     const updatedProduct = await ProductModel.findOneAndUpdate(
-      { id: id },
-      {
-        $pullAll: {
-          images: mediaUrls,
-          videos: mediaUrls,
-        },
-      },
+      { id },
+      { $pullAll: { images: mediaUrls, videos: mediaUrls } },
       { new: true },
     );
 
@@ -713,35 +714,30 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // 1. Fetch the target product so we know what we are comparing against
     const currentProduct = await ProductModel.findOne({ id }).lean();
     if (!currentProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // 2. Build the Search String (The "DNA" of the product)
-    // We combine the name and category to give the text index good keywords.
     const searchString =
       `${currentProduct.name} ${currentProduct.category || ""}`.trim();
 
-    // 3. The Hybrid Query
     let relatedProducts = await ProductModel.find(
       {
         $text: { $search: searchString },
-        id: { $ne: id }, // SAFETY: Do not recommend the exact same product
-        department: currentProduct.department, // SAFETY: Stay in the same department
+        id: { $ne: id },
+        department: currentProduct.department,
       },
       {
-        score: { $meta: "textScore" }, // Get the relevance score
-        description: 0, // Payload diet: keep the response light
+        score: { $meta: "textScore" },
+        description: 0,
         priceHistory: 0,
       },
     )
-      .sort({ score: { $meta: "textScore" } }) // Sort by most relevant first
-      .limit(4) // Only send back 4 items for the UI carousel
+      .sort({ score: { $meta: "textScore" } })
+      .limit(4)
       .lean();
 
-    // 4. The Fallback (Just in case the text search is too narrow)
     if (relatedProducts.length === 0 && currentProduct.category) {
       relatedProducts = await ProductModel.find({
         id: { $ne: id },
@@ -752,7 +748,7 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
         .limit(4)
         .lean();
     }
-    // Tier 3: same brand
+
     if (relatedProducts.length === 0) {
       relatedProducts = await ProductModel.find({
         id: { $ne: id },
@@ -763,6 +759,7 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
         .limit(4)
         .lean();
     }
+
     return res.status(200).json(relatedProducts);
   } catch (error) {
     console.error("Error fetching related products:", error);
@@ -778,18 +775,24 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
       const depts = (req.query.departments as string).split(",");
       const regexParts = depts.map((d) => {
         const upper = d.trim().toUpperCase();
-        if (upper === "MAN" || upper === "MEN") return "\\b(man|men|mens|men's)\\b";
+        if (upper === "MAN" || upper === "MEN")
+          return "\\b(man|men|mens|men's)\\b";
         return "\\b(woman|women|womens|women's)\\b";
       });
-      deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
+      deptFilter.department = {
+        $regex: regexParts.join("|"),
+        $options: "i",
+      };
     }
 
-    const products = await ProductModel.find({
-      $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
-      images: { $exists: true, $not: { $size: 0 } },
-      ...deptFilter,
-    },
-    { description: 0, composition: 0, videos: 0 })
+    const products = await ProductModel.find(
+      {
+        $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      },
+      { description: 0, composition: 0, videos: 0 },
+    )
       .sort({ updatedAt: -1 })
       .limit(12)
       .lean();

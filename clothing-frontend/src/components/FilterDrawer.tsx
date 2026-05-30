@@ -14,7 +14,7 @@ interface FilterDrawerProps {
   onClose: () => void;
 }
 
-// ─── Helpers (Logic Intact) ───
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 const LETTER_SIZE_ORDER = [
   "XXS",
   "XS",
@@ -43,7 +43,7 @@ function sortNumericSizes(sizes: string[]) {
   return sizes.sort((a, b) => parseInt(a) - parseInt(b));
 }
 
-// ─── Color mapper ───
+// ─── Color mapper ─────────────────────────────────────────────────────────────
 const getColorHex = (colorName: string) => {
   if (!colorName) return "#E0E0E0";
   const safeColor = colorName.toLowerCase().trim();
@@ -68,7 +68,7 @@ const getColorHex = (colorName: string) => {
   return map[safeColor] || "#E0E0E0";
 };
 
-// ─── Sub-Components ───
+// ─── Sub-Components ───────────────────────────────────────────────────────────
 function SectionHeader({ index, title }: { index: string; title: string }) {
   return (
     <div className="flex gap-4 mb-4 md:mb-6 transition-colors duration-500">
@@ -127,6 +127,7 @@ function FilterOption({
   );
 }
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
   const dispatch = useDispatch();
   const {
@@ -144,9 +145,12 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
     (s) => !isLetterSize(s) && !isNumericSize(s),
   );
 
+  // ✅ FIXED: Correct brands — Zara, Mango, Massimo Dutti (Pull & Bear removed)
+  const BRANDS = ["Zara", "Mango", "Massimo Dutti"];
+
   return (
     <>
-      {/* 1. Backdrop Overlay */}
+      {/* Backdrop */}
       <div
         className={`fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-[150] transition-opacity duration-500 ${
           isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
@@ -154,7 +158,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
         onClick={onClose}
       />
 
-      {/* 2. Sliding Drawer */}
+      {/* Drawer */}
       <div
         className={`fixed top-0 right-0 h-full w-full max-w-[400px] bg-bgPrimary dark:bg-bgPrimary-dark z-[200] transform transition-transform duration-500 ease-elegant flex flex-col shadow-premium dark:shadow-premium-dark ${
           isOpen ? "translate-x-0" : "translate-x-full"
@@ -173,13 +177,13 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           </button>
         </div>
 
-        {/* Scrollable Content (Responsive padding applied here) */}
+        {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto p-6 md:p-12 space-y-10 md:space-y-16 scrollbar-hide">
-          {/* Curator Section */}
+          {/* 01 — Curator / Brand */}
           <div>
             <SectionHeader index="01" title="Curator" />
             <div className="flex flex-col gap-2 pl-6 md:pl-10">
-              {["Zara", "Massimo Dutti", "Pull & Bear"].map((brand) => (
+              {BRANDS.map((brand) => (
                 <FilterOption
                   key={brand}
                   label={brand}
@@ -190,7 +194,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           </div>
 
-          {/* Colours Section */}
+          {/* 02 — Colour */}
           {availableColors.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="02" title="Colour" />
@@ -213,7 +217,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           )}
 
-          {/* Price Section */}
+          {/* 03 — Price */}
           <div>
             <SectionHeader index="03" title="Price" />
             <div className="pl-6 md:pl-10 pr-4">
@@ -247,7 +251,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           </div>
 
-          {/* Sizes Section */}
+          {/* 04 — Size */}
           {availableSizes.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="04" title="Size" />
@@ -267,7 +271,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           )}
         </div>
 
-        {/* Sticky Footer */}
+        {/* Sticky footer */}
         <div className="p-6 md:p-8 border-t border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark flex gap-4 transition-colors duration-500">
           <button
             onClick={() => dispatch(clearFilters())}
@@ -277,7 +281,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           </button>
           <button
             onClick={onClose}
-            className="flex-[2] py-4 border border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:bg-bgHover dark:hover:bg-bgHover-dark hover:border-bgHover transition-all duration-300 cursor-pointer"
+            className="flex-[2] py-4 border border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:opacity-80 transition-all duration-300 cursor-pointer"
           >
             View Results
           </button>

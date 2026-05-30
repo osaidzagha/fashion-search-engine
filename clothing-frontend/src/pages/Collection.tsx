@@ -16,6 +16,48 @@ import {
 } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 
+// ─── Sort options ─────────────────────────────────────────────────────────────
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "Recommended" },
+  { value: "discount", label: "Biggest Discount" },
+  { value: "lowest", label: "Price ↑" },
+  { value: "highest", label: "Price ↓" },
+];
+
+// ─── Custom sort control ──────────────────────────────────────────────────────
+function SortControl({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      {SORT_OPTIONS.map((opt, i) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={[
+            "font-sans text-[9px] md:text-[10px] tracking-widest uppercase px-2.5 py-1 border-none bg-transparent cursor-pointer transition-all duration-200",
+            value === opt.value
+              ? "text-textPrimary dark:text-textPrimary-dark underline underline-offset-4 decoration-[0.5px]"
+              : "text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark",
+            // Separators between options
+            i < SORT_OPTIONS.length - 1
+              ? "after:content-['/'] after:ml-2.5 after:text-borderLight after:dark:text-borderLight-dark after:no-underline"
+              : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function Collection() {
   const { type } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,7 +66,7 @@ export default function Collection() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const location = useLocation();
 
-  // ── Primitives extracted from URL (Stable for dependencies) ──────────────
+  // ── URL primitives ────────────────────────────────────────────────────────
   const qFromUrl =
     searchParams.get("search") ||
     searchParams.get("q") ||
@@ -54,10 +96,9 @@ export default function Collection() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  // ── Guaranteed Mount Guard ───────────────────────────────────────────────
   const initialFetchDone = useRef(false);
 
-  // ── Header dynamics ──────────────────────────────────────────────────────
+  // ── Header ────────────────────────────────────────────────────────────────
   const getHeaderInfo = () => {
     if (displayTitle)
       return { title: displayTitle, desc: "Explore our curated catalog." };
@@ -82,6 +123,8 @@ export default function Collection() {
           title: "Zara",
           desc: "Contemporary silhouettes and modern tailoring.",
         };
+      case "mango":
+        return { title: "Mango", desc: "Modern Mediterranean style." };
       case "massimo-dutti":
         return {
           title: "Massimo Dutti",
@@ -97,7 +140,7 @@ export default function Collection() {
 
   const header = getHeaderInfo();
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
   useEffect(() => {
     dispatch(setSearchTerm(qFromUrl));
     setCurrentPage(1);
@@ -120,7 +163,6 @@ export default function Collection() {
     const fetchData = async () => {
       dispatch(setLoading(true));
       try {
-        // URL departments take precedence over drawer-selected departments
         const effectiveDepts =
           urlDepts.length > 0 ? urlDepts : selectDepartments || [];
 
@@ -140,7 +182,7 @@ export default function Collection() {
         if (type === "zara") filters.brands = ["Zara"];
         if (type === "mango") filters.brands = ["Mango"];
         if (type === "massimo-dutti") filters.brands = ["Massimo Dutti"];
-        if (type === "new-in") filters.sort = "newest";
+        if (type === "new-in") filters.sort = filters.sort || "newest";
 
         const data = await fetchProductsFromAPI(filters);
 
@@ -158,7 +200,6 @@ export default function Collection() {
       }
     };
 
-    // ✅ FORCE INITIAL MOUNT FETCH
     if (!initialFetchDone.current) {
       fetchData();
       initialFetchDone.current = true;
@@ -168,15 +209,12 @@ export default function Collection() {
       };
     }
 
-    // ✅ SUBSEQUENT FETCHES ON DEPENDENCY CHANGES
     fetchData();
     window.scrollTo({ top: 0, behavior: "smooth" });
 
     return () => {
       ignore = true;
     };
-
-    // ✅ STABLE PRIMITIVE DEPENDENCIES ONLY
   }, [
     searchTerm,
     currentPage,
@@ -194,25 +232,30 @@ export default function Collection() {
     dispatch,
   ]);
 
-  // ── Active filter indicator ──────────────────────────────────────────────
   const hasActiveFilters =
     (selectBrands?.length || 0) > 0 ||
     (selectColors?.length || 0) > 0 ||
     (selectSizes?.length || 0) > 0;
 
+  const handleSortChange = (value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) newParams.set("sort", value);
+    else newParams.delete("sort");
+    setSearchParams(newParams);
+    setCurrentPage(1);
+  };
+
   return (
     <PageTransition>
       <div className="min-h-screen flex flex-col bg-bgPrimary dark:bg-bgPrimary-dark">
-        {/* ══ 1. CINEMATIC HEADER ══════════════════════════════════════════════ */}
+        {/* ══ CINEMATIC HEADER ══════════════════════════════════════════════ */}
         <div className="px-6 md:px-16 lg:px-24 pt-20 md:pt-28 pb-12 md:pb-16 border-b border-borderLight dark:border-borderLight-dark flex flex-col items-center text-center">
           <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-6">
             {type ? "Curated Catalog" : "Search"}
           </p>
-
           <h1 className="font-heading font-light text-[clamp(36px,6vw,72px)] leading-none tracking-[-0.02em] text-textPrimary dark:text-textPrimary-dark mb-0">
             {header.title}
           </h1>
-
           <div className="w-full max-w-[500px] mt-8">
             <SearchBar
               initialValue={displayTitle ? "" : qFromUrl}
@@ -221,14 +264,14 @@ export default function Collection() {
           </div>
         </div>
 
-        {/* ══ 2. EDITORIAL FULL-WIDTH LAYOUT ═══════════════════════════════════ */}
+        {/* ══ LAYOUT ════════════════════════════════════════════════════════ */}
         <div className="flex flex-col flex-1 w-full max-w-[1800px] mx-auto px-6 md:px-16 lg:px-24 py-10 md:py-14 pb-24 md:pb-32">
           {/* ── Utility bar ── */}
           <div className="flex justify-between items-center mb-10 md:mb-12 border-b border-borderLight dark:border-borderLight-dark pb-4">
             {/* LEFT: Filter trigger */}
             <button
               onClick={() => setIsFilterOpen(true)}
-              className="flex items-center gap-2 font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent border-none cursor-pointer text-textPrimary dark:text-textPrimary-dark hover:opacity-60 transition-opacity duration-200 ease-smooth"
+              className="flex items-center gap-2 font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent border-none cursor-pointer text-textPrimary dark:text-textPrimary-dark hover:opacity-60 transition-opacity duration-200"
             >
               Filters
               {hasActiveFilters && (
@@ -236,29 +279,26 @@ export default function Collection() {
               )}
             </button>
 
-            {/* RIGHT: Count + sort */}
-            <div className="flex items-baseline gap-6 md:gap-8">
-              <span className="font-sans text-[10px] md:text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+            {/* RIGHT: Count + custom sort */}
+            <div className="flex items-center gap-4 md:gap-8">
+              <span className="hidden sm:block font-sans text-[10px] md:text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
                 {isLoading
                   ? "Curating…"
                   : `${totalCount.toLocaleString()} pieces`}
               </span>
 
-              <select
-                value={currentSort}
-                onChange={(e) => {
-                  const newParams = new URLSearchParams(searchParams);
-                  if (e.target.value) newParams.set("sort", e.target.value);
-                  else newParams.delete("sort");
-                  setSearchParams(newParams);
-                }}
-                className="font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent text-textPrimary dark:text-textPrimary-dark border-none cursor-pointer outline-none text-right transition-opacity duration-200 hover:opacity-60"
-              >
-                <option value="">Recommended</option>
-                <option value="lowest">Price: Ascending</option>
-                <option value="highest">Price: Descending</option>
-              </select>
+              {/* ✅ Custom sort control — no native browser dropdown */}
+              <SortControl value={currentSort} onChange={handleSortChange} />
             </div>
+          </div>
+
+          {/* ── Count on mobile (below utility bar) ── */}
+          <div className="sm:hidden mb-6">
+            <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
+              {isLoading
+                ? "Curating…"
+                : `${totalCount.toLocaleString()} pieces`}
+            </span>
           </div>
 
           {/* ── Grid / empty state ── */}
@@ -282,7 +322,7 @@ export default function Collection() {
                     onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                     disabled={currentPage <= 1}
                     className={[
-                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200 ease-smooth",
+                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200",
                       currentPage <= 1
                         ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
                         : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
@@ -305,7 +345,7 @@ export default function Collection() {
                     }
                     disabled={currentPage >= totalPages}
                     className={[
-                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200 ease-smooth",
+                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200",
                       currentPage >= totalPages
                         ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
                         : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
@@ -319,7 +359,7 @@ export default function Collection() {
           )}
         </div>
 
-        {/* ══ 3. FILTER DRAWER ════════════════════════════════════════════════ */}
+        {/* ══ FILTER DRAWER ═════════════════════════════════════════════════ */}
         <FilterDrawer
           isOpen={isFilterOpen}
           onClose={() => setIsFilterOpen(false)}
