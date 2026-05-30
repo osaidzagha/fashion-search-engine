@@ -109,32 +109,23 @@ export default function PriceHistoryChart({
     }),
   }));
 
-  // 2. "Day 1 Illusion" for brand-new scraped items
+  // 2. Honest Empty State for new products
   if (chartData.length <= 1) {
-    const today = new Date();
-    const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const todayStr = today.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "short",
-    });
-    const lastWeekStr = lastWeek.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "short",
-    });
-
-    if (originalPrice && originalPrice > currentPrice) {
-      // On sale — draw a downward slope
-      chartData = [
-        { price: originalPrice, date: lastWeekStr },
-        { price: currentPrice, date: todayStr },
-      ];
-    } else {
-      // Stable — flat line
-      chartData = [
-        { price: currentPrice, date: lastWeekStr },
-        { price: currentPrice, date: todayStr },
-      ];
-    }
+    return (
+      <div>
+        <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
+          Price History
+        </p>
+        <div className="h-[140px] flex flex-col items-center justify-center border border-dashed border-borderLight dark:border-borderLight-dark gap-2">
+          <p className="font-heading italic text-[15px] font-light text-textMuted dark:text-textMuted-dark">
+            Tracking started
+          </p>
+          <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark opacity-60">
+            Check back soon for price movement
+          </p>
+        </div>
+      </div>
+    );
   }
 
   // 3. Scaling
@@ -147,7 +138,7 @@ export default function PriceHistoryChart({
   return (
     // Outer wrapper uses Tailwind — this IS in normal React flow
     <div>
-      <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4">
+      <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
         Price History
       </p>
 
