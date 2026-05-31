@@ -26,9 +26,14 @@ const VOLATILE_KEYWORDS = [
   "sale",
   "indirim",
   "best-seller",
+  "best-sellers",
   "special",
   "promotions",
   "trend",
+  "lookbook",
+  "concepts",
+  "collection",
+  "creativity",
 ];
 
 export const runScraperPipeline = async (
@@ -391,11 +396,21 @@ export const runScraperPipeline = async (
     // ─── CATEGORY DIET ──────────────────────────────────────────────────────
     let targetCategories = categories;
     if (scrapeMode === "daily" && !testMode) {
+      const MIN_CATEGORIES = 4;
       const filtered = categories.filter((cat) =>
         VOLATILE_KEYWORDS.some((k) => cat.toLowerCase().includes(k)),
       );
       targetCategories =
-        filtered.length > 0 ? filtered : shuffleArray(categories).slice(0, 20);
+        filtered.length >= MIN_CATEGORIES
+          ? filtered
+          : filtered.length > 0
+            ? [
+                ...filtered,
+                ...shuffleArray(
+                  categories.filter((c) => !filtered.includes(c)),
+                ).slice(0, MIN_CATEGORIES - filtered.length),
+              ]
+            : shuffleArray(categories).slice(0, MIN_CATEGORIES);
       console.log(
         `  --> 🥗 CATEGORY DIET: Reduced from ${categories.length} to ${targetCategories.length} high-value categories.`,
       );
