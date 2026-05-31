@@ -17,6 +17,8 @@ import {
 import PageTransition from "../components/PageTransition";
 
 // ─── Sort options ─────────────────────────────────────────────────────────────
+// ✅ FIX: price sort labels now always show their direction; the active state
+//         underlines the label rather than swapping it, so it's always clear.
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Recommended" },
   { value: "discount", label: "Biggest Discount" },
@@ -34,26 +36,28 @@ function SortControl({
 }) {
   return (
     <div className="flex items-center gap-1">
-      {SORT_OPTIONS.map((opt, i) => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className={[
-            "font-sans text-[9px] md:text-[10px] tracking-widest uppercase px-2.5 py-1 border-none bg-transparent cursor-pointer transition-all duration-200",
-            value === opt.value
-              ? "text-textPrimary dark:text-textPrimary-dark underline underline-offset-4 decoration-[0.5px]"
-              : "text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark",
-            // Separators between options
-            i < SORT_OPTIONS.length - 1
-              ? "after:content-['/'] after:ml-2.5 after:text-borderLight after:dark:text-borderLight-dark after:no-underline"
-              : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          {opt.label}
-        </button>
-      ))}
+      {SORT_OPTIONS.map((opt, i) => {
+        const isActive = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            onClick={() => onChange(opt.value)}
+            className={[
+              "font-sans text-[9px] md:text-[10px] tracking-widest uppercase px-2.5 py-1 border-none bg-transparent cursor-pointer transition-all duration-200",
+              isActive
+                ? "text-textPrimary dark:text-textPrimary-dark underline underline-offset-4 decoration-[1.5px]"
+                : "text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark",
+              i < SORT_OPTIONS.length - 1
+                ? "after:content-['/'] after:ml-2.5 after:text-borderLight after:dark:text-borderLight-dark after:no-underline after:font-normal"
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -287,7 +291,6 @@ export default function Collection() {
                   : `${totalCount.toLocaleString()} pieces`}
               </span>
 
-              {/* ✅ Custom sort control — no native browser dropdown */}
               <SortControl value={currentSort} onChange={handleSortChange} />
             </div>
           </div>

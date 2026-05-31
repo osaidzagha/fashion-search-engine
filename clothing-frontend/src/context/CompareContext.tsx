@@ -7,6 +7,9 @@ import {
 } from "react";
 import { Product } from "../types";
 
+// ✅ Max compare slots extended to 3
+export const MAX_COMPARE = 3;
+
 interface CompareContextType {
   compareList: Product[];
   overlayOpen: boolean;
@@ -26,10 +29,8 @@ export function CompareProvider({ children }: { children: ReactNode }) {
 
   const addToCompare = useCallback((product: Product) => {
     setCompareList((prev) => {
-      // Already in list
       if (prev.find((p) => p.id === product.id)) return prev;
-      // Max 2
-      if (prev.length >= 2) return prev;
+      if (prev.length >= MAX_COMPARE) return prev;
       return [...prev, product];
     });
   }, []);

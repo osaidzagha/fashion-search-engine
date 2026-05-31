@@ -73,6 +73,11 @@ const excludeMap: Record<string, string> = {
     "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
+  // ✅ FIX: sandals should exclude hair accessories and non-footwear
+  sandal:
+    "hair slide clip barrette scrunchie earring necklace bracelet ring belt bag jeans pant pants trouser trousers shirt jacket coat dress skirt",
+  sandals:
+    "hair slide clip barrette scrunchie earring necklace bracelet ring belt bag jeans pant pants trouser trousers shirt jacket coat dress skirt",
   bag: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
   bags: "jeans pant pants trousers trouser skirt dress shirt jacket boot boots shoe shoes",
   trunk: "swimsuit swim boardshort",
@@ -149,7 +154,9 @@ function buildBaseFilter(query: any): any {
   }
 
   if (query.onSale === "true") {
+    // ✅ FIX: require originalPrice to actually be higher than current price
     filter.originalPrice = { $exists: true, $ne: null, $gt: 0 };
+    filter.$expr = { $gt: ["$originalPrice", "$price"] };
   }
 
   return filter;
@@ -175,7 +182,9 @@ function applySearchFilter(
     rawTerms.forEach((word) => {
       const isPlural =
         word.endsWith("s") &&
-        !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+        !["jeans", "pants", "shorts", "shoes", "dress", "sandals"].includes(
+          word,
+        );
       const singular = isPlural ? word.slice(0, -1) : word;
 
       expandedTerms.push(word);
@@ -222,7 +231,9 @@ function applySearchFilter(
       userWords.forEach((word) => {
         const isPlural =
           word.endsWith("s") &&
-          !["jeans", "pants", "shorts", "shoes", "dress"].includes(word);
+          !["jeans", "pants", "shorts", "shoes", "dress", "sandals"].includes(
+            word,
+          );
         const singular = isPlural ? word.slice(0, -1) : word;
 
         textSearchTerms.push(word);
@@ -278,7 +289,7 @@ export const getProducts = async (req: Request, res: Response) => {
       applySearchFilter(filter, rawSearch, req.query.mode === "category");
     }
 
-    // ── Facet query (sizes + colors) — always the same regardless of sort ──
+    // ── Facet query (sizes + colors) — filter out junk color values ──────────
     const facetPipeline: any[] = [
       { $match: filter },
       {
@@ -290,45 +301,58 @@ export const getProducts = async (req: Request, res: Response) => {
             { $sort: { _id: 1 } },
           ],
           colors: [
-            { $match: { color: { $exists: true, $ne: "" } } },
+            // ✅ FIX: exclude blank, "Default", and "default" color values
+            {
+              $match: {
+                color: {
+                  $exists: true,
+                  $nin: ["", "Default", "default", null],
+                },
+              },
+            },
             { $group: { _id: "$color", count: { $sum: 1 } } },
             { $sort: { count: -1 } },
-            { $limit: 20 },
+            { $limit: 50 },
           ],
         },
       },
     ];
 
-    // ── DISCOUNT SORT: requires aggregation pipeline ──────────────────────────
-    // Can't use a simple .sort() because discountPct is a computed field.
-    // We only include products with originalPrice > price (genuinely on sale).
+    // ── DISCOUNT SORT ─────────────────────────────────────────────────────────
+    // ✅ FIX: show ALL products, compute discountPct (0 for non-sale items),
+    //         sort by discountPct desc so discounted items float to the top.
+    //         Previously this only showed products with originalPrice, which
+    //         produced empty/near-empty results for categories with few sales.
     if (sortParam === "discount") {
       const discountPipeline: any[] = [
-        {
-          $match: {
-            ...filter,
-            // Only products actually on sale are meaningful here
-            originalPrice: { $exists: true, $ne: null, $gt: 0 },
-            $expr: { $gt: ["$originalPrice", "$price"] },
-          },
-        },
+        { $match: filter },
         {
           $addFields: {
             discountPct: {
-              $multiply: [
-                {
-                  $divide: [
-                    { $subtract: ["$originalPrice", "$price"] },
-                    "$originalPrice",
+              $cond: {
+                if: {
+                  $and: [
+                    { $gt: ["$originalPrice", 0] },
+                    { $gt: ["$originalPrice", "$price"] },
                   ],
                 },
-                100,
-              ],
+                then: {
+                  $multiply: [
+                    {
+                      $divide: [
+                        { $subtract: ["$originalPrice", "$price"] },
+                        "$originalPrice",
+                      ],
+                    },
+                    100,
+                  ],
+                },
+                else: 0,
+              },
             },
           },
         },
-        { $sort: { discountPct: -1 } },
-        // Payload diet — strip heavy fields
+        { $sort: { discountPct: -1, timestamp: -1 } },
         {
           $project: {
             priceHistory: 0,
@@ -337,7 +361,6 @@ export const getProducts = async (req: Request, res: Response) => {
             videos: 0,
           },
         },
-        // Run count and paginated results in parallel
         {
           $facet: {
             data: [{ $skip: skip }, { $limit: limit }],
@@ -381,12 +404,10 @@ export const getProducts = async (req: Request, res: Response) => {
     } else if (sortParam === "newest") {
       sortOption = { timestamp: -1 };
     } else if (filter.$text) {
-      // Text search — sort by relevance score
       projection.score = { $meta: "textScore" };
       sortOption = { score: { $meta: "textScore" } };
     }
 
-    // Default fallback sort
     if (Object.keys(sortOption).length === 0) {
       sortOption = { timestamp: -1 };
     }
@@ -487,6 +508,8 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         {
           $match: {
             originalPrice: { $exists: true, $ne: null, $gt: 0 },
+            // ✅ FIX: only genuinely discounted items in the sale carousel
+            $expr: { $gt: ["$originalPrice", "$price"] },
             ...deptFilter,
           },
         },
@@ -794,10 +817,19 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
       { description: 0, composition: 0, videos: 0 },
     )
       .sort({ updatedAt: -1 })
-      .limit(12)
+      .limit(30) // fetch more so we can filter flat ones out
       .lean();
 
-    return res.status(200).json(products);
+    // ✅ FIX: exclude products where all priceHistory entries have the same
+    //         price — those show a flat chart with two identical dots
+    const withRealMovement = products.filter((p) => {
+      const history: { price: number }[] = (p as any).priceHistory || [];
+      if (history.length < 2) return false;
+      const prices = history.map((h) => h.price);
+      return prices.some((price) => price !== prices[0]);
+    });
+
+    return res.status(200).json(withRealMovement.slice(0, 12));
   } catch (error) {
     console.error("Error fetching trending products:", error);
     return res.status(500).json({ message: "Server Error" });

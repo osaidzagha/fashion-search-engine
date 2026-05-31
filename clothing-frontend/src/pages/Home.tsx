@@ -63,7 +63,19 @@ function CarouselSkeleton() {
   );
 }
 
-// ─── Section wrapper — always visible, skeletons until data arrives ───────────
+// ─── Consistent "See all" button ──────────────────────────────────────────────
+function SeeAllButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity"
+    >
+      See all →
+    </button>
+  );
+}
+
+// ─── Section wrapper ──────────────────────────────────────────────────────────
 function Section({
   title,
   subtitle,
@@ -223,6 +235,7 @@ export default function Home() {
         </section>
 
         {/* ══ EDITOR'S CHOICE ═══════════════════════════════════════════════ */}
+        {/* ✅ FIX: added "See all →" CTA consistent with other sections */}
         <Section
           title="Editor's Choice"
           subtitle={
@@ -232,6 +245,16 @@ export default function Home() {
           }
           loading={loading}
           className="border-t border-borderLight dark:border-borderLight-dark"
+          action={
+            !loading && editorChoiceProducts.length > 0 ? (
+              <SeeAllButton
+                onClick={() => {
+                  dispatch(clearFilters());
+                  navigate("/collection/new-in");
+                }}
+              />
+            ) : undefined
+          }
         >
           <div className={CAROUSEL}>
             {editorChoiceProducts.map((p) => (
@@ -242,14 +265,27 @@ export default function Home() {
           </div>
         </Section>
 
-        {/* ══ PRICE MOVEMENT ════════════════════════════════════════════════ */}
+        {/* ══ PRICE TRACKER ═════════════════════════════════════════════════ */}
+        {/* ✅ FIX: renamed from "Price movement" — now clearly means
+             products whose price actually changed recently (up or down).
+             The flat-price ones are filtered out on the backend now. */}
         {(loading || trending.length > 0) && (
           <Section
-            title="Price movement"
-            subtitle="Recently changed"
+            title="Recently tracked"
+            subtitle="Price changed"
             accentLabel="Live Tracking"
             accentColor="text-accentRed"
             loading={loading}
+            action={
+              !loading && trending.length > 0 ? (
+                <SeeAllButton
+                  onClick={() => {
+                    dispatch(clearFilters());
+                    navigate("/collection?sort=newest");
+                  }}
+                />
+              ) : undefined
+            }
           >
             <div className={CAROUSEL}>
               {trending.map((p) => (
@@ -269,12 +305,7 @@ export default function Home() {
           loading={loading}
           action={
             !loading && (featured?.onSale?.length || 0) > 0 ? (
-              <button
-                onClick={() => navigate("/collection/sale")}
-                className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity"
-              >
-                View all
-              </button>
+              <SeeAllButton onClick={() => navigate("/collection/sale")} />
             ) : undefined
           }
         >
@@ -294,12 +325,7 @@ export default function Home() {
           loading={loading}
           action={
             !loading && newInAll.length > 0 ? (
-              <button
-                onClick={() => navigate("/collection/new-in")}
-                className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity"
-              >
-                See all →
-              </button>
+              <SeeAllButton onClick={() => navigate("/collection/new-in")} />
             ) : undefined
           }
         >

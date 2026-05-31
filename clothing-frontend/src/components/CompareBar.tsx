@@ -1,4 +1,4 @@
-import { useCompare } from "../context/CompareContext";
+import { useCompare, MAX_COMPARE } from "../context/CompareContext";
 
 export function CompareBar() {
   const { compareList, removeFromCompare, openOverlay, clearCompare } =
@@ -6,15 +6,17 @@ export function CompareBar() {
 
   if (compareList.length === 0) return null;
 
-  const canCompare = compareList.length === 2;
+  // ✅ Need at least 2 to compare
+  const canCompare = compareList.length >= 2;
+  const remaining = MAX_COMPARE - compareList.length;
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[800] bg-bgPrimary dark:bg-bgPrimary-dark border-t border-borderDark dark:border-borderDark-dark py-3 md:py-3.5 px-4 md:px-10 flex items-center justify-between gap-3 md:gap-6 animate-slide-up transition-colors duration-500 ease-smooth">
-      {/* ── Left: label (desktop) / count badge (mobile) ── */}
+      {/* ── Left: label ── */}
       <div className="flex-shrink-0 flex items-center gap-3">
         {/* Mobile: compact slot previews */}
         <div className="flex items-center gap-2 lg:hidden">
-          {[0, 1].map((i) => {
+          {Array.from({ length: MAX_COMPARE }).map((_, i) => {
             const product = compareList[i];
             return product ? (
               <button
@@ -32,7 +34,6 @@ export function CompareBar() {
                 ) : (
                   <div className="w-full h-full bg-bgHover dark:bg-bgHover-dark" />
                 )}
-                {/* Remove on hover */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <span className="text-white text-[10px] leading-none">×</span>
                 </div>
@@ -49,7 +50,7 @@ export function CompareBar() {
               Comparing
             </p>
             <p className="font-heading italic text-[11px] text-textSecondary dark:text-textSecondary-dark leading-none">
-              {compareList.length} / 2
+              {compareList.length} / {MAX_COMPARE}
             </p>
           </div>
         </div>
@@ -60,34 +61,34 @@ export function CompareBar() {
             Comparing
           </p>
           <p className="font-heading italic text-xs md:text-sm text-textSecondary dark:text-textSecondary-dark">
-            {compareList.length} / 2 selected
+            {compareList.length} / {MAX_COMPARE} selected
           </p>
         </div>
       </div>
 
       {/* ── Center: Product slots (desktop only) ── */}
       <div className="hidden lg:flex gap-2.5 flex-1 justify-center items-center">
-        {compareList[0] ? (
-          <ProductSlot
-            product={compareList[0]}
-            onRemove={() => removeFromCompare(compareList[0].id)}
-          />
-        ) : (
-          <EmptySlot label="Add first item" />
-        )}
-
-        <span className="font-heading italic text-base text-borderLight dark:text-borderLight-dark flex-shrink-0 select-none">
-          vs
-        </span>
-
-        {compareList[1] ? (
-          <ProductSlot
-            product={compareList[1]}
-            onRemove={() => removeFromCompare(compareList[1].id)}
-          />
-        ) : (
-          <EmptySlot label="Add second item" />
-        )}
+        {Array.from({ length: MAX_COMPARE }).map((_, i) => {
+          const product = compareList[i];
+          const isLast = i === MAX_COMPARE - 1;
+          return (
+            <div key={i} className="flex items-center gap-2.5">
+              {product ? (
+                <ProductSlot
+                  product={product}
+                  onRemove={() => removeFromCompare(product.id)}
+                />
+              ) : (
+                <EmptySlot label={`Add item ${i + 1}`} />
+              )}
+              {!isLast && (
+                <span className="font-heading italic text-base text-borderLight dark:text-borderLight-dark flex-shrink-0 select-none">
+                  vs
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Right: Actions ── */}
@@ -105,7 +106,9 @@ export function CompareBar() {
           disabled={!canCompare}
           aria-disabled={!canCompare}
           aria-label={
-            canCompare ? "Open comparison overlay" : "Select 2 items to compare"
+            canCompare
+              ? "Open comparison overlay"
+              : `Select ${2 - compareList.length} more item${2 - compareList.length !== 1 ? "s" : ""} to compare`
           }
           className={`font-sans text-[9px] md:text-[10px] tracking-[0.22em] uppercase font-medium border-none px-4 py-2 md:px-6 md:py-2.5 transition-all duration-200 ease-smooth ${
             canCompare
@@ -113,7 +116,7 @@ export function CompareBar() {
               : "bg-bgHover dark:bg-bgHover-dark text-textMuted dark:text-textMuted-dark cursor-not-allowed"
           }`}
         >
-          {canCompare ? "Compare →" : "Add 1 more"}
+          {canCompare ? "Compare →" : `Add ${remaining} more`}
         </button>
       </div>
     </div>
@@ -129,7 +132,7 @@ function ProductSlot({
   onRemove: () => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 max-w-[220px] bg-bgSecondary dark:bg-bgSecondary-dark border border-borderDark dark:border-borderDark-dark py-1.5 pr-2.5 pl-1.5 animate-item-in transition-colors duration-300 ease-smooth">
+    <div className="flex items-center gap-2.5 max-w-[200px] bg-bgSecondary dark:bg-bgSecondary-dark border border-borderDark dark:border-borderDark-dark py-1.5 pr-2.5 pl-1.5 animate-item-in transition-colors duration-300 ease-smooth">
       <div className="w-9 h-[46px] flex-shrink-0 overflow-hidden bg-bgHover dark:bg-bgHover-dark transition-colors duration-300">
         {product.images?.[0] && (
           <img
@@ -141,7 +144,7 @@ function ProductSlot({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="font-sans text-[9px] tracking-[0.06em] text-textPrimary dark:text-textPrimary-dark mb-0.5 truncate max-w-[120px] transition-colors duration-300">
+        <p className="font-sans text-[9px] tracking-[0.06em] text-textPrimary dark:text-textPrimary-dark mb-0.5 truncate max-w-[100px] transition-colors duration-300">
           {product.name
             .split(" ")
             .map(
@@ -169,7 +172,7 @@ function ProductSlot({
 // ─── Empty Slot ───────────────────────────────────────────────────────────────
 function EmptySlot({ label }: { label: string }) {
   return (
-    <div className="flex items-center justify-center w-[200px] h-[58px] border border-dashed border-borderLight dark:border-borderLight-dark transition-colors duration-300">
+    <div className="flex items-center justify-center w-[180px] h-[58px] border border-dashed border-borderLight dark:border-borderLight-dark transition-colors duration-300">
       <p className="font-sans text-[8px] tracking-[0.2em] uppercase text-borderLight dark:text-borderLight-dark">
         {label}
       </p>

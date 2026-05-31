@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { clearFilters } from "../store/productSlice";
@@ -43,6 +44,18 @@ function sortNumericSizes(sizes: string[]) {
   return sizes.sort((a, b) => parseInt(a) - parseInt(b));
 }
 
+// ✅ FIX: junk color values to exclude from the filter list
+const JUNK_COLORS = new Set([
+  "default",
+  "Default",
+  "DEFAULT",
+  "",
+  "null",
+  "undefined",
+  "None",
+  "none",
+]);
+
 // ─── Color mapper ─────────────────────────────────────────────────────────────
 const getColorHex = (colorName: string) => {
   if (!colorName) return "#E0E0E0";
@@ -64,6 +77,24 @@ const getColorHex = (colorName: string) => {
     camel: "#c19a6b",
     anthracite: "#383e42",
     burgundy: "#800020",
+    orange: "#ff8c00",
+    yellow: "#ffd700",
+    cream: "#fffdd0",
+    ivory: "#fffff0",
+    taupe: "#b59e8a",
+    lilac: "#c8a2c8",
+    purple: "#800080",
+    coral: "#ff6b6b",
+    teal: "#008080",
+    mint: "#98ff98",
+    rust: "#b7410e",
+    olive: "#808000",
+    sand: "#c2b280",
+    silver: "#c0c0c0",
+    gold: "#ffd700",
+    charcoal: "#36454f",
+    denim: "#1560bd",
+    mustard: "#ffdb58",
   };
   return map[safeColor] || "#E0E0E0";
 };
@@ -100,7 +131,11 @@ function FilterOption({
     >
       {colorSwatch ? (
         <div
-          className="w-4 h-4 md:w-3 md:h-3 border border-borderLight dark:border-borderLight-dark flex-shrink-0 transition-colors"
+          className={`w-4 h-4 md:w-3 md:h-3 flex-shrink-0 transition-all ${
+            active
+              ? "ring-1 ring-offset-1 ring-textPrimary dark:ring-textPrimary-dark"
+              : "border border-borderLight dark:border-borderLight-dark"
+          }`}
           style={{ backgroundColor: colorSwatch }}
         />
       ) : (
@@ -139,13 +174,22 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
     availableColors,
   } = useSelector((state: RootState) => state.products);
 
+  // ✅ FIX: "View More" state
+  const [showAllColors, setShowAllColors] = useState(false);
+
   const letterSizes = sortLetterSizes(availableSizes.filter(isLetterSize));
   const numericSizes = sortNumericSizes(availableSizes.filter(isNumericSize));
   const otherSizes = availableSizes.filter(
     (s) => !isLetterSize(s) && !isNumericSize(s),
   );
 
-  // ✅ FIXED: Correct brands — Zara, Mango, Massimo Dutti (Pull & Bear removed)
+  // ✅ FIX: strip junk color values before rendering
+  const cleanColors = availableColors.filter((c) => !JUNK_COLORS.has(c));
+  const INITIAL_COLOR_COUNT = 10;
+  const visibleColors = showAllColors
+    ? cleanColors
+    : cleanColors.slice(0, INITIAL_COLOR_COUNT);
+
   const BRANDS = ["Zara", "Mango", "Massimo Dutti"];
 
   return (
@@ -195,11 +239,11 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           </div>
 
           {/* 02 — Colour */}
-          {availableColors.length > 0 && (
+          {cleanColors.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="02" title="Colour" />
               <div className="flex flex-col gap-3 pl-6 md:pl-10">
-                {availableColors.slice(0, 8).map((color) => (
+                {visibleColors.map((color) => (
                   <FilterOption
                     key={color}
                     label={color}
@@ -208,9 +252,15 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
                     onClick={() => dispatch(toggleColor(color))}
                   />
                 ))}
-                {availableColors.length > 8 && (
-                  <button className="text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark mt-4 pl-7 transition-colors bg-transparent border-none cursor-pointer">
-                    View More
+                {/* ✅ FIX: View More is now functional */}
+                {cleanColors.length > INITIAL_COLOR_COUNT && (
+                  <button
+                    onClick={() => setShowAllColors((prev) => !prev)}
+                    className="text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark mt-4 pl-7 transition-colors bg-transparent border-none cursor-pointer"
+                  >
+                    {showAllColors
+                      ? "Show Less"
+                      : `View More (${cleanColors.length - INITIAL_COLOR_COUNT})`}
                   </button>
                 )}
               </div>
