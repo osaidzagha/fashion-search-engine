@@ -271,8 +271,8 @@ export default function Home() {
              The flat-price ones are filtered out on the backend now. */}
         {(loading || trending.length > 0) && (
           <Section
-            title="Recently tracked"
-            subtitle="Price changed"
+            title="On the move"
+            subtitle="Recent price changes"
             accentLabel="Live Tracking"
             accentColor="text-accentRed"
             loading={loading}
