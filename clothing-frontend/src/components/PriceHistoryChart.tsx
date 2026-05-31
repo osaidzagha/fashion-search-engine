@@ -24,28 +24,26 @@ export interface PriceHistoryChartProps {
 }
 
 // ─── Token map — exact hex values from tailwind.config.js ─────────────────────
-// Recharts renders outside normal React flow so it can't use Tailwind classes.
-// We use the raw token values directly to stay consistent with the design system.
 const TOKENS = {
   light: {
-    tooltipBg: "#ffffff", // bgSecondary.DEFAULT
-    tooltipBorder: "#e8e4dc", // borderLight.DEFAULT
-    tooltipPrice: "#1a1a1a", // textPrimary.DEFAULT
-    tooltipDate: "#a0a0a0", // textMuted.DEFAULT
-    line: "#1a1a1a", // textPrimary.DEFAULT
-    grid: "#e8e4dc", // borderLight.DEFAULT
-    axis: "#a0a0a0", // textMuted.DEFAULT
-    label: "#a0a0a0", // textMuted.DEFAULT
+    tooltipBg: "#ffffff",
+    tooltipBorder: "#e8e4dc",
+    tooltipPrice: "#1a1a1a",
+    tooltipDate: "#a0a0a0",
+    line: "#1a1a1a",
+    grid: "#e8e4dc",
+    axis: "#a0a0a0",
+    label: "#a0a0a0",
   },
   dark: {
-    tooltipBg: "#1a1a18", // bgSecondary.dark
-    tooltipBorder: "#5a5754", // borderLight.dark
-    tooltipPrice: "#f0ede6", // textPrimary.dark
-    tooltipDate: "#8a8784", // textMuted.dark
-    line: "#f0ede6", // textPrimary.dark
-    grid: "#5a5754", // borderLight.dark
-    axis: "#8a8784", // textMuted.dark
-    label: "#8a8784", // textMuted.dark
+    tooltipBg: "#1a1a18",
+    tooltipBorder: "#5a5754",
+    tooltipPrice: "#f0ede6",
+    tooltipDate: "#8a8784",
+    line: "#f0ede6",
+    grid: "#5a5754",
+    axis: "#8a8784",
+    label: "#8a8784",
   },
 } as const;
 
@@ -100,16 +98,31 @@ export default function PriceHistoryChart({
 }: PriceHistoryChartProps) {
   const t = TOKENS[theme] ?? TOKENS.light;
 
-  // 1. Map existing database history
-  let chartData = history.map((p) => ({
+  // 1. Map existing database history and enforce English locale to fix "nis/may" bug
+  const formattedHistory = history.map((p) => ({
     price: p.price,
-    date: new Date(p.date).toLocaleDateString("tr-TR", {
+    date: new Date(p.date).toLocaleDateString("en-US", {
       day: "numeric",
       month: "short",
     }),
   }));
 
-  // 2. Honest Empty State for new products
+  // 2. Smart Deduplication: Keep first, last, and the edges of price changes
+  const chartData = formattedHistory.filter((entry, i, arr) => {
+    if (i === 0) return true; // Always keep the first entry
+    if (i === arr.length - 1) return true; // Always keep the latest entry
+
+    const prev = arr[i - 1];
+    const next = arr[i + 1];
+
+    const isPriceChange = entry.price !== prev.price; // Price just dropped/rose
+    const isJustBeforeChange = entry.price !== next.price; // Price will drop/rise tomorrow
+
+    return isPriceChange || isJustBeforeChange;
+  });
+
+  // 3. Honest Empty State for new products
+  // Even with deduplication, if a product only has a flat price, it will keep First + Last = 2 dots.
   if (chartData.length <= 1) {
     return (
       <div>
@@ -128,7 +141,7 @@ export default function PriceHistoryChart({
     );
   }
 
-  // 3. Scaling
+  // 4. Scaling
   const dataMax = Math.max(...chartData.map((d) => d.price));
   const dataMin = Math.min(...chartData.map((d) => d.price));
   const absoluteMax = originalPrice
@@ -136,13 +149,11 @@ export default function PriceHistoryChart({
     : dataMax;
 
   return (
-    // Outer wrapper uses Tailwind — this IS in normal React flow
     <div>
       <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
         Price History
       </p>
 
-      {/* Chart container — inline style required: Recharts needs explicit px height */}
       <div style={{ width: "100%", height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -169,11 +180,10 @@ export default function PriceHistoryChart({
 
             <YAxis hide domain={[dataMin * 0.95, absoluteMax * 1.05]} />
 
-            {/* Red "Retail" ceiling line */}
             {originalPrice && originalPrice > currentPrice && (
               <ReferenceLine
                 y={originalPrice}
-                stroke="#b94040" // accentRed — same token, no dark variant
+                stroke="#b94040"
                 strokeDasharray="3 3"
                 strokeWidth={1}
                 label={{
@@ -188,7 +198,7 @@ export default function PriceHistoryChart({
             )}
 
             <Line
-              type="monotone"
+              type="stepAfter"
               dataKey="price"
               stroke={t.line}
               strokeWidth={1.5}

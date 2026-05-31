@@ -6,14 +6,12 @@ import { TAXONOMY, SubCategory } from "../constants/taxonomy";
 export const CategoryNav: React.FC = () => {
   const navigate = useNavigate();
 
-  // 👇 FIX 1: Point to the exact same Redux state as your Navbar!
   const selectDepartments = useSelector(
     (state: any) => state.products?.selectDepartments || [],
   );
 
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-  // Determine exactly what department is active
   const isMen =
     selectDepartments.includes("Men") || selectDepartments.includes("MEN");
   const isWomen =
@@ -22,7 +20,6 @@ export const CategoryNav: React.FC = () => {
   const handleNavClick = (item: SubCategory) => {
     const params = new URLSearchParams();
 
-    // 👇 FIX 2: Correctly pass the department array to the URL
     if (selectDepartments.length > 0) {
       params.set("departments", selectDepartments.join(","));
     }
@@ -34,16 +31,20 @@ export const CategoryNav: React.FC = () => {
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
+
       case "sale":
+        // ✅ FIX: onSale=true is the only filter needed — passing search+mode
+        // on top of it ran applySearchFilter which narrowed results to only
+        // products matching the q string, producing ~26 instead of 100+.
         params.set("onSale", "true");
-        if (item.q) params.set("search", item.q);
-        params.set("mode", "category");
         break;
+
       case "newest":
         params.set("sort", "newest");
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
+
       case "brand":
         params.set("brands", item.q);
         break;
@@ -55,15 +56,10 @@ export const CategoryNav: React.FC = () => {
 
   const activeCategoryData = TAXONOMY.find((c) => c.key === activeMenu);
 
-  // 👇 FIX 3: THE MAGIC FILTER (The Disappearing UI)
   const filteredSubCategories = activeCategoryData?.items.filter((item) => {
-    // If Men is selected, hide any category explicitly tagged for Women (Skirts, Heels, Lingerie)
     if (isMen && item.depts?.includes("WOMAN")) return false;
-
-    // Future-proofing: If Women is selected, hide any category explicitly tagged for Men
     if (isWomen && item.depts?.includes("MAN")) return false;
-
-    return true; // Otherwise, show it!
+    return true;
   });
 
   return (
@@ -71,7 +67,7 @@ export const CategoryNav: React.FC = () => {
       className="relative z-50 border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
       onMouseLeave={() => setActiveMenu(null)}
     >
-      {/* ─── TOP LEVEL TABS (Made scrollable on mobile) ─── */}
+      {/* ─── TOP LEVEL TABS ─── */}
       <nav className="flex justify-start md:justify-center gap-6 md:gap-10 px-6 md:px-8 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {TAXONOMY.map((category) => {
           const isActive = activeMenu === category.key;
@@ -94,7 +90,7 @@ export const CategoryNav: React.FC = () => {
         })}
       </nav>
 
-      {/* ─── THE BACKDROP OVERLAY ─── */}
+      {/* ─── BACKDROP OVERLAY ─── */}
       <div
         className={`
           absolute top-full left-0 w-full h-[100vh] bg-black/20 dark:bg-black/40 backdrop-blur-sm transition-opacity duration-400 ease-elegant pointer-events-none
@@ -102,7 +98,7 @@ export const CategoryNav: React.FC = () => {
         `}
       />
 
-      {/* ─── EXPANDED MEGA-MENU ─── */}
+      {/* ─── MEGA-MENU ─── */}
       <div
         className={`
           absolute top-full left-0 w-full bg-bgPrimary dark:bg-bgPrimary-dark border-b border-borderDark dark:border-borderDark-dark shadow-premium dark:shadow-premium-dark
@@ -112,7 +108,6 @@ export const CategoryNav: React.FC = () => {
       >
         <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-12 md:py-10">
           <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 md:gap-x-12">
-            {/* 👇 Use our new filtered array here! */}
             {filteredSubCategories?.map((item, idx) => {
               const isSale = item.type === "sale";
               const isNew = item.type === "newest";
