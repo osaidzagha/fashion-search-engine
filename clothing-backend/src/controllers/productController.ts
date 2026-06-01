@@ -528,7 +528,8 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
             },
           },
         },
-        { $sort: { timestamp: -1, discountPct: -1 } },
+        // ✅ FIX: biggest discount first, not newest first
+        { $sort: { discountPct: -1, timestamp: -1 } },
         { $limit: 12 },
       ]),
 
@@ -791,6 +792,8 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
 };
 
 // ─── GET /api/products/trending ──────────────────────────────────────────────
+// Shows products sorted by: real price movement first, then most-tracked,
+// then newest. Falls back to newest products if DB has no history yet.
 export const getTrendingProducts = async (req: Request, res: Response) => {
   try {
     const deptFilter: any = {};
@@ -808,28 +811,60 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
       };
     }
 
-    const products = await ProductModel.find(
+    // ✅ FIX: aggregate to sort by real movement first, then history depth.
+    // hasRealMovement = true if any entry differs from the first price.
+    // This means the section populates even when all prices are still flat —
+    // those products show their chart and tracking started state, which is
+    // useful. Real movers float to the top as the scraper accumulates runs.
+    const results = await ProductModel.aggregate([
       {
-        $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
+        $match: {
+          $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
+          images: { $exists: true, $not: { $size: 0 } },
+          ...deptFilter,
+        },
       },
-      { description: 0, composition: 0, videos: 0 },
-    )
-      .sort({ updatedAt: -1 })
-      .limit(30) // fetch more so we can filter flat ones out
-      .lean();
+      {
+        $addFields: {
+          historySize: { $size: "$priceHistory" },
+          firstPrice: { $arrayElemAt: ["$priceHistory.price", 0] },
+          lastPrice: { $arrayElemAt: ["$priceHistory.price", -1] },
+        },
+      },
+      {
+        $addFields: {
+          hasRealMovement: { $ne: ["$firstPrice", "$lastPrice"] },
+        },
+      },
+      // Real movers first, then deepest history, then newest
+      { $sort: { hasRealMovement: -1, historySize: -1, updatedAt: -1 } },
+      { $limit: 12 },
+      {
+        $project: {
+          description: 0,
+          composition: 0,
+          videos: 0,
+          firstPrice: 0,
+          lastPrice: 0,
+          historySize: 0,
+          hasRealMovement: 0,
+        },
+      },
+    ]);
 
-    // ✅ FIX: exclude products where all priceHistory entries have the same
-    //         price — those show a flat chart with two identical dots
-    const withRealMovement = products.filter((p) => {
-      const history: { price: number }[] = (p as any).priceHistory || [];
-      if (history.length < 2) return false;
-      const prices = history.map((h) => h.price);
-      return prices.some((price) => price !== prices[0]);
-    });
+    // Fallback: if no products have 2+ history entries yet, show newest
+    if (results.length === 0) {
+      const fallback = await ProductModel.find(
+        { images: { $exists: true, $not: { $size: 0 } }, ...deptFilter },
+        { description: 0, composition: 0, videos: 0 },
+      )
+        .sort({ updatedAt: -1 })
+        .limit(12)
+        .lean();
+      return res.status(200).json(fallback);
+    }
 
-    return res.status(200).json(withRealMovement.slice(0, 12));
+    return res.status(200).json(results);
   } catch (error) {
     console.error("Error fetching trending products:", error);
     return res.status(500).json({ message: "Server Error" });

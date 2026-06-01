@@ -198,7 +198,7 @@ export default function PriceHistoryChart({
             )}
 
             <Line
-              type="stepAfter"
+              type="monotone"
               dataKey="price"
               stroke={t.line}
               strokeWidth={1.5}
