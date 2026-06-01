@@ -712,11 +712,12 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
     const q = (req.query.q as string)?.trim();
     if (!q || q.length < 2) return res.status(200).json([]);
 
-    const regex = new RegExp(q, "i");
+    // Use the weighted text index (name weight=10) instead of a regex COLLSCAN
     const products = await ProductModel.find(
-      { name: regex },
-      { name: 1, category: 1 },
+      { $text: { $search: q } },
+      { score: { $meta: "textScore" }, name: 1 },
     )
+      .sort({ score: { $meta: "textScore" } })
       .limit(30)
       .lean();
 
@@ -772,20 +773,33 @@ export const getCategories = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    const active: string[] = [];
-    await Promise.all(
-      potentialCategories.map(async (cat) => {
-        const exists = await ProductModel.exists({
-          ...deptFilter,
-          $or: [
-            { name: { $regex: cat, $options: "i" } },
-            { category: { $regex: cat, $options: "i" } },
-          ],
-        });
-        if (exists)
-          active.push(cat.charAt(0).toUpperCase() + cat.slice(1) + "s");
-      }),
-    );
+    // Single aggregation instead of 12 parallel exists() round-trips
+    const facetStages: Record<string, any[]> = {};
+    potentialCategories.forEach((cat) => {
+      facetStages[cat] = [
+        {
+          $match: {
+            ...deptFilter,
+            $or: [
+              { name: { $regex: cat, $options: "i" } },
+              { category: { $regex: cat, $options: "i" } },
+            ],
+          },
+        },
+        { $limit: 1 },
+        { $count: "n" },
+      ];
+    });
+
+    const [facetResult] = await ProductModel.aggregate([
+      { $match: deptFilter },
+      { $facet: facetStages },
+    ]);
+
+    const active: string[] = potentialCategories
+      .filter((cat) => (facetResult?.[cat]?.[0]?.n ?? 0) > 0)
+      .map((cat) => cat.charAt(0).toUpperCase() + cat.slice(1) + "s");
+
     return res.status(200).json(active.sort());
   } catch (error) {
     console.error("Error fetching categories:", error);
@@ -911,7 +925,7 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
     const results = await ProductModel.aggregate([
       {
         $match: {
-          $expr: { $gte: [{ $size: "$priceHistory" }, 2] },
+          $expr: { $gte: [{ $size: { $ifNull: ["$priceHistory", []] } }, 2] },
           images: { $exists: true, $not: { $size: 0 } },
           ...deptFilter,
         },

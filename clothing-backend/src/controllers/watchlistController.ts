@@ -29,7 +29,7 @@ export const getWatchlist = async (
       );
       return {
         ...product,
-        trackedPrice: userTrackData?.trackedPrice || product.price,
+        trackedPrice: userTrackData?.trackedPrice ?? product.price,
       };
     });
 

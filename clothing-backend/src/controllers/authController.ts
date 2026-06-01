@@ -74,10 +74,7 @@ export const registerUser = async (
     const hashedPassword = await bcrypt.hash(password, salt);
     const otp = generateOTP();
 
-    // ✅ THE DEBUG BACKDOOR - LOOK FOR THIS IN RENDER LOGS
-    console.log("=========================================");
-    console.log(`DEBUG OTP FOR ${safeEmail}: ${otp}`);
-    console.log("=========================================");
+
 
     const user = await UserModel.create({
       name,
@@ -247,9 +244,7 @@ export const resendOTP = async (
     user.verificationExpires = otpExpiry();
     await user.save();
 
-    console.log("=========================================");
-    console.log(`DEBUG OTP (RESEND) FOR ${safeEmail}: ${otp}`);
-    console.log("=========================================");
+
 
     try {
       await sendVerificationEmail(safeEmail, otp);
@@ -292,9 +287,7 @@ export const forgotPassword = async (
     user.verificationExpires = otpExpiry();
     await user.save();
 
-    console.log("=========================================");
-    console.log(`DEBUG OTP (PASSWORD RESET) FOR ${safeEmail}: ${otp}`);
-    console.log("=========================================");
+
 
     try {
       // You can update sendVerificationEmail later to accept a "type" parameter to change the email wording

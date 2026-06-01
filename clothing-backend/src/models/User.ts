@@ -1,17 +1,3 @@
-// ─── ADD to your existing IUser interface ─────────────────────────────────────
-//
-//   preferences?: {
-//     priceAlertEnabled: boolean;
-//   };
-//
-// ─── ADD to your existing UserSchema ─────────────────────────────────────────
-//
-//   preferences: {
-//     priceAlertEnabled: { type: Boolean, default: true },
-//   },
-//
-// ─── Full updated file for reference ─────────────────────────────────────────
-
 import mongoose, { Schema, Document } from "mongoose";
 
 export interface IWatchlistItem {

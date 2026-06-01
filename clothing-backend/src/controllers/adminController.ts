@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
 import { UserModel } from "../models/User";
-import { ProductModel as Product } from "../models/Product";
 import { ScraperRunModel, IScraperRun } from "../models/ScraperRun";
 import {
   triggerScraper,
@@ -150,7 +149,7 @@ export const getDashboard = async (
         ]),
 
         // D: Fetch ALL valid videos using the Omni-Query so the Admin sees them
-        Product.find(videoOmniQuery)
+        ProductModel.find(videoOmniQuery)
           .select(
             "id name brand videos video videoUrl media isCampaignHero images",
           )
@@ -339,7 +338,7 @@ export const toggleCampaignHero = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     // Find the product
-    const product = await Product.findOne({ id });
+    const product = await ProductModel.findOne({ id });
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }

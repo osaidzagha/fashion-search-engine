@@ -451,7 +451,10 @@ export default function Home() {
               <SeeAllButton
                 onClick={() => {
                   dispatch(clearFilters());
-                  navigate("/collection/new-in");
+                  const params = new URLSearchParams({ hasVideo: "true" });
+                  if (selectDepartments?.length)
+                    params.set("departments", selectDepartments.join(","));
+                  navigate(`/collection?${params.toString()}`);
                 }}
               />
             ) : undefined
@@ -478,7 +481,10 @@ export default function Home() {
                 <SeeAllButton
                   onClick={() => {
                     dispatch(clearFilters());
-                    navigate("/collection?mode=trending");
+                    const params = new URLSearchParams({ sort: "trending" });
+                    if (selectDepartments?.length)
+                      params.set("departments", selectDepartments.join(","));
+                    navigate(`/collection?${params.toString()}`);
                   }}
                 />
               ) : undefined
@@ -521,7 +527,13 @@ export default function Home() {
           action={
             !loading && newInProducts.length > 0 ? (
               <SeeAllButton
-                onClick={() => navigate("/collection?mode=new-in")}
+                onClick={() => {
+                  dispatch(clearFilters());
+                  const params = new URLSearchParams({ sort: "newest" });
+                  if (selectDepartments?.length)
+                    params.set("departments", selectDepartments.join(","));
+                  navigate(`/collection?${params.toString()}`);
+                }}
               />
             ) : undefined
           }

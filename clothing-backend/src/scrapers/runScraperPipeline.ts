@@ -6,6 +6,23 @@ import { InterceptPage, asInterceptPage } from "./pageTypes";
 const shuffleArray = (array: any[]) =>
   [...array].sort(() => Math.random() - 0.5);
 
+// Zara geo-cookies to harvest and transplant between page sessions.
+// These carry the trusted-browser signal — do NOT add tracker/analytics cookies.
+const ZARA_SAFE_COOKIES = [
+  "ak_bmsc",
+  "bm_sz",
+  "bm_sv",
+  "bm_mi",
+  "_abck",
+  "ITXSESSIONID",
+  "ITXDEVICEID",
+  "UAITXID",
+  "rskxRunCookie",
+  "lastRskxRun",
+  "OptanonConsent",
+  "CookiesConsent",
+] as const;
+
 type GetCategories = (page: InterceptPage, dept: string) => Promise<string[]>;
 type GetLinks = (page: InterceptPage, url: string) => Promise<string[]>;
 type ScrapeProduct = (
@@ -218,20 +235,7 @@ export const runScraperPipeline = async (
     try {
       const freshCookies = await page.cookies();
       const safeCookies = freshCookies.filter((c) =>
-        [
-          "ak_bmsc",
-          "bm_sz",
-          "bm_sv",
-          "bm_mi",
-          "_abck",
-          "ITXSESSIONID",
-          "ITXDEVICEID",
-          "UAITXID",
-          "rskxRunCookie",
-          "lastRskxRun",
-          "OptanonConsent",
-          "CookiesConsent",
-        ].includes(c.name),
+        ZARA_SAFE_COOKIES.includes(c.name as any),
       );
       if (safeCookies.length > 0) {
         zaraCookies = safeCookies;
@@ -252,20 +256,7 @@ export const runScraperPipeline = async (
         );
 
         const safeCookies = harvested.filter((c) =>
-          [
-            "ak_bmsc",
-            "bm_sz",
-            "bm_sv",
-            "bm_mi",
-            "_abck",
-            "ITXSESSIONID",
-            "ITXDEVICEID",
-            "UAITXID",
-            "rskxRunCookie",
-            "lastRskxRun",
-            "OptanonConsent",
-            "CookiesConsent",
-          ].includes(c.name),
+          ZARA_SAFE_COOKIES.includes(c.name as any),
         );
 
         if (safeCookies.length > 0) {

@@ -35,13 +35,21 @@ app.use(
 );
 app.use(express.json());
 
-// ── Rate limiting on auth routes ──────────────────────────────────
+// ── Rate limiting on auth routes ──────────────────────────────────────────────
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   message: { error: "Too many requests" },
 });
 app.use("/api/auth", authLimiter);
+
+// ── Rate limiting on scraper admin routes (prevents Puppeteer spam) ───────────
+const scraperLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  message: { error: "Too many scraper requests" },
+});
+app.use("/api/admin/scraper", scraperLimiter);
 
 // ── Health check (MOVED ABOVE ERROR HANDLER) ──────────────────────
 app.get("/", (req: Request, res: Response) => {
