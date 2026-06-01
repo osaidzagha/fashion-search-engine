@@ -232,6 +232,7 @@ describe("shuffleArray", () => {
 // The path must exactly match what runScraperPipeline.ts imports.
 vi.mock("../models/Product", () => ({
   ProductModel: {
+    find: vi.fn(),
     findOne: vi.fn().mockResolvedValue(null),
     findOneAndUpdate: vi.fn().mockResolvedValue({}),
   },
@@ -278,6 +279,9 @@ describe("runScraperPipeline", () => {
     };
 
     // Default: product not found (lean returns null)
+    vi.mocked(ProductModel.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([]),
+    } as any);
     vi.mocked(ProductModel.findOne).mockReturnValue({
       lean: vi.fn().mockResolvedValue(null),
     } as any);
@@ -350,7 +354,7 @@ describe("runScraperPipeline", () => {
       department: "WOMAN",
       link: "https://www.zara.com/tr/en/shirt-p123.html",
       currency: "TRY",
-      images: [],
+      images: ["https://example.com/image.jpg"],
     };
 
     const result = await run(
@@ -370,8 +374,14 @@ describe("runScraperPipeline", () => {
   });
 
   it("increments updatedItems when product already exists in DB with same price", async () => {
-    vi.mocked(ProductModel.findOne).mockReturnValue({
-      lean: vi.fn().mockResolvedValue({ price: 999 }),
+    vi.mocked(ProductModel.find).mockReturnValue({
+      lean: vi.fn().mockResolvedValue([
+        {
+          link: "https://www.zara.com/tr/en/shirt-p123.html",
+          price: 999,
+          sizes: [],
+        },
+      ]),
     } as any);
 
     const fakeProduct = {
@@ -383,7 +393,7 @@ describe("runScraperPipeline", () => {
       department: "WOMAN",
       link: "https://www.zara.com/tr/en/shirt-p123.html",
       currency: "TRY",
-      images: [],
+      images: ["https://example.com/image.jpg"],
     };
 
     const result = await run(

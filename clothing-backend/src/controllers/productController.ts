@@ -159,6 +159,17 @@ function buildBaseFilter(query: any): any {
     filter.$expr = { $gt: ["$originalPrice", "$price"] };
   }
 
+  if (query.hasVideo === "true") {
+    filter.$or = [
+      { video: { $exists: true, $nin: [null, ""] } },
+      { videoUrl: { $exists: true, $nin: [null, ""] } },
+      { videos: { $exists: true, $not: { $size: 0 } } },
+      { "media.type": "video" },
+      { "media.url": { $regex: "mp4", $options: "i" } },
+    ];
+    filter.images = { $exists: true, $not: { $size: 0 } };
+  }
+
   return filter;
 }
 
@@ -376,6 +387,87 @@ export const getProducts = async (req: Request, res: Response) => {
 
       const products = discountResult[0]?.data || [];
       const total = discountResult[0]?.totalCount?.[0]?.count || 0;
+      const [facet] = facetResult;
+
+      return res.status(200).json({
+        products,
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        availableSizes: (facet?.sizes || []).map((s: any) => s._id),
+        availableColors: (facet?.colors || []).map((c: any) => c._id),
+      });
+    }
+
+    if (sortParam === "trending") {
+      const trendingPipeline: any[] = [
+        {
+          $match: {
+            // Guard: only include documents where priceHistory is a real array
+            // with at least 2 entries. $ifNull prevents a crash when the field
+            // is missing or null (MongoDB's $size errors on non-arrays).
+            $expr: { $gte: [{ $size: { $ifNull: ["$priceHistory", []] } }, 2] },
+            images: { $exists: true, $not: { $size: 0 } },
+            ...filter,
+          },
+        },
+        {
+          $addFields: {
+            historySize: { $size: "$priceHistory" },
+            firstPrice: { $arrayElemAt: ["$priceHistory.price", 0] },
+            lastPrice: { $arrayElemAt: ["$priceHistory.price", -1] },
+          },
+        },
+        {
+          $addFields: {
+            hasRealMovement: { $ne: ["$firstPrice", "$lastPrice"] },
+          },
+        },
+        { $sort: { hasRealMovement: -1, historySize: -1, updatedAt: -1 } },
+        {
+          $project: {
+            description: 0,
+            composition: 0,
+            videos: 0,
+            firstPrice: 0,
+            lastPrice: 0,
+            historySize: 0,
+            hasRealMovement: 0,
+          },
+        },
+        {
+          $facet: {
+            data: [{ $skip: skip }, { $limit: limit }],
+            totalCount: [{ $count: "count" }],
+          },
+        },
+      ];
+
+      const [trendingResult, facetResult] = await Promise.all([
+        ProductModel.aggregate(trendingPipeline),
+        ProductModel.aggregate(facetPipeline),
+      ]);
+
+      let products = trendingResult[0]?.data || [];
+      let total = trendingResult[0]?.totalCount?.[0]?.count || 0;
+
+      if (products.length === 0) {
+        const fallbackFilter = {
+          images: { $exists: true, $not: { $size: 0 } },
+          ...filter,
+        };
+        const [fallbackProducts, fallbackTotal] = await Promise.all([
+          ProductModel.find(fallbackFilter, { description: 0, composition: 0, videos: 0 })
+            .sort({ updatedAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+          ProductModel.countDocuments(fallbackFilter),
+        ]);
+        products = fallbackProducts;
+        total = fallbackTotal;
+      }
+
       const [facet] = facetResult;
 
       return res.status(200).json({
