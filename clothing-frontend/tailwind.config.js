@@ -100,6 +100,10 @@ export default {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
         },
+        marquee: {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-100%)" },
+        },
       },
 
       animation: {
@@ -107,6 +111,7 @@ export default {
         "fade-in": "fadeIn 0.4s ease both",
         "slide-up": "slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
         "item-in": "itemIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both",
+        marquee: "marquee 40s linear infinite",
       },
     },
   },

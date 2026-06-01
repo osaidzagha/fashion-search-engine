@@ -42,23 +42,62 @@ function isClothing(p: Product): boolean {
   return !NON_CLOTHING_RE.test(text);
 }
 
-// ─── Carousel skeleton ────────────────────────────────────────────────────────
-const CAROUSEL =
-  "flex gap-3 md:gap-5 overflow-x-auto pb-4 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
-
 const CARD_WRAPPER =
-  "min-w-[160px] max-w-[160px] sm:min-w-[200px] sm:max-w-[200px] md:min-w-[240px] md:max-w-[240px] lg:min-w-[260px] lg:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
+  "min-w-[160px] max-w-[160px] sm:min-w-[200px] sm:max-w-[200px] md:min-w-[240px] md:max-w-[240px] lg:min-w-[260px] lg:max-w-[260px] flex-shrink-0";
 
 const SKELETON_COUNT = 6;
 
+// ─── Infinite Carousel Helper ─────────────────────────────────────────────────
+function InfiniteCarousel({ products }: { products: Product[] }) {
+  if (!products || products.length === 0) return null;
+
+  // Duplicate the array to ensure continuous flow, handling smaller arrays safely
+  const trackItems =
+    products.length < 5
+      ? [...products, ...products, ...products, ...products]
+      : [...products, ...products];
+
+  return (
+    <div className="flex overflow-hidden group pb-4">
+      {/* First block of items */}
+      <div className="flex shrink-0 animate-marquee group-hover:[animation-play-state:paused]">
+        {trackItems.map((p, i) => (
+          <div
+            key={`track1-${p.id}-${i}`}
+            className={`${CARD_WRAPPER} mr-3 md:mr-5`}
+          >
+            <ProductCard product={p} />
+          </div>
+        ))}
+      </div>
+      {/* Second identical block positioned perfectly behind to loop seamlessly */}
+      <div
+        className="flex shrink-0 animate-marquee group-hover:[animation-play-state:paused]"
+        aria-hidden="true"
+      >
+        {trackItems.map((p, i) => (
+          <div
+            key={`track2-${p.id}-${i}`}
+            className={`${CARD_WRAPPER} mr-3 md:mr-5`}
+          >
+            <ProductCard product={p} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CarouselSkeleton() {
   return (
-    <div className={CAROUSEL}>
-      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-        <div key={i} className={CARD_WRAPPER}>
-          <ProductSkeleton isCardMode={false} />
-        </div>
-      ))}
+    <div className="flex overflow-hidden pb-4">
+      <div className="flex shrink-0">
+        {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+          <div key={i} className={`${CARD_WRAPPER} mr-3 md:mr-5`}>
+            <ProductSkeleton isCardMode={false} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -235,7 +274,6 @@ export default function Home() {
         </section>
 
         {/* ══ EDITOR'S CHOICE ═══════════════════════════════════════════════ */}
-        {/* ✅ FIX: added "See all →" CTA consistent with other sections */}
         <Section
           title="Editor's Choice"
           subtitle={
@@ -256,19 +294,10 @@ export default function Home() {
             ) : undefined
           }
         >
-          <div className={CAROUSEL}>
-            {editorChoiceProducts.map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
+          <InfiniteCarousel products={editorChoiceProducts} />
         </Section>
 
         {/* ══ PRICE TRACKER ═════════════════════════════════════════════════ */}
-        {/* ✅ FIX: renamed from "Price movement" — now clearly means
-             products whose price actually changed recently (up or down).
-             The flat-price ones are filtered out on the backend now. */}
         {(loading || trending.length > 0) && (
           <Section
             title="On the move"
@@ -281,19 +310,13 @@ export default function Home() {
                 <SeeAllButton
                   onClick={() => {
                     dispatch(clearFilters());
-                    navigate("/collection?sort=newest");
+                    navigate("/collection?mode=trending");
                   }}
                 />
               ) : undefined
             }
           >
-            <div className={CAROUSEL}>
-              {trending.map((p) => (
-                <div key={p.id} className={CARD_WRAPPER}>
-                  <ProductCard product={p} />
-                </div>
-              ))}
-            </div>
+            <InfiniteCarousel products={trending} />
           </Section>
         )}
 
@@ -309,13 +332,7 @@ export default function Home() {
             ) : undefined
           }
         >
-          <div className={CAROUSEL}>
-            {(featured?.onSale || []).map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
+          <InfiniteCarousel products={featured?.onSale || []} />
         </Section>
 
         {/* ══ NEW IN ════════════════════════════════════════════════════════ */}
@@ -325,17 +342,13 @@ export default function Home() {
           loading={loading}
           action={
             !loading && newInAll.length > 0 ? (
-              <SeeAllButton onClick={() => navigate("/collection/new-in")} />
+              <SeeAllButton
+                onClick={() => navigate("/collection?mode=new-in")}
+              />
             ) : undefined
           }
         >
-          <div className={CAROUSEL}>
-            {newInAll.map((p) => (
-              <div key={p.id} className={CARD_WRAPPER}>
-                <ProductCard product={p} />
-              </div>
-            ))}
-          </div>
+          <InfiniteCarousel products={newInAll} />
         </Section>
 
         {/* ══ BRAND SPLIT ═══════════════════════════════════════════════════ */}

@@ -297,7 +297,7 @@ export async function scrapeMangoProductData(
 
     await page.goto(turkishUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 120000, // 👈 INCREASED TIMEOUT
+      timeout: 120000,
     });
 
     try {
@@ -312,7 +312,7 @@ export async function scrapeMangoProductData(
             text !== "Kadin"
           );
         },
-        { timeout: 20000 }, // 👈 Bumped up as well
+        { timeout: 20000 },
       );
     } catch {
       console.log(`   --> ⚠️  Hub redirect detected — skipping: ${turkishUrl}`);
@@ -521,15 +521,25 @@ export async function scrapeMangoProductData(
       );
     const uniqueVideos = [...new Set(cleanVideos)];
 
+    // ── CONFIGURABLE PRICE PARSING ───────────────────────────────────────────
     let finalPrice = 0;
+    let originalPrice: number | undefined = undefined;
+
     if (Object.keys(pricePayload).length > 0) {
-      if (colorCode && pricePayload[colorCode]?.price) {
-        finalPrice = Number(pricePayload[colorCode].price) || 0;
-      } else {
-        const firstKey = Object.keys(pricePayload).find(
-          (k) => pricePayload[k]?.price,
-        );
-        if (firstKey) finalPrice = Number(pricePayload[firstKey].price) || 0;
+      const targetKey =
+        colorCode && pricePayload[colorCode]?.price
+          ? colorCode
+          : Object.keys(pricePayload).find((k) => pricePayload[k]?.price);
+
+      if (targetKey && pricePayload[targetKey]) {
+        const pricing = pricePayload[targetKey];
+        finalPrice = Number(pricing.price) || 0;
+
+        const oldPrice =
+          pricing.originalPrice || pricing.crossedOutPrice || pricing.oldPrice;
+        if (oldPrice && Number(oldPrice) > finalPrice) {
+          originalPrice = Number(oldPrice);
+        }
       }
     }
 
@@ -539,7 +549,7 @@ export async function scrapeMangoProductData(
       );
     } else {
       console.log(
-        `   --> ✅ Mango: "${finalName}" | ${finalPrice} TRY | Cat: ${finalCategory} | Images: ${uniqueImages.length} | Sizes: ${domData.sizes.length} | Comp: ${finalComposition ? "✓" : "✗"}`,
+        `   --> ✅ Mango: "${finalName}" | ${finalPrice} TRY ${originalPrice ? `(Orig: ${originalPrice})` : ""} | Cat: ${finalCategory} | Images: ${uniqueImages.length} | Sizes: ${domData.sizes.length}`,
       );
     }
 
@@ -547,6 +557,7 @@ export async function scrapeMangoProductData(
       id: productId,
       name: finalName,
       price: finalPrice,
+      originalPrice: originalPrice, // Now securely exposed to database handlers
       currency: "TRY",
       brand: "Mango",
       category: finalCategory,
