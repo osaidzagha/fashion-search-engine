@@ -1,3 +1,9 @@
+// ─── Media item (Massimo Dutti uses this structure) ───────────────────────────
+export interface MediaItem {
+  type: "image" | "video";
+  url: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -8,10 +14,10 @@ export interface Product {
   images: string[];
 
   // ─── VIDEO & MEDIA FIELDS (CRITICAL) ───
-  video?: string; // Zara uses this!
+  video?: string;      // Zara uses this
   videoUrl?: string;
   videos?: string[];
-  media?: any[]; // Massimo often uses this!
+  media?: MediaItem[]; // Massimo Dutti uses this
 
   link: string;
   category: string;

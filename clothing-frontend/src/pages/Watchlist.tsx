@@ -113,7 +113,7 @@ export default function Watchlist() {
                 Your archive is empty.
               </p>
               <button
-                onClick={() => navigate("/search")}
+                onClick={() => navigate("/collection")}
                 className="px-6 md:px-8 py-3 md:py-4 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-widest uppercase border-none cursor-pointer transition-opacity duration-200 hover:opacity-75"
               >
                 Explore Catalog

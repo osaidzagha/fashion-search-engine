@@ -85,7 +85,7 @@ export const SearchBar = ({
         setShowDropdown(false);
       }
     }, 250);
-  }, [inputValue, focused, selectDepartments]);
+  }, [inputValue, selectDepartments]);
 
   const doSearch = (term: string) => {
     if (!term.trim()) return;

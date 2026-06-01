@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
@@ -60,8 +60,12 @@ function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCa
   // fresh value without needing to re-create the observer on every render.
   const hasMoreRef = useRef(hasMore);
   const fetchingRef = useRef(loadingMore);
+  // onLoadMoreRef ensures the observer never holds a stale closure of the
+  // load function even though the effect only runs once ([] deps).
+  const onLoadMoreRef = useRef(onLoadMore);
   hasMoreRef.current = hasMore;
   fetchingRef.current = loadingMore;
+  onLoadMoreRef.current = onLoadMore;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -70,7 +74,7 @@ function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCa
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMoreRef.current && !fetchingRef.current) {
-          onLoadMore();
+          onLoadMoreRef.current();
         }
       },
       // Trigger when the sentinel is within 300px of the right edge of its
@@ -80,8 +84,7 @@ function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCa
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-    // onLoadMore is intentionally excluded — it's a stable callback reference
-    // and including it would recreate the observer on every render.
+    // All dynamic values are accessed via refs — no deps needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -270,7 +273,7 @@ export default function Home() {
     };
   }, [selectDepartments]);
 
-  const loadMoreEditorChoice = async () => {
+  const loadMoreEditorChoice = useCallback(async () => {
     if (editorChoiceLoading || !editorChoiceHasMore) return;
     setEditorChoiceLoading(true);
     try {
@@ -294,9 +297,9 @@ export default function Home() {
     } finally {
       setEditorChoiceLoading(false);
     }
-  };
+  }, [editorChoiceLoading, editorChoiceHasMore, editorChoicePage, selectDepartments]);
 
-  const loadMoreTrending = async () => {
+  const loadMoreTrending = useCallback(async () => {
     if (trendingLoading || !trendingHasMore) return;
     setTrendingLoading(true);
     try {
@@ -319,9 +322,9 @@ export default function Home() {
     } finally {
       setTrendingLoading(false);
     }
-  };
+  }, [trendingLoading, trendingHasMore, trendingPage, selectDepartments]);
 
-  const loadMoreSale = async () => {
+  const loadMoreSale = useCallback(async () => {
     if (saleLoading || !saleHasMore) return;
     setSaleLoading(true);
     try {
@@ -345,9 +348,9 @@ export default function Home() {
     } finally {
       setSaleLoading(false);
     }
-  };
+  }, [saleLoading, saleHasMore, salePage, selectDepartments]);
 
-  const loadMoreNewIn = async () => {
+  const loadMoreNewIn = useCallback(async () => {
     if (newInLoading || !newInHasMore) return;
     setNewInLoading(true);
     try {
@@ -370,9 +373,10 @@ export default function Home() {
     } finally {
       setNewInLoading(false);
     }
-  };
+  }, [newInLoading, newInHasMore, newInPage, selectDepartments]);
 
-  const mosaicProducts = featured ? getMosaicImages(featured) : [];
+  // useMemo so the random shuffle only runs when `featured` changes, not on every render
+  const mosaicProducts = useMemo(() => (featured ? getMosaicImages(featured) : []), [featured]);
   const hasCampaign =
     featured?.campaignHeroes && featured.campaignHeroes.length > 0;
   const hasMosaic = mosaicProducts.length >= 4;

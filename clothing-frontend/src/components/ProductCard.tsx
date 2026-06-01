@@ -129,6 +129,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           <img
             src={product.images[1]}
             alt={`${product.name} alternate`}
+            loading="lazy"
             className="absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-elegant opacity-0 scale-[1.08] group-hover:opacity-100 group-hover:scale-[1.03]"
           />
         )}

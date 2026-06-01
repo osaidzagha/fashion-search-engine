@@ -148,7 +148,7 @@ function ProductColumn({
             currentPrice={product.price}
             originalPrice={product.originalPrice}
             currency={product.currency}
-            theme="dark"
+            theme={document.documentElement.classList.contains("dark") ? "dark" : "light"}
           />
         </div>
 

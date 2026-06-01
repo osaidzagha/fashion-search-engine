@@ -65,7 +65,20 @@ export default function App() {
   return (
     <CompareProvider>
       <div className="min-h-screen w-full bg-bgPrimary dark:bg-bgPrimary-dark text-textPrimary dark:text-textPrimary-dark transition-colors duration-500 ease-smooth">
-        <Toaster /* ... your toast config ... */ />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            duration: 3500,
+            style: {
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "11px",
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              borderRadius: "0",
+              padding: "12px 16px",
+            },
+          }}
+        />
 
         <Router>
           {/* 👇 Drop the listener inside the Router! */}

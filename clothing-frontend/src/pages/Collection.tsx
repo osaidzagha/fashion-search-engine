@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
@@ -100,7 +100,7 @@ export default function Collection() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
-  const initialFetchDone = useRef(false);
+
 
   // ── Header ────────────────────────────────────────────────────────────────
   const getHeaderInfo = () => {
@@ -203,15 +203,6 @@ export default function Collection() {
         if (!ignore) dispatch(setLoading(false));
       }
     };
-
-    if (!initialFetchDone.current) {
-      fetchData();
-      initialFetchDone.current = true;
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return () => {
-        ignore = true;
-      };
-    }
 
     fetchData();
     window.scrollTo({ top: 0, behavior: "smooth" });

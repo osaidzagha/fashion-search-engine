@@ -572,7 +572,7 @@ export default function ProductDetails() {
           {/* ✅ FIX: Replaced hardcoded style={{padding}} with responsive Tailwind padding */}
           <div
             ref={panelRef}
-            className="w-full relative md:sticky top-0 md:h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden px-6 py-10 md:p-12 lg:p-16"
+          className="w-full relative md:sticky top-0 md:h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 scrollbar-hide px-6 py-10 md:p-12 lg:p-16"
           >
             <div className="flex justify-between items-start mb-4">
               <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
