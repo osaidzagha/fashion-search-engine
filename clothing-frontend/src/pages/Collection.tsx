@@ -99,6 +99,9 @@ export default function Collection() {
   const [totalCount, setTotalCount] = useState(0);
   // Accumulated product list for infinite scroll
   const [displayProducts, setDisplayProducts] = useState<Product[]>([]);
+  // Tracks where the last batch of new items starts — ProductGrid uses this
+  // to skip the entrance animation for already-visible cards (fixes black-page bug)
+  const [newItemsStart, setNewItemsStart] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -213,9 +216,16 @@ export default function Collection() {
 
         if (!ignore) {
           // Accumulate for infinite scroll; replace on first page
-          setDisplayProducts((prev) =>
-            currentPage === 1 ? data.products : [...prev, ...data.products]
-          );
+          if (currentPage === 1) {
+            setNewItemsStart(0);
+            setDisplayProducts(data.products);
+          } else {
+            setNewItemsStart((prev) => {
+              // prev displayProducts length before append
+              return displayProducts.length;
+            });
+            setDisplayProducts((prev) => [...prev, ...data.products]);
+          }
           dispatch(setProducts(data.products));
           dispatch(setAvailableSizes(data.availableSizes || []));
           dispatch(setAvailableColors(data.availableColors || []));
@@ -357,6 +367,7 @@ export default function Collection() {
               <ProductGrid
                 products={displayProducts}
                 isLoading={isLoading && currentPage === 1}
+                newItemsStart={newItemsStart}
               />
 
               {/* ── Infinite scroll sentinel ── */}

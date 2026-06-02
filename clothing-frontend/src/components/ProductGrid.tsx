@@ -6,9 +6,13 @@ import { AnimatedGrid, AnimatedGridItem } from "./AnimatedGrid";
 interface ProductGridProps {
   products: Product[];
   isLoading?: boolean;
+  /** Index from which newly-loaded items start (for infinite scroll).
+   *  Items below this index are already visible — skip the entrance animation
+   *  to avoid the opacity:0 reset bug. Defaults to 0 (animate everything). */
+  newItemsStart?: number;
 }
 
-export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
+export const ProductGrid = ({ products, isLoading, newItemsStart = 0 }: ProductGridProps) => {
   // ── THE EDITORIAL ALGORITHM ──
   // Creates a perfectly balanced, repeating 10-item magazine spread.
   const getGridClass = (index: number) => {
@@ -56,13 +60,34 @@ export const ProductGrid = ({ products, isLoading }: ProductGridProps) => {
   }
 
   // ── 3. THE LOADED STATE ──
+  // Split into already-visible items (no animation) and new items (animate in).
+  // This prevents AnimatedGrid from resetting existing cards to opacity:0 when
+  // the list grows during infinite scroll, causing the "black page" bug.
+  const existingItems = products.slice(0, newItemsStart);
+  const newItems = products.slice(newItemsStart);
+
   return (
-    <AnimatedGrid className={gridWrapperClasses}>
-      {products.map((product, index) => (
-        <AnimatedGridItem key={product.id} className={getGridClass(index)}>
+    <div className={gridWrapperClasses}>
+      {/* Already-visible items: plain divs, no entrance animation */}
+      {existingItems.map((product, index) => (
+        <div key={product.id} className={getGridClass(index)}>
           <ProductCard product={product} />
-        </AnimatedGridItem>
+        </div>
       ))}
-    </AnimatedGrid>
+
+      {/* Newly-loaded items: animated entrance only for the fresh batch */}
+      {newItems.length > 0 && (
+        <AnimatedGrid className="contents">
+          {newItems.map((product, i) => {
+            const index = newItemsStart + i;
+            return (
+              <AnimatedGridItem key={product.id} className={getGridClass(index)}>
+                <ProductCard product={product} />
+              </AnimatedGridItem>
+            );
+          })}
+        </AnimatedGrid>
+      )}
+    </div>
   );
 };
