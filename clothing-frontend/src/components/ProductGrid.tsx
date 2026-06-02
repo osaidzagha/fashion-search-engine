@@ -1,43 +1,40 @@
 import { Product } from "../types";
 import { ProductCard } from "./ProductCard";
 import { ProductSkeleton } from "./ProductSkeleton";
-import { AnimatedGrid, AnimatedGridItem } from "./AnimatedGrid";
 
 interface ProductGridProps {
   products: Product[];
   isLoading?: boolean;
-  /** Index from which newly-loaded items start (for infinite scroll).
-   *  Items below this index are already visible — skip the entrance animation
-   *  to avoid the opacity:0 reset bug. Defaults to 0 (animate everything). */
+  /** First index of the newly-fetched batch.
+   *  Items before this index are already visible — render with no animation.
+   *  Items from this index onward get a CSS fade-in stagger.
+   *  Defaults to 0 (animate all items, used on page-1 load + filter reset). */
   newItemsStart?: number;
 }
 
-export const ProductGrid = ({ products, isLoading, newItemsStart = 0 }: ProductGridProps) => {
-  // ── THE EDITORIAL ALGORITHM ──
-  // Creates a perfectly balanced, repeating 10-item magazine spread.
-  const getGridClass = (index: number) => {
-    const position = index % 10;
+// Returns the Tailwind col/row span class for the editorial magazine layout.
+// The pattern repeats every 10 items.
+function getGridClass(index: number): string {
+  const pos = index % 10;
+  if (pos === 0 || pos === 7)
+    return "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
+  return "col-span-1";
+}
 
-    // ✅ FIX: Stays 1 column on mobile, expands to 2 on md/lg screens
-    if (position === 0)
-      return "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
-    if (position === 7)
-      return "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
+const gridWrapperClasses =
+  "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 md:gap-x-6 gap-y-6 md:gap-y-16 grid-flow-row-dense transition-colors duration-500 ease-smooth";
 
-    // Standard card
-    return "col-span-1";
-  };
-
-  // ✅ FIX: Tighter gap on mobile (gap-x-3 gap-y-6), wider on desktop
-  const gridWrapperClasses =
-    "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-3 md:gap-x-6 gap-y-6 md:gap-y-16 grid-flow-row-dense transition-colors duration-500 ease-smooth";
-
-  // ── 1. THE LOADING STATE ──
+export const ProductGrid = ({
+  products,
+  isLoading,
+  newItemsStart = 0,
+}: ProductGridProps) => {
+  // ── 1. LOADING STATE ──────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className={gridWrapperClasses}>
-        {Array.from({ length: 10 }).map((_, index) => (
-          <div key={`skeleton-${index}`} className={getGridClass(index)}>
+        {Array.from({ length: 10 }).map((_, i) => (
+          <div key={`skeleton-${i}`} className={getGridClass(i)}>
             <ProductSkeleton isCardMode={false} />
           </div>
         ))}
@@ -45,7 +42,7 @@ export const ProductGrid = ({ products, isLoading, newItemsStart = 0 }: ProductG
     );
   }
 
-  // ── 2. EMPTY STATE ──
+  // ── 2. EMPTY STATE ────────────────────────────────────────────────────────
   if (products.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 md:py-32 w-full animate-fade-in">
@@ -59,35 +56,41 @@ export const ProductGrid = ({ products, isLoading, newItemsStart = 0 }: ProductG
     );
   }
 
-  // ── 3. THE LOADED STATE ──
-  // Split into already-visible items (no animation) and new items (animate in).
-  // This prevents AnimatedGrid from resetting existing cards to opacity:0 when
-  // the list grows during infinite scroll, causing the "black page" bug.
-  const existingItems = products.slice(0, newItemsStart);
-  const newItems = products.slice(newItemsStart);
-
+  // ── 3. PRODUCTS ───────────────────────────────────────────────────────────
+  // We use plain CSS animations instead of framer-motion whileInView because:
+  //   • whileInView starts at opacity:0 and only fires when in viewport — the
+  //     whole grid is black until it scrolls into view, and on re-renders the
+  //     animation resets, causing the "black page" bug.
+  //   • CSS animation fires immediately on mount, regardless of scroll position.
+  //
+  // Items before newItemsStart are already visible — no animation (opacity: 1).
+  // Items from newItemsStart onward get a staggered fade-in-up.
   return (
     <div className={gridWrapperClasses}>
-      {/* Already-visible items: plain divs, no entrance animation */}
-      {existingItems.map((product, index) => (
-        <div key={product.id} className={getGridClass(index)}>
-          <ProductCard product={product} />
-        </div>
-      ))}
+      {products.map((product, index) => {
+        const isNew = index >= newItemsStart;
+        // Stagger new items by 40ms each, capped so the last card isn't too delayed
+        const staggerDelay = isNew
+          ? `${Math.min((index - newItemsStart) * 0.04, 0.6)}s`
+          : "0s";
 
-      {/* Newly-loaded items: animated entrance only for the fresh batch */}
-      {newItems.length > 0 && (
-        <AnimatedGrid className="contents">
-          {newItems.map((product, i) => {
-            const index = newItemsStart + i;
-            return (
-              <AnimatedGridItem key={product.id} className={getGridClass(index)}>
-                <ProductCard product={product} />
-              </AnimatedGridItem>
-            );
-          })}
-        </AnimatedGrid>
-      )}
+        return (
+          <div
+            key={product.id}
+            className={getGridClass(index)}
+            style={
+              isNew
+                ? {
+                    animation: "fadeIn 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                    animationDelay: staggerDelay,
+                  }
+                : undefined
+            }
+          >
+            <ProductCard product={product} />
+          </div>
+        );
+      })}
     </div>
   );
 };

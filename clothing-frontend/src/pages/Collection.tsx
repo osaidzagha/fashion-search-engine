@@ -220,10 +220,10 @@ export default function Collection() {
             setNewItemsStart(0);
             setDisplayProducts(data.products);
           } else {
-            setNewItemsStart((prev) => {
-              // prev displayProducts length before append
-              return displayProducts.length;
-            });
+            // Capture current length BEFORE appending so ProductGrid knows
+            // which items are new and need the fade-in animation.
+            const prevCount = displayProducts.length;
+            setNewItemsStart(prevCount);
             setDisplayProducts((prev) => [...prev, ...data.products]);
           }
           dispatch(setProducts(data.products));
