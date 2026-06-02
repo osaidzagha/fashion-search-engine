@@ -81,6 +81,7 @@ export const fetchProductsFromAPI = async (
     if (filters.onSale) urlParams.set("onSale", "true");
     if (filters.sort) urlParams.set("sort", filters.sort);
     if (filters.mode) urlParams.set("mode", filters.mode);
+    if (filters.hasVideo) urlParams.set("hasVideo", "true");
 
     const response = await globalFetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,
@@ -159,12 +160,16 @@ export const fetchWatchlist = async (): Promise<Product[]> => {
   }
 };
 
-export const addToWatchlist = async (productId: string): Promise<boolean> => {
+export const addToWatchlist = async (
+  productId: string,
+  targetPrice?: number,
+): Promise<boolean> => {
   try {
     await globalFetch(`${BASE_URL}/api/watchlist/${productId}`, {
       method: "POST",
+      body: JSON.stringify(targetPrice ? { targetPrice } : {}),
     });
-    return true; // If globalFetch doesn't throw an error, it succeeded
+    return true;
   } catch (error) {
     console.error("Failed to add to watchlist:", error);
     return false;

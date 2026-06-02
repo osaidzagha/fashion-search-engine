@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IWatchlistItem {
   productId: string;
   trackedPrice: number;
+  targetPrice?: number; // User's desired price threshold
   addedAt: Date;
 }
 
@@ -35,6 +36,7 @@ const UserSchema: Schema = new Schema(
       {
         productId: { type: String, required: true },
         trackedPrice: { type: Number, required: true },
+        targetPrice: { type: Number }, // optional alert threshold
         addedAt: { type: Date, default: Date.now },
       },
     ],

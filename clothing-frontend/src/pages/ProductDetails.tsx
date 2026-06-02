@@ -90,6 +90,8 @@ export default function ProductDetails() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(0);
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const [targetPrice, setTargetPrice] = useState<string>("");
+  const [showTargetInput, setShowTargetInput] = useState(false);
 
   // Admin Media Manager State
   const [isMediaManagerOpen, setIsMediaManagerOpen] = useState(false);
@@ -138,12 +140,20 @@ export default function ProductDetails() {
       if (tracked) {
         if (await removeFromWatchlist(product.id)) {
           setTracked(false);
+          setShowTargetInput(false);
+          setTargetPrice("");
           toast.success("Removed from Watchlist");
         }
       } else {
-        if (await addToWatchlist(product.id)) {
+        const tp = targetPrice ? parseFloat(targetPrice) : undefined;
+        if (await addToWatchlist(product.id, tp)) {
           setTracked(true);
-          toast.success("Tracking price drop");
+          setShowTargetInput(false);
+          toast.success(
+            tp
+              ? `Tracking — alert at ${tp.toLocaleString("tr-TR")} ${product.currency}`
+              : "Tracking price drop",
+          );
         }
       }
     } catch (err) {
@@ -654,6 +664,43 @@ export default function ProductDetails() {
                     ? "Track price drop"
                     : "Sign in to track"}
             </button>
+
+            {/* Target price input — optional, shown inline */}
+            {!tracked && isAuthenticated && (
+              <div className="mb-2">
+                {!showTargetInput ? (
+                  <button
+                    onClick={() => setShowTargetInput(true)}
+                    className="w-full text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer py-1"
+                  >
+                    + Set target price (optional)
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 border border-borderLight dark:border-borderLight-dark px-3 py-2">
+                    <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark whitespace-nowrap">
+                      Alert me at
+                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={targetPrice}
+                      onChange={(e) => setTargetPrice(e.target.value)}
+                      placeholder={product.price.toString()}
+                      className="flex-1 bg-transparent font-heading text-[13px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
+                    />
+                    <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
+                      {product.currency}
+                    </span>
+                    <button
+                      onClick={() => { setShowTargetInput(false); setTargetPrice(""); }}
+                      className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <a
               href={product.link}

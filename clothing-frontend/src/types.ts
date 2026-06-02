@@ -28,6 +28,8 @@ export interface Product {
   sizes?: string[];
   timestamp?: string;
   priceHistory?: { price: number; date: string }[];
+  historyPreview?: { price: number; date: string }[];
+  histMin?: number;
 }
 
 export interface PaginatedResponse {
@@ -48,6 +50,7 @@ export interface FetchProductParams {
   colors?: string[];
   maxPrice?: number;
   onSale?: boolean;
-  sort?: string; // ← ADD
+  sort?: string;
   mode?: string;
+  hasVideo?: boolean;
 }

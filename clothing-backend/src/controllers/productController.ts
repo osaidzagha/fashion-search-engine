@@ -482,12 +482,6 @@ export const getProducts = async (req: Request, res: Response) => {
 
     // ── STANDARD SORTS (lowest / highest / newest / text score) ──────────────
     let sortOption: any = {};
-    let projection: any = {
-      priceHistory: 0,
-      description: 0,
-      composition: 0,
-      videos: 0,
-    };
 
     if (sortParam === "lowest") {
       sortOption = { price: 1 };
@@ -496,7 +490,6 @@ export const getProducts = async (req: Request, res: Response) => {
     } else if (sortParam === "newest") {
       sortOption = { timestamp: -1 };
     } else if (filter.$text) {
-      projection.score = { $meta: "textScore" };
       sortOption = { score: { $meta: "textScore" } };
     }
 
@@ -504,16 +497,46 @@ export const getProducts = async (req: Request, res: Response) => {
       sortOption = { timestamp: -1 };
     }
 
-    const [allProducts, total, facetResult] = await Promise.all([
-      ProductModel.find(filter, projection)
-        .sort(sortOption)
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      ProductModel.countDocuments(filter),
+    // Aggregation: compute histMin + historyPreview for badges and sparklines
+    const standardPipeline: any[] = [
+      { $match: filter },
+      ...(filter.$text
+        ? [{ $addFields: { score: { $meta: "textScore" } } }]
+        : []),
+      {
+        $addFields: {
+          histMin: {
+            $min: { $ifNull: ["$priceHistory.price", ["$price"]] },
+          },
+          historyPreview: {
+            $slice: [{ $ifNull: ["$priceHistory", []] }, -10],
+          },
+        },
+      },
+      { $sort: sortOption },
+      {
+        $project: {
+          priceHistory: 0,
+          description: 0,
+          composition: 0,
+          videos: 0,
+        },
+      },
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          totalCount: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const [standardResult, facetResult] = await Promise.all([
+      ProductModel.aggregate(standardPipeline),
       ProductModel.aggregate(facetPipeline),
     ]);
 
+    const allProducts = standardResult[0]?.data || [];
+    const total = standardResult[0]?.totalCount?.[0]?.count || 0;
     const [facet] = facetResult;
 
     return res.status(200).json({
@@ -529,6 +552,7 @@ export const getProducts = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
+
 
 // ─── GET /api/products/:id ────────────────────────────────────────────────────
 export const getProductById = async (req: Request, res: Response) => {

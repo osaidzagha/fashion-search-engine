@@ -3,6 +3,7 @@ import { Product } from "../types";
 import { Link } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
 import { ProductSkeleton } from "./ProductSkeleton";
+import { PriceSparkline } from "./PriceSparkline";
 
 interface ProductCardProps {
   product: Product;
@@ -45,6 +46,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const discount = isOnSale
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
+
+  // Show "All-time low" badge when current price is at or within 2% of historical minimum
+  const isAllTimeLow =
+    product.histMin != null &&
+    product.histMin > 0 &&
+    product.price <= product.histMin * 1.02;
 
   const handleMouseEnter = useCallback(() => {
     setIsPlaying(true);
@@ -172,6 +179,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
 
+        {/* All-time low badge — bottom-left, doesn't clash with discount (top-left) */}
+        {isAllTimeLow && !videoSrc && (
+          <div className="absolute bottom-3 left-3 z-10 bg-black/75 backdrop-blur-sm text-white font-sans text-[7px] tracking-[0.18em] uppercase px-2 py-1 border border-white/15">
+            All‑time low
+          </div>
+        )}
+
         {/* Mobile video play button */}
         {videoSrc && (
           <button
@@ -222,24 +236,36 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             .join(" ")}
         </p>
 
-        <div className="flex items-baseline gap-1.5">
-          {/* Price — was textTertiary (#666 light) → now (#555 light) for non-sale */}
-          <p
-            className={[
-              "font-heading text-[13px] md:text-[14px] m-0",
-              isOnSale
-                ? "text-accentRed"
-                : "text-textTertiary dark:text-textTertiary-dark",
-            ].join(" ")}
-          >
-            {product.price.toLocaleString("tr-TR")} {product.currency}
-          </p>
+        </div>
 
-          {/* Strikethrough original price — was textMuted (#a0a0a0 light) → now (#777 light) */}
-          {isOnSale && (
-            <p className="font-heading text-[11px] text-textMuted dark:text-textMuted-dark line-through m-0">
-              {product.originalPrice!.toLocaleString("tr-TR")}
+        {/* Sparkline + price row */}
+        <div className="flex items-end justify-between gap-2">
+          <div className="flex items-baseline gap-1.5">
+            {/* Price */}
+            <p
+              className={[
+                "font-heading text-[13px] md:text-[14px] m-0",
+                isOnSale
+                  ? "text-accentRed"
+                  : "text-textTertiary dark:text-textTertiary-dark",
+              ].join(" ")}
+            >
+              {product.price.toLocaleString("tr-TR")} {product.currency}
             </p>
+
+            {/* Strikethrough original price */}
+            {isOnSale && (
+              <p className="font-heading text-[11px] text-textMuted dark:text-textMuted-dark line-through m-0">
+                {product.originalPrice!.toLocaleString("tr-TR")}
+              </p>
+            )}
+          </div>
+
+          {/* Tiny sparkline — only when we have preview data */}
+          {product.historyPreview && product.historyPreview.length >= 2 && (
+            <div className="flex-shrink-0 opacity-70">
+              <PriceSparkline data={product.historyPreview} />
+            </div>
           )}
         </div>
       </div>

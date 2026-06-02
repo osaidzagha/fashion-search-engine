@@ -1,6 +1,12 @@
 // src/scrapers/scheduler.ts
 import cron from "node-cron";
 import { runAllScrapers } from "./scraperManager";
+import { Queue } from "bullmq";
+import { redisConnection } from "../queues/queues";
+
+const weeklyDigestQueue = new Queue("weekly-digest", {
+  connection: redisConnection,
+});
 
 export const startScraperCron = () => {
   console.log(
@@ -22,8 +28,25 @@ export const startScraperCron = () => {
       }
     },
     {
-      // 👇 FIX: Just removed 'scheduled: true' to satisfy TS. It defaults to true anyway!
       timezone: "Europe/Istanbul",
     },
+  );
+
+  // Weekly digest — every Sunday at 10:00 AM Istanbul time
+  cron.schedule(
+    "0 10 * * 0",
+    async () => {
+      console.log("📬 CRON: Queuing weekly digest job...");
+      try {
+        await weeklyDigestQueue.add("weekly-digest", {}, {
+          attempts: 2,
+          backoff: { type: "fixed", delay: 60_000 },
+        });
+        console.log("📬 Weekly digest job queued.");
+      } catch (err) {
+        console.error("📬 Failed to queue weekly digest:", err);
+      }
+    },
+    { timezone: "Europe/Istanbul" },
   );
 };

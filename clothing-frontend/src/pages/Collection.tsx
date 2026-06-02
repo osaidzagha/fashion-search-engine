@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useParams, useSearchParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { fetchProductsFromAPI } from "../services/api";
+import { Product } from "../types";
 import { ProductGrid } from "../components/ProductGrid";
 import { SearchBar } from "../components/SearchBar";
 import { FilterDrawer } from "../components/FilterDrawer";
@@ -12,13 +13,10 @@ import {
   setAvailableSizes,
   setAvailableColors,
   setSearchTerm,
-  setDepartments,
 } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 
 // ─── Sort options ─────────────────────────────────────────────────────────────
-// ✅ FIX: price sort labels now always show their direction; the active state
-//         underlines the label rather than swapping it, so it's always clear.
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Recommended" },
   { value: "discount", label: "Biggest Discount" },
@@ -82,11 +80,11 @@ export default function Collection() {
   const brandsFromUrl = searchParams.get("brands") || "";
   const onSaleFromUrl = searchParams.get("onSale") || "";
   const deptsFromUrl = searchParams.get("departments") || "";
+  const hasVideoFromUrl = searchParams.get("hasVideo") === "true";
 
   const urlDepts = deptsFromUrl.split(",").filter(Boolean);
 
   const {
-    items: products,
     isLoading,
     searchTerm,
     selectBrands,
@@ -99,13 +97,20 @@ export default function Collection() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-
-
+  // Accumulated product list for infinite scroll
+  const [displayProducts, setDisplayProducts] = useState<Product[]>([]);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   // ── Header ────────────────────────────────────────────────────────────────
   const getHeaderInfo = () => {
     if (displayTitle)
       return { title: displayTitle, desc: "Explore our curated catalog." };
+    if (hasVideoFromUrl)
+      return { title: "Editor's Choice", desc: "Curated picks with video lookbooks." };
+    if (currentSort === "newest")
+      return { title: "New Arrivals", desc: "The latest additions to our curation." };
+    if (currentSort === "trending")
+      return { title: "On the Move", desc: "Products with recent price activity." };
     if (qFromUrl && !type)
       return {
         title: `Results for "${qFromUrl}"`,
@@ -144,23 +149,38 @@ export default function Collection() {
 
   const header = getHeaderInfo();
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  // ── Dynamic page title (SEO) ──────────────────────────────────────────────
+  useEffect(() => {
+    document.title = `${header.title} — Dope`;
+    return () => { document.title = "Dope | Fashion Price Tracker"; };
+  }, [header.title]);
+
+  // ── Sync search term from URL ─────────────────────────────────────────────
   useEffect(() => {
     dispatch(setSearchTerm(qFromUrl));
-    setCurrentPage(1);
   }, [qFromUrl, dispatch]);
 
+  // ── Reset page + accumulated list when filters or mode changes ────────────
   useEffect(() => {
     setCurrentPage(1);
+    setDisplayProducts([]);
   }, [
-    selectBrands,
-    selectDepartments,
-    selectSizes,
-    selectColors,
-    maxPrice,
     type,
+    currentSort,
+    modeFromUrl,
+    hasVideoFromUrl,
+    onSaleFromUrl,
+    brandsFromUrl,
+    deptsFromUrl,
+    searchTerm,
+    (selectBrands || []).join(","),
+    (selectDepartments || []).join(","),
+    (selectSizes || []).join(","),
+    (selectColors || []).join(","),
+    maxPrice,
   ]);
 
+  // ── Fetch data ────────────────────────────────────────────────────────────
   useEffect(() => {
     let ignore = false;
 
@@ -180,6 +200,7 @@ export default function Collection() {
           maxPrice,
           sort: currentSort,
           mode: modeFromUrl,
+          hasVideo: hasVideoFromUrl || undefined,
         };
 
         if (type === "sale" || onSaleFromUrl === "true") filters.onSale = true;
@@ -191,6 +212,10 @@ export default function Collection() {
         const data = await fetchProductsFromAPI(filters);
 
         if (!ignore) {
+          // Accumulate for infinite scroll; replace on first page
+          setDisplayProducts((prev) =>
+            currentPage === 1 ? data.products : [...prev, ...data.products]
+          );
           dispatch(setProducts(data.products));
           dispatch(setAvailableSizes(data.availableSizes || []));
           dispatch(setAvailableColors(data.availableColors || []));
@@ -205,7 +230,7 @@ export default function Collection() {
     };
 
     fetchData();
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (currentPage === 1) window.scrollTo({ top: 0, behavior: "smooth" });
 
     return () => {
       ignore = true;
@@ -221,11 +246,34 @@ export default function Collection() {
     type,
     currentSort,
     modeFromUrl,
+    hasVideoFromUrl,
     brandsFromUrl,
     onSaleFromUrl,
     deptsFromUrl,
     dispatch,
   ]);
+
+  // ── Infinite scroll via IntersectionObserver ──────────────────────────────
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (
+          entries[0].isIntersecting &&
+          currentPage < totalPages &&
+          !isLoading
+        ) {
+          setCurrentPage((p) => p + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [currentPage, totalPages, isLoading]);
 
   const hasActiveFilters =
     (selectBrands?.length || 0) > 0 ||
@@ -237,7 +285,6 @@ export default function Collection() {
     if (value) newParams.set("sort", value);
     else newParams.delete("sort");
     setSearchParams(newParams);
-    setCurrentPage(1);
   };
 
   return (
@@ -277,7 +324,7 @@ export default function Collection() {
             {/* RIGHT: Count + custom sort */}
             <div className="flex items-center gap-4 md:gap-8">
               <span className="hidden sm:block font-sans text-[10px] md:text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-                {isLoading
+                {isLoading && currentPage === 1
                   ? "Curating…"
                   : `${totalCount.toLocaleString()} pieces`}
               </span>
@@ -286,17 +333,17 @@ export default function Collection() {
             </div>
           </div>
 
-          {/* ── Count on mobile (below utility bar) ── */}
+          {/* ── Count on mobile ── */}
           <div className="sm:hidden mb-6">
             <span className="font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
-              {isLoading
+              {isLoading && currentPage === 1
                 ? "Curating…"
                 : `${totalCount.toLocaleString()} pieces`}
             </span>
           </div>
 
           {/* ── Grid / empty state ── */}
-          {products.length === 0 && !isLoading ? (
+          {displayProducts.length === 0 && !isLoading ? (
             <div className="flex flex-col items-center justify-center py-40 text-center">
               <p className="font-heading italic text-3xl text-textSecondary dark:text-textSecondary-dark mb-4">
                 The archive is empty.
@@ -307,46 +354,22 @@ export default function Collection() {
             </div>
           ) : (
             <>
-              <ProductGrid products={products} isLoading={isLoading} />
+              <ProductGrid
+                products={displayProducts}
+                isLoading={isLoading && currentPage === 1}
+              />
 
-              {/* ── Pagination ── */}
-              {totalPages > 1 && !isLoading && (
-                <div className="flex justify-center items-center gap-8 md:gap-12 mt-20 pt-10 border-t border-borderLight dark:border-borderLight-dark">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                    disabled={currentPage <= 1}
-                    className={[
-                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200",
-                      currentPage <= 1
-                        ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
-                        : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
-                    ].join(" ")}
-                  >
-                    Previous
-                  </button>
+              {/* ── Infinite scroll sentinel ── */}
+              {currentPage < totalPages && (
+                <div ref={sentinelRef} className="h-8 w-full" />
+              )}
 
-                  <span className="font-sans text-[11px] tracking-widest text-textMuted dark:text-textMuted-dark">
-                    {currentPage}
-                    <span className="mx-3 text-borderLight dark:text-borderLight-dark">
-                      /
-                    </span>
-                    {totalPages}
+              {/* ── Loading more indicator ── */}
+              {isLoading && currentPage > 1 && (
+                <div className="flex justify-center py-10">
+                  <span className="font-sans text-[9px] tracking-[0.25em] uppercase text-textMuted dark:text-textMuted-dark animate-pulse">
+                    Loading more
                   </span>
-
-                  <button
-                    onClick={() =>
-                      setCurrentPage((p) => Math.min(p + 1, totalPages))
-                    }
-                    disabled={currentPage >= totalPages}
-                    className={[
-                      "font-sans text-[10px] tracking-widest uppercase bg-transparent border-none transition-all duration-200",
-                      currentPage >= totalPages
-                        ? "text-borderLight dark:text-borderLight-dark cursor-not-allowed"
-                        : "text-textPrimary dark:text-textPrimary-dark cursor-pointer hover:opacity-50",
-                    ].join(" ")}
-                  >
-                    Next
-                  </button>
                 </div>
               )}
             </>

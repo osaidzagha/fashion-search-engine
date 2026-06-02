@@ -30,6 +30,7 @@ export const getWatchlist = async (
       return {
         ...product,
         trackedPrice: userTrackData?.trackedPrice ?? product.price,
+        targetPrice: userTrackData?.targetPrice,
       };
     });
 
@@ -53,24 +54,26 @@ export const addToWatchlist = async (
     }
 
     const userId = req.user!._id;
+    const rawTarget = req.body?.targetPrice;
+    const targetPrice: number | undefined =
+      rawTarget && Number(rawTarget) > 0 ? Number(rawTarget) : undefined;
 
     const product = await ProductModel.findOne({ id: productId });
     if (!product) return res.status(404).json({ message: "Product not found" });
+
+    const watchlistEntry: any = {
+      productId,
+      trackedPrice: product.price,
+      addedAt: new Date(),
+    };
+    if (targetPrice) watchlistEntry.targetPrice = targetPrice;
 
     const updated = await UserModel.findOneAndUpdate(
       {
         _id: userId,
         "watchlist.productId": { $ne: productId },
       },
-      {
-        $push: {
-          watchlist: {
-            productId,
-            trackedPrice: product.price,
-            addedAt: new Date(),
-          },
-        },
-      },
+      { $push: { watchlist: watchlistEntry } },
       { new: true },
     );
 

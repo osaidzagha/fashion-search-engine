@@ -7,6 +7,7 @@ import authRoutes from "./routes/authRoutes";
 import watchlistRoutes from "./routes/watchlistRoutes";
 import adminRoutes from "./routes/admin";
 import { priceAlertWorker } from "./queues/priceAlertWorker";
+import { weeklyDigestWorker } from "./queues/weeklyDigestWorker";
 import { redisConnection } from "./queues/queues";
 import userRoutes from "./routes/userRoutes";
 import { cleanupStaleRuns } from "./scrapers/scraperManager";
@@ -83,6 +84,7 @@ mongoose
     });
 
     console.log("🔔 Price alert worker online.");
+    console.log("📬 Weekly digest worker online.");
   })
   .catch((error) => {
     console.error("❌ Failed to connect to MongoDB:", error);
@@ -93,6 +95,7 @@ mongoose
 const shutdown = async (signal: string) => {
   console.log(`\n${signal} received — shutting down gracefully...`);
   await priceAlertWorker.close();
+  await weeklyDigestWorker.close();
   await redisConnection.quit();
   process.exit(0);
 };
