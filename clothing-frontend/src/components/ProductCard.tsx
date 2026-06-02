@@ -220,7 +220,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           )}
         </div>
       </div>
-
       {/* ── Info ── */}
       <div className="pt-2.5 pb-1">
         {/* Brand — was textSecondary (#888 light) → now (#444 light), much more readable */}
@@ -236,7 +235,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             .join(" ")}
         </p>
 
-        </div>
+        {/* ❌ DELETE THE </div> THAT WAS RIGHT HERE ❌ */}
 
         {/* Sparkline + price row */}
         <div className="flex items-end justify-between gap-2">
@@ -268,8 +267,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             </div>
           )}
         </div>
-      </div>
-
+      </div>{" "}
+      {/* ✅ This correctly closes the Info wrapper now */}
       {/* Hover underline */}
       <div className="h-px w-full bg-textPrimary dark:bg-textPrimary-dark origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-smooth mt-1.5" />
     </Link>
