@@ -501,17 +501,32 @@ export const getProducts = async (req: Request, res: Response) => {
       sortOption = { timestamp: -1 };
     }
 
-    // Aggregation: compute histMin + historyPreview for badges and sparklines
+    // Aggregation: compute histMin + historyPreview, then exclude heavy fields.
+    // IMPORTANT: $project here is EXCLUSION-ONLY (all values are 0) so MongoDB
+    // keeps every other field on the document.  Mixing 0 and 1 in the same
+    // $project (except _id) would flip it to an inclusion projection and strip
+    // every field not explicitly listed — which is what was breaking the frontend.
     const standardPipeline: any[] = [
       { $match: filter },
       ...(filter.$text
         ? [{ $addFields: { score: { $meta: "textScore" } } }]
         : []),
       {
+        // $addFields adds computed fields WITHOUT touching any existing ones.
         $addFields: {
+          // $min over an array field path returns the minimum element.
+          // Guard with $ifNull so documents missing priceHistory get their
+          // current price as the fallback minimum.
           histMin: {
-            $min: { $ifNull: ["$priceHistory.price", ["$price"]] },
+            $min: {
+              $cond: {
+                if: { $gt: [{ $size: { $ifNull: ["$priceHistory", []] } }, 0] },
+                then: "$priceHistory.price",
+                else: ["$price"],
+              },
+            },
           },
+          // Last 10 price history entries for the sparkline.
           historyPreview: {
             $slice: [{ $ifNull: ["$priceHistory", []] }, -10],
           },
@@ -519,20 +534,26 @@ export const getProducts = async (req: Request, res: Response) => {
       },
       { $sort: sortOption },
       {
-        $project: {
-          priceHistory: 0,
-          description: 0,
-          composition: 0,
-          videos: 0,
-        },
-      },
-      {
         $facet: {
-          data: [{ $skip: skip }, { $limit: limit }],
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            // Exclusion-only $project: strips the heavy raw arrays AFTER pagination.
+            // All values are 0 — MongoDB keeps every other field on the document.
+            {
+              $project: {
+                priceHistory: 0,
+                description: 0,
+                composition: 0,
+                videos: 0,
+              },
+            },
+          ],
           totalCount: [{ $count: "count" }],
         },
       },
     ];
+
 
     const [standardResult, facetResult] = await Promise.all([
       ProductModel.aggregate(standardPipeline),
