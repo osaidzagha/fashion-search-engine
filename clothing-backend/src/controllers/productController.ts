@@ -312,12 +312,16 @@ export const getProducts = async (req: Request, res: Response) => {
             { $sort: { _id: 1 } },
           ],
           colors: [
-            // ✅ FIX: exclude blank, "Default", and "default" color values
+            // Exclude blank, null, "Default", and pure numeric/code values
+            // like "02", "08", "50" that come from brand internal colour codes.
+            // Regex requires at least one letter so "Navy Blue" passes but "02" doesn't.
             {
               $match: {
                 color: {
                   $exists: true,
-                  $nin: ["", "Default", "default", null],
+                  $nin: ["", "Default", "default", "DEFAULT", null],
+                  $regex: /[a-zA-Z]/,
+                  $not: /^\d{1,3}$/,
                 },
               },
             },

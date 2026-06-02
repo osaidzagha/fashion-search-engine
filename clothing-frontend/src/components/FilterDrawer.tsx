@@ -54,50 +54,126 @@ const JUNK_COLORS = new Set([
   "undefined",
   "None",
   "none",
+  "striped",  // pattern, not colour
+  "Striped",
+  "multicoloured",
+  "Multicoloured",
+  "Multicolored",
 ]);
 
-// ─── Color mapper ─────────────────────────────────────────────────────────────
-const getColorHex = (colorName: string) => {
-  if (!colorName) return "#E0E0E0";
-  const safeColor = colorName.toLowerCase().trim();
-  const map: Record<string, string> = {
-    black: "#000000",
-    white: "#ffffff",
-    beige: "#f5f5dc",
-    blue: "#4a90e2",
-    brown: "#8b4513",
-    green: "#50c878",
-    grey: "#808080",
-    gray: "#808080",
-    khaki: "#c3b091",
-    navy: "#000080",
-    red: "#ff0000",
-    pink: "#ffc0cb",
-    ecru: "#f5f5dc",
-    camel: "#c19a6b",
-    anthracite: "#383e42",
-    burgundy: "#800020",
-    orange: "#ff8c00",
-    yellow: "#ffd700",
-    cream: "#fffdd0",
-    ivory: "#fffff0",
-    taupe: "#b59e8a",
-    lilac: "#c8a2c8",
-    purple: "#800080",
-    coral: "#ff6b6b",
-    teal: "#008080",
-    mint: "#98ff98",
-    rust: "#b7410e",
-    olive: "#808000",
-    sand: "#c2b280",
-    silver: "#c0c0c0",
-    gold: "#ffd700",
-    charcoal: "#36454f",
-    denim: "#1560bd",
-    mustard: "#ffdb58",
-  };
-  return map[safeColor] || "#E0E0E0";
+function isJunkColor(c: string): boolean {
+  if (JUNK_COLORS.has(c)) return true;
+  if (/^\d+$/.test(c.trim())) return true;   // pure numeric: "02", "50"
+  if (c.trim().length <= 2) return true;      // single letter codes: "S", "M"
+  return false;
+}
+
+// ─── Comprehensive color → hex map ────────────────────────────────────────────
+const COLOR_HEX: Record<string, string> = {
+  // ── Neutrals ──
+  black: "#1a1a1a",
+  white: "#f8f8f8",
+  "off white": "#f5f0e8",
+  "off-white": "#f5f0e8",
+  "oyster-white": "#f0ece4",
+  "oyster white": "#f0ece4",
+  cream: "#fffdd0",
+  ivory: "#fffff0",
+  ecru: "#f0e8d0",
+  vanilla: "#f3e5ab",
+  "light yellow": "#fef9c3",
+  // ── Greys ──
+  grey: "#888888",
+  gray: "#888888",
+  "anthracite grey": "#383e42",
+  "anthracite gray": "#383e42",
+  anthracite: "#383e42",
+  charcoal: "#36454f",
+  "light grey": "#c8c8c8",
+  "light gray": "#c8c8c8",
+  "dark grey": "#555555",
+  "dark gray": "#555555",
+  silver: "#c0c0c0",
+  "grey marl": "#9e9e9e",
+  "beige marl": "#c8b99a",
+  "brown marl": "#8b7355",
+  // ── Beiges & Browns ──
+  beige: "#d4b896",
+  sand: "#c2b280",
+  "light beige": "#e8d8c0",
+  camel: "#c19a6b",
+  taupe: "#b59e8a",
+  khaki: "#c3b091",
+  "dark khaki": "#8b7540",
+  stone: "#b2a090",
+  brown: "#8b5e3c",
+  chocolate: "#5c3317",
+  "dark brown": "#4a2c17",
+  tan: "#d2b48c",
+  russet: "#80461b",
+  mink: "#a0836b",
+  // ── Blues ──
+  blue: "#4a90d9",
+  "navy blue": "#0a1a5c",
+  "navy": "#0a1a5c",
+  "dark navy": "#050d2e",
+  "dark blue": "#0a2580",
+  "medium blue": "#3a70b0",
+  "light blue": "#a0c4e8",
+  "deep blue": "#0a1f70",
+  indigo: "#4b0082",
+  "mid-blue": "#3a78b5",
+  "mid blue": "#3a78b5",
+  denim: "#1560bd",
+  "sky blue": "#87ceeb",
+  teal: "#008080",
+  // ── Greens ──
+  green: "#3a8f5a",
+  olive: "#707030",
+  mint: "#98ff98",
+  sage: "#b2c2a0",
+  forest: "#228b22",
+  "dark green": "#1a5c2a",
+  emerald: "#50c878",
+  // ── Reds & Pinks ──
+  red: "#d32f2f",
+  burgundy: "#800020",
+  maroon: "#800000",
+  wine: "#722f37",
+  aubergine: "#614051",
+  rust: "#b7410e",
+  coral: "#ff6b6b",
+  pink: "#e8a0b0",
+  "light pink": "#f4c2cc",
+  rose: "#e8a0a0",
+  fuchsia: "#ff00ff",
+  // ── Purples ──
+  purple: "#7b2d8b",
+  lilac: "#c8a2c8",
+  lavender: "#e6e6fa",
+  plum: "#673147",
+  violet: "#8f00ff",
+  // ── Warm tones ──
+  orange: "#e07028",
+  mustard: "#e3a820",
+  yellow: "#ffd700",
+  gold: "#d4a017",
+  // ── Others ──
+  multicolour: "linear-gradient(135deg,#f00,#ff0,#0f0,#00f,#f0f)",
+  rainbow: "linear-gradient(135deg,#f00,#ff0,#0f0,#00f,#f0f)",
 };
+
+function getColorHex(colorName: string): string | undefined {
+  if (!colorName) return undefined;
+  const key = colorName.toLowerCase().trim();
+  // Direct match
+  if (COLOR_HEX[key]) return COLOR_HEX[key];
+  // Partial match — check if any known key is contained in the color name
+  for (const [k, v] of Object.entries(COLOR_HEX)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return undefined;
+}
 
 // ─── Sub-Components ───────────────────────────────────────────────────────────
 function SectionHeader({ index, title }: { index: string; title: string }) {
@@ -184,8 +260,8 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
   );
 
   // ✅ FIX: strip junk color values before rendering
-  const cleanColors = availableColors.filter((c) => !JUNK_COLORS.has(c));
-  const INITIAL_COLOR_COUNT = 10;
+  const cleanColors = availableColors.filter((c) => !isJunkColor(c));
+  const INITIAL_COLOR_COUNT = 16;
   const visibleColors = showAllColors
     ? cleanColors
     : cleanColors.slice(0, INITIAL_COLOR_COUNT);
@@ -242,21 +318,58 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
           {cleanColors.length > 0 && (
             <div className="animate-fade-in">
               <SectionHeader index="02" title="Colour" />
-              <div className="flex flex-col gap-3 pl-6 md:pl-10">
-                {visibleColors.map((color) => (
-                  <FilterOption
-                    key={color}
-                    label={color}
-                    active={selectColors?.includes(color) ?? false}
-                    colorSwatch={getColorHex(color)}
-                    onClick={() => dispatch(toggleColor(color))}
-                  />
-                ))}
-                {/* ✅ FIX: View More is now functional */}
+              <div className="pl-6 md:pl-10">
+                {/* 2-column swatch grid */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {visibleColors.map((color) => {
+                    const hex = getColorHex(color);
+                    const isActive = selectColors?.includes(color) ?? false;
+                    const isGradient = hex?.startsWith("linear");
+                    return (
+                      <button
+                        key={color}
+                        onClick={() => dispatch(toggleColor(color))}
+                        className="flex items-center gap-3 py-2 text-left group bg-transparent border-none cursor-pointer w-full"
+                      >
+                        {/* Swatch */}
+                        <div
+                          className={[
+                            "w-4 h-4 flex-shrink-0 rounded-[2px] transition-all duration-200",
+                            isActive
+                              ? "ring-1 ring-offset-1 ring-textPrimary dark:ring-textPrimary-dark scale-110"
+                              : "ring-1 ring-inset ring-black/10 dark:ring-white/10",
+                          ].join(" ")}
+                          style={{
+                            ...(hex && !isGradient
+                              ? { backgroundColor: hex }
+                              : isGradient
+                              ? { backgroundImage: hex }
+                              : {
+                                  // unknown color — show a neutral swatch
+                                  backgroundColor: "#d0d0d0",
+                                }),
+                          }}
+                        />
+                        {/* Label */}
+                        <span
+                          className={[
+                            "font-sans text-[10px] tracking-wider capitalize leading-tight transition-colors duration-200",
+                            isActive
+                              ? "text-textPrimary dark:text-textPrimary-dark font-medium"
+                              : "text-textSecondary dark:text-textSecondary-dark group-hover:text-textPrimary dark:group-hover:text-textPrimary-dark",
+                          ].join(" ")}
+                        >
+                          {color}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 {cleanColors.length > INITIAL_COLOR_COUNT && (
                   <button
                     onClick={() => setShowAllColors((prev) => !prev)}
-                    className="text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark mt-4 pl-7 transition-colors bg-transparent border-none cursor-pointer"
+                    className="text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark mt-4 transition-colors bg-transparent border-none cursor-pointer"
                   >
                     {showAllColors
                       ? "Show Less"
