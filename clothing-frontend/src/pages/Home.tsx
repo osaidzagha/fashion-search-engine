@@ -789,7 +789,7 @@ export default function Home() {
         {/* ══ FOOTER ════════════════════════════════════════════════════════ */}
         <footer className="px-6 lg:px-16 py-6 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-borderLight dark:border-borderLight-dark">
           <span className="text-textSecondary dark:text-textSecondary-dark">
-            <DopeLogo height={16} />
+            <DopeLogo size="sm" />
           </span>
           <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
             Price tracking · Zara · Mango · Massimo Dutti · Turkey

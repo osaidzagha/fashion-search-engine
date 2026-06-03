@@ -171,7 +171,7 @@ const Navbar = () => {
             className="absolute left-1/2 -translate-x-1/2 text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-60"
             aria-label="Dope — Home"
           >
-            <DopeLogo height={20} />
+            <DopeLogo size="md" />
           </Link>
 
           {/* RIGHT */}
