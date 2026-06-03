@@ -69,19 +69,19 @@ const CATEGORIES: {
 // ─── Feature strip content ────────────────────────────────────────────────────
 const FEATURES = [
   {
-    number: "01",
-    title: "Track every drop",
-    desc: "Prices checked daily across Zara, Mango & Massimo Dutti. Never miss a sale.",
+    label: "Track",
+    statement: ["Prices,", "watched."],
+    desc: "Checked daily across Zara, Mango & Massimo Dutti.",
   },
   {
-    number: "02",
-    title: "Compare side-by-side",
-    desc: 'Hit the + on any product to compare styles and prices in one view.',
+    label: "Compare",
+    statement: ["Looks,", "side-by-side."],
+    desc: "Tap + on any product. We put them next to each other.",
   },
   {
-    number: "03",
-    title: "Get notified",
-    desc: "Set your target price. We alert you the moment it's reached — or lower.",
+    label: "Notify",
+    statement: ["Target set.", "Alert sent."],
+    desc: "Your price. The moment it hits — or goes lower.",
   },
 ];
 
@@ -190,28 +190,28 @@ function SeeAllButton({ onClick }: { onClick: () => void }) {
 // ─── Feature Strip ────────────────────────────────────────────────────────────
 function FeatureStrip() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3">
+    <div className="grid grid-cols-1 md:grid-cols-3 border-b border-borderLight dark:border-borderLight-dark">
       {FEATURES.map((f, i) => (
         <div
-          key={f.title}
-          className={`px-8 md:px-12 lg:px-16 py-12 lg:py-16 flex flex-col gap-6 border-b border-borderLight dark:border-borderLight-dark ${
-            i < 2
-              ? "md:border-r border-borderLight dark:border-borderLight-dark"
-              : ""
+          key={f.label}
+          className={`px-8 md:px-12 lg:px-20 py-10 lg:py-14 flex flex-col gap-4 border-b border-borderLight dark:border-borderLight-dark ${
+            i < 2 ? "md:border-r" : ""
           }`}
         >
-          {/* Number */}
-          <span className="font-heading font-light text-[48px] lg:text-[64px] leading-none text-textPrimary dark:text-textPrimary-dark opacity-10 select-none">
-            {f.number}
-          </span>
+          {/* Eyebrow — same style as the hero's department label */}
+          <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
+            {f.label}
+          </p>
 
-          {/* Title */}
-          <h3 className="font-heading font-light text-[22px] lg:text-[28px] leading-tight text-textPrimary dark:text-textPrimary-dark">
-            {f.title}
+          {/* Statement — large italic serif, mirrors "Fashion, tracked." */}
+          <h3 className="font-heading font-light text-[clamp(26px,4vw,40px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark">
+            {f.statement[0]}
+            <br />
+            <em className="italic text-textSecondary dark:text-textSecondary-dark">{f.statement[1]}</em>
           </h3>
 
-          {/* Desc */}
-          <p className="font-sans text-[12px] leading-[1.8] text-textSecondary dark:text-textSecondary-dark max-w-[280px]">
+          {/* Body — single line, same size as hero subtitle */}
+          <p className="font-sans text-[12px] leading-relaxed text-textSecondary dark:text-textSecondary-dark">
             {f.desc}
           </p>
         </div>
