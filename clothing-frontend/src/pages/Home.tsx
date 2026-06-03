@@ -335,103 +335,108 @@ function TheDropSection({
       {/* Grid: 60% hero | 40% stack */}
       <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-3 md:gap-4">
         {/* Hero card */}
-        {hero && (
-          <div
-            onClick={() => navigate(`/product/${hero.id}`)}
-            className="relative cursor-pointer overflow-hidden group min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark"
-          >
-            {hero.images?.[0] && (
-              <img
-                src={hero.images[0]}
-                alt={hero.name}
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
-              />
-            )}
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+        {hero && (() => {
+          const heroDiscount = calcDiscount(hero);
+          return (
+            <div
+              onClick={() => navigate(`/product/${hero.id}`)}
+              className="relative cursor-pointer overflow-hidden group min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark"
+            >
+              {hero.images?.[0] && (
+                <img
+                  src={hero.images[0]}
+                  alt={hero.name}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+                />
+              )}
+              {/* Gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-            {/* Discount badge */}
-            {calcDiscount(hero) > 0 && (
-              <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
-                −{calcDiscount(hero)}%
-              </div>
-            )}
+              {/* Discount badge */}
+              {heroDiscount > 0 && (
+                <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
+                  −{heroDiscount}%
+                </div>
+              )}
 
-            {/* Content overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
-                {hero.brand}
-              </p>
-              <h3 className="font-heading font-light text-[clamp(20px,3vw,32px)] leading-tight text-white mb-3 max-w-xs">
-                {hero.name}
-              </h3>
-              <div className="flex items-baseline gap-3">
-                <span className="font-heading text-xl text-white">
-                  {hero.price.toLocaleString("tr-TR")} {hero.currency}
-                </span>
-                {hero.originalPrice && (
-                  <span className="font-heading text-base text-white/40 line-through">
-                    {hero.originalPrice.toLocaleString("tr-TR")}
+              {/* Content overlay */}
+              <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
+                  {hero.brand}
+                </p>
+                <h3 className="font-heading font-light text-[clamp(20px,3vw,32px)] leading-tight text-white mb-3 max-w-xs">
+                  {hero.name}
+                </h3>
+                <div className="flex items-baseline gap-3">
+                  <span className="font-heading text-xl text-white">
+                    {hero.price.toLocaleString("tr-TR")} {hero.currency}
                   </span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Stacked mini cards */}
-        <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
-          {sideItems.map((product, i) => {
-            const disc = calcDiscount(product);
-            return (
-              <div
-                key={product.id}
-                onClick={() => navigate(`/product/${product.id}`)}
-                className={`flex gap-4 p-4 lg:p-5 cursor-pointer hover:bg-bgHover dark:hover:bg-bgHover-dark transition-colors duration-200 flex-1 items-center ${
-                  i < sideItems.length - 1
-                    ? "border-b border-borderLight dark:border-borderLight-dark"
-                    : ""
-                }`}
-              >
-                {/* Thumbnail */}
-                <div className="w-20 h-20 lg:w-24 lg:h-24 flex-shrink-0 overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark">
-                  {product.images?.[0] && (
-                    <img
-                      src={product.images[0]}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
+                  {hero.originalPrice && (
+                    <span className="font-heading text-base text-white/40 line-through">
+                      {hero.originalPrice.toLocaleString("tr-TR")}
+                    </span>
                   )}
                 </div>
+              </div>
+            </div>
+          );
+        })()}
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
-                    {product.brand}
-                  </p>
-                  <p className="font-sans text-[12px] text-textPrimary dark:text-textPrimary-dark leading-snug mb-2 line-clamp-2">
-                    {product.name}
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-sans text-[12px] font-medium text-textPrimary dark:text-textPrimary-dark">
-                      {product.price.toLocaleString("tr-TR")} {product.currency}
-                    </span>
-                    {product.originalPrice && (
-                      <span className="font-sans text-[10px] text-textMuted dark:text-textMuted-dark line-through">
-                        {product.originalPrice.toLocaleString("tr-TR")}
-                      </span>
-                    )}
-                    {disc > 0 && (
-                      <span className="font-sans text-[9px] tracking-widest uppercase text-accentRed">
-                        −{disc}%
-                      </span>
+        {/* Stacked mini cards — only render when we have side items */}
+        {sideItems.length > 0 && (
+          <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
+            {sideItems.map((product, i) => {
+              const disc = calcDiscount(product);
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => navigate(`/product/${product.id}`)}
+                  className={`flex gap-4 p-4 lg:p-5 cursor-pointer hover:bg-bgHover dark:hover:bg-bgHover-dark transition-colors duration-200 flex-1 items-center ${
+                    i < sideItems.length - 1
+                      ? "border-b border-borderLight dark:border-borderLight-dark"
+                      : ""
+                  }`}
+                >
+                  {/* Thumbnail */}
+                  <div className="w-20 h-20 lg:w-24 lg:h-24 flex-shrink-0 overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark">
+                    {product.images?.[0] && (
+                      <img
+                        src={product.images[0]}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                      />
                     )}
                   </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                      {product.brand}
+                    </p>
+                    <p className="font-sans text-[12px] text-textPrimary dark:text-textPrimary-dark leading-snug mb-2 line-clamp-2">
+                      {product.name}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-sans text-[12px] font-medium text-textPrimary dark:text-textPrimary-dark">
+                        {product.price.toLocaleString("tr-TR")} {product.currency}
+                      </span>
+                      {product.originalPrice && (
+                        <span className="font-sans text-[10px] text-textMuted dark:text-textMuted-dark line-through">
+                          {product.originalPrice.toLocaleString("tr-TR")}
+                        </span>
+                      )}
+                      {disc > 0 && (
+                        <span className="font-sans text-[9px] tracking-widest uppercase text-accentRed">
+                          −{disc}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -511,7 +516,8 @@ export default function Home() {
     [],
   );
   const [editorChoicePage, setEditorChoicePage] = useState(1);
-  const [editorChoiceHasMore, setEditorChoiceHasMore] = useState(true);
+  // Start false — set to true only after we know there are more pages
+  const [editorChoiceHasMore, setEditorChoiceHasMore] = useState(false);
   const [editorChoiceLoading, setEditorChoiceLoading] = useState(false);
 
   useEffect(() => {

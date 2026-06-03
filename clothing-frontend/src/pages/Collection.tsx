@@ -167,6 +167,7 @@ export default function Collection() {
   useEffect(() => {
     setCurrentPage(1);
     setDisplayProducts([]);
+    setNewItemsStart(0);
   }, [
     type,
     currentSort,
