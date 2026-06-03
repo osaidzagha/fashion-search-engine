@@ -26,6 +26,12 @@ interface FeaturedData {
   };
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function calcDiscount(p: Product): number {
+  if (!p.originalPrice || p.originalPrice <= p.price) return 0;
+  return Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100);
+}
+
 function getMosaicImages(featured: FeaturedData): Product[] {
   if (!featured?.newIn) return [];
   return [...featured.newIn]
@@ -47,6 +53,38 @@ const CARD_WRAPPER =
 
 const SKELETON_COUNT = 6;
 
+// ─── Category definitions ─────────────────────────────────────────────────────
+const CATEGORIES: {
+  label: string;
+  key: keyof FeaturedData["categoryTiles"];
+  search: string;
+}[] = [
+  { label: "Jackets", key: "jackets", search: "jacket" },
+  { label: "Shirts", key: "shirts", search: "shirt" },
+  { label: "Trousers", key: "trousers", search: "trouser" },
+  { label: "Knitwear", key: "knitwear", search: "knitwear" },
+];
+
+// ─── Feature strip content ────────────────────────────────────────────────────
+const FEATURES = [
+  {
+    icon: "↓",
+    title: "Track price drops",
+    desc: "Prices monitored daily across Zara, Mango & Massimo Dutti",
+  },
+  {
+    icon: "⇄",
+    title: "Compare side-by-side",
+    desc: "Hit + on any product card to compare styles and prices at a glance",
+  },
+  {
+    icon: "◎",
+    title: "Get notified",
+    desc: "Set a target price and we'll alert you the moment it's reached",
+  },
+];
+
+// ─── ScrollCarousel ───────────────────────────────────────────────────────────
 interface ScrollCarouselProps {
   products: Product[];
   onLoadMore: () => void;
@@ -54,14 +92,15 @@ interface ScrollCarouselProps {
   loadingMore: boolean;
 }
 
-function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCarouselProps) {
+function ScrollCarousel({
+  products,
+  onLoadMore,
+  hasMore,
+  loadingMore,
+}: ScrollCarouselProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  // Refs mirror props so the IntersectionObserver callback always has a
-  // fresh value without needing to re-create the observer on every render.
   const hasMoreRef = useRef(hasMore);
   const fetchingRef = useRef(loadingMore);
-  // onLoadMoreRef ensures the observer never holds a stale closure of the
-  // load function even though the effect only runs once ([] deps).
   const onLoadMoreRef = useRef(onLoadMore);
   hasMoreRef.current = hasMore;
   fetchingRef.current = loadingMore;
@@ -70,21 +109,24 @@ function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCa
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMoreRef.current && !fetchingRef.current) {
+        if (
+          entries[0].isIntersecting &&
+          hasMoreRef.current &&
+          !fetchingRef.current
+        ) {
           onLoadMoreRef.current();
         }
       },
-      // Trigger when the sentinel is within 300px of the right edge of its
-      // scroll container. rootMargin uses "0px 300px 0px 0px" (top right bottom left).
-      { root: sentinel.parentElement, rootMargin: "0px 300px 0px 0px", threshold: 0 },
+      {
+        root: sentinel.parentElement,
+        rootMargin: "0px 300px 0px 0px",
+        threshold: 0,
+      },
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
-    // All dynamic values are accessed via refs — no deps needed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,21 +145,27 @@ function ScrollCarousel({ products, onLoadMore, hasMore, loadingMore }: ScrollCa
       {loadingMore && (
         <div className="flex gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={`loader-${i}`} className={`${CARD_WRAPPER} mr-3 md:mr-5 flex-shrink-0`}>
+            <div
+              key={`loader-${i}`}
+              className={`${CARD_WRAPPER} mr-3 md:mr-5 flex-shrink-0`}
+            >
               <ProductSkeleton isCardMode={false} />
             </div>
           ))}
         </div>
       )}
-      {/* Zero-height sentinel — IntersectionObserver fires when this enters view */}
-      <div ref={sentinelRef} className="w-0 h-0 flex-shrink-0" aria-hidden="true" />
+      <div
+        ref={sentinelRef}
+        className="w-0 h-0 flex-shrink-0"
+        aria-hidden="true"
+      />
     </div>
   );
 }
 
 function CarouselSkeleton() {
   return (
-    <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide">
       {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
         <div key={i} className={`${CARD_WRAPPER} mr-3 md:mr-5 flex-shrink-0`}>
           <ProductSkeleton isCardMode={false} />
@@ -127,7 +175,6 @@ function CarouselSkeleton() {
   );
 }
 
-// ─── Consistent "See all" button ──────────────────────────────────────────────
 function SeeAllButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -139,7 +186,37 @@ function SeeAllButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
+// ─── Feature Strip ────────────────────────────────────────────────────────────
+function FeatureStrip() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 border-b border-borderLight dark:border-borderLight-dark">
+      {FEATURES.map((f, i) => (
+        <div
+          key={f.title}
+          className={`px-6 md:px-12 lg:px-16 py-7 flex gap-5 items-start ${
+            i < 2
+              ? "border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark"
+              : ""
+          }`}
+        >
+          <span className="font-heading text-xl text-textMuted dark:text-textMuted-dark mt-0.5 flex-shrink-0 w-5 text-center">
+            {f.icon}
+          </span>
+          <div>
+            <p className="font-sans text-[10px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark mb-1.5">
+              {f.title}
+            </p>
+            <p className="font-sans text-[11px] leading-relaxed text-textMuted dark:text-textMuted-dark max-w-[240px]">
+              {f.desc}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Section wrapper (Editor's Choice only) ───────────────────────────────────
 function Section({
   title,
   subtitle,
@@ -190,6 +267,234 @@ function Section({
   );
 }
 
+// ─── The Drop ─────────────────────────────────────────────────────────────────
+// Editorial section replacing the two price-change carousels.
+// Left: one large hero card with full image + price overlay.
+// Right: 3 stacked horizontal mini cards.
+function TheDropSection({
+  products,
+  loading,
+  onSeeAll,
+}: {
+  products: Product[];
+  loading: boolean;
+  onSeeAll: () => void;
+}) {
+  const navigate = useNavigate();
+  const [hero, ...rest] = products;
+  const sideItems = rest.slice(0, 3);
+
+  if (loading) {
+    return (
+      <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark">
+        <div className="flex justify-between items-baseline mb-6 border-b border-borderLight dark:border-borderLight-dark pb-4">
+          <div className="space-y-2">
+            <div className="h-2 w-16 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+            <div className="h-7 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-3 md:gap-4">
+          <div className="min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
+          <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className={`flex gap-4 p-4 flex-1 items-center ${i < 2 ? "border-b border-borderLight dark:border-borderLight-dark" : ""}`}
+              >
+                <div className="w-20 h-20 bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-2 w-12 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+                  <div className="h-3 w-36 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+                  <div className="h-2 w-20 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (products.length === 0) return null;
+
+  return (
+    <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark">
+      {/* Header */}
+      <div className="flex justify-between items-baseline mb-6 border-b border-borderLight dark:border-borderLight-dark pb-4">
+        <div className="flex flex-col gap-1">
+          <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed">
+            Limited time
+          </p>
+          <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+            The Drop
+          </h2>
+        </div>
+        <SeeAllButton onClick={onSeeAll} />
+      </div>
+
+      {/* Grid: 60% hero | 40% stack */}
+      <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-3 md:gap-4">
+        {/* Hero card */}
+        {hero && (
+          <div
+            onClick={() => navigate(`/product/${hero.id}`)}
+            className="relative cursor-pointer overflow-hidden group min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark"
+          >
+            {hero.images?.[0] && (
+              <img
+                src={hero.images[0]}
+                alt={hero.name}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+              />
+            )}
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+            {/* Discount badge */}
+            {calcDiscount(hero) > 0 && (
+              <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
+                −{calcDiscount(hero)}%
+              </div>
+            )}
+
+            {/* Content overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
+                {hero.brand}
+              </p>
+              <h3 className="font-heading font-light text-[clamp(20px,3vw,32px)] leading-tight text-white mb-3 max-w-xs">
+                {hero.name}
+              </h3>
+              <div className="flex items-baseline gap-3">
+                <span className="font-heading text-xl text-white">
+                  {hero.price.toLocaleString("tr-TR")} {hero.currency}
+                </span>
+                {hero.originalPrice && (
+                  <span className="font-heading text-base text-white/40 line-through">
+                    {hero.originalPrice.toLocaleString("tr-TR")}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stacked mini cards */}
+        <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
+          {sideItems.map((product, i) => {
+            const disc = calcDiscount(product);
+            return (
+              <div
+                key={product.id}
+                onClick={() => navigate(`/product/${product.id}`)}
+                className={`flex gap-4 p-4 lg:p-5 cursor-pointer hover:bg-bgHover dark:hover:bg-bgHover-dark transition-colors duration-200 flex-1 items-center ${
+                  i < sideItems.length - 1
+                    ? "border-b border-borderLight dark:border-borderLight-dark"
+                    : ""
+                }`}
+              >
+                {/* Thumbnail */}
+                <div className="w-20 h-20 lg:w-24 lg:h-24 flex-shrink-0 overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark">
+                  {product.images?.[0] && (
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                    {product.brand}
+                  </p>
+                  <p className="font-sans text-[12px] text-textPrimary dark:text-textPrimary-dark leading-snug mb-2 line-clamp-2">
+                    {product.name}
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-sans text-[12px] font-medium text-textPrimary dark:text-textPrimary-dark">
+                      {product.price.toLocaleString("tr-TR")} {product.currency}
+                    </span>
+                    {product.originalPrice && (
+                      <span className="font-sans text-[10px] text-textMuted dark:text-textMuted-dark line-through">
+                        {product.originalPrice.toLocaleString("tr-TR")}
+                      </span>
+                    )}
+                    {disc > 0 && (
+                      <span className="font-sans text-[9px] tracking-widest uppercase text-accentRed">
+                        −{disc}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Category Grid ────────────────────────────────────────────────────────────
+function CategoryGrid({
+  tiles,
+  loading,
+  onNavigate,
+}: {
+  tiles: FeaturedData["categoryTiles"] | null;
+  loading: boolean;
+  onNavigate: (search: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        {CATEGORIES.map((cat) => (
+          <div
+            key={cat.key}
+            className="aspect-[3/4] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      {CATEGORIES.map((cat) => {
+        const product = tiles?.[cat.key];
+        const imgSrc = product?.images?.[0];
+        return (
+          <div
+            key={cat.key}
+            onClick={() => onNavigate(cat.search)}
+            className="relative aspect-[3/4] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
+          >
+            {imgSrc && (
+              <img
+                src={imgSrc}
+                alt={cat.label}
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05]"
+              />
+            )}
+            <div className="absolute inset-0 bg-black/25 group-hover:bg-black/35 transition-colors duration-300" />
+            <div className="absolute bottom-0 left-0 right-0 p-4 md:p-5">
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-white/40 mb-0.5">
+                Browse
+              </p>
+              <h3 className="font-heading font-light text-xl md:text-2xl text-white">
+                {cat.label}
+              </h3>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Home() {
   const navigate = useNavigate();
@@ -201,26 +506,13 @@ export default function Home() {
   const [featured, setFeatured] = useState<FeaturedData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Paginated states
-  const [editorChoiceProducts, setEditorChoiceProducts] = useState<Product[]>([]);
+  // Editor's Choice is the only paginated carousel now
+  const [editorChoiceProducts, setEditorChoiceProducts] = useState<Product[]>(
+    [],
+  );
   const [editorChoicePage, setEditorChoicePage] = useState(1);
   const [editorChoiceHasMore, setEditorChoiceHasMore] = useState(true);
   const [editorChoiceLoading, setEditorChoiceLoading] = useState(false);
-
-  const [trendingProducts, setTrendingProducts] = useState<Product[]>([]);
-  const [trendingPage, setTrendingPage] = useState(1);
-  const [trendingHasMore, setTrendingHasMore] = useState(true);
-  const [trendingLoading, setTrendingLoading] = useState(false);
-
-  const [saleProducts, setSaleProducts] = useState<Product[]>([]);
-  const [salePage, setSalePage] = useState(1);
-  const [saleHasMore, setSaleHasMore] = useState(true);
-  const [saleLoading, setSaleLoading] = useState(false);
-
-  const [newInProducts, setNewInProducts] = useState<Product[]>([]);
-  const [newInPage, setNewInPage] = useState(1);
-  const [newInHasMore, setNewInHasMore] = useState(true);
-  const [newInLoading, setNewInLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,35 +523,21 @@ export default function Home() {
         if (selectDepartments?.length) {
           queryParams.set("departments", selectDepartments.join(","));
         }
-        const [featuredRes, trendingRes] = await Promise.all([
-          fetch(`${BASE_URL}/api/products/featured?${queryParams.toString()}`),
-          fetch(`${BASE_URL}/api/products/trending?${queryParams.toString()}`),
-        ]);
-        const data = await featuredRes.json();
-        const trendingData = await trendingRes.json();
+        const res = await fetch(
+          `${BASE_URL}/api/products/featured?${queryParams.toString()}`,
+        );
+        const data = await res.json();
         if (!cancelled) {
           setFeatured(data);
-
-          // Populate page 1 products
           const videoProds = (data.withVideo || []).filter(isClothing);
-          const fallbackProds = (data.newIn || []).filter((p: Product) => !p.originalPrice).slice(0, 6);
-          const initialEditorChoice = videoProds.length > 0 ? videoProds : fallbackProds;
+          const fallbackProds = (data.newIn || [])
+            .filter((p: Product) => !p.originalPrice)
+            .slice(0, 6);
+          const initialEditorChoice =
+            videoProds.length > 0 ? videoProds : fallbackProds;
           setEditorChoiceProducts(initialEditorChoice);
           setEditorChoicePage(1);
           setEditorChoiceHasMore(videoProds.length >= 20);
-
-          setTrendingProducts(trendingData);
-          setTrendingPage(1);
-          setTrendingHasMore(trendingData.length >= 12);
-
-          setSaleProducts(data.onSale || []);
-          setSalePage(1);
-          setSaleHasMore((data.onSale || []).length >= 12);
-
-          const newInAll = data.newIn || [];
-          setNewInProducts(newInAll);
-          setNewInPage(1);
-          setNewInHasMore(newInAll.length >= 15);
         }
       } catch (err) {
         console.error("Failed to load featured products", err);
@@ -286,97 +564,41 @@ export default function Home() {
       if (selectDepartments?.length) {
         queryParams.set("departments", selectDepartments.join(","));
       }
-      const res = await fetch(`${BASE_URL}/api/products?${queryParams.toString()}`);
+      const res = await fetch(
+        `${BASE_URL}/api/products?${queryParams.toString()}`,
+      );
       const data = await res.json();
       const newProducts = (data.products || []).filter(isClothing);
       setEditorChoiceProducts((prev) => [...prev, ...newProducts]);
       setEditorChoicePage(nextPage);
-      setEditorChoiceHasMore(newProducts.length >= 20 && nextPage < (data.totalPages || 0));
+      setEditorChoiceHasMore(
+        newProducts.length >= 20 && nextPage < (data.totalPages || 0),
+      );
     } catch (err) {
-      console.error("Failed to load more editor choice products", err);
+      console.error("Failed to load more editor choice", err);
     } finally {
       setEditorChoiceLoading(false);
     }
-  }, [editorChoiceLoading, editorChoiceHasMore, editorChoicePage, selectDepartments]);
+  }, [
+    editorChoiceLoading,
+    editorChoiceHasMore,
+    editorChoicePage,
+    selectDepartments,
+  ]);
 
-  const loadMoreTrending = useCallback(async () => {
-    if (trendingLoading || !trendingHasMore) return;
-    setTrendingLoading(true);
-    try {
-      const nextPage = trendingPage + 1;
-      const queryParams = new URLSearchParams({
-        sort: "trending",
-        page: nextPage.toString(),
-        limit: "12",
-      });
-      if (selectDepartments?.length) {
-        queryParams.set("departments", selectDepartments.join(","));
-      }
-      const res = await fetch(`${BASE_URL}/api/products?${queryParams.toString()}`);
-      const data = await res.json();
-      setTrendingProducts((prev) => [...prev, ...(data.products || [])]);
-      setTrendingPage(nextPage);
-      setTrendingHasMore((data.products || []).length >= 12 && nextPage < (data.totalPages || 0));
-    } catch (err) {
-      console.error("Failed to load more trending products", err);
-    } finally {
-      setTrendingLoading(false);
-    }
-  }, [trendingLoading, trendingHasMore, trendingPage, selectDepartments]);
+  // Top 4 drops by discount — drives "The Drop" editorial section
+  const topDrops = useMemo(() => {
+    if (!featured?.onSale) return [];
+    return [...featured.onSale]
+      .filter((p) => p.originalPrice && p.originalPrice > p.price)
+      .sort((a, b) => calcDiscount(b) - calcDiscount(a))
+      .slice(0, 4);
+  }, [featured]);
 
-  const loadMoreSale = useCallback(async () => {
-    if (saleLoading || !saleHasMore) return;
-    setSaleLoading(true);
-    try {
-      const nextPage = salePage + 1;
-      const queryParams = new URLSearchParams({
-        onSale: "true",
-        sort: "discount",
-        page: nextPage.toString(),
-        limit: "12",
-      });
-      if (selectDepartments?.length) {
-        queryParams.set("departments", selectDepartments.join(","));
-      }
-      const res = await fetch(`${BASE_URL}/api/products?${queryParams.toString()}`);
-      const data = await res.json();
-      setSaleProducts((prev) => [...prev, ...(data.products || [])]);
-      setSalePage(nextPage);
-      setSaleHasMore((data.products || []).length >= 12 && nextPage < (data.totalPages || 0));
-    } catch (err) {
-      console.error("Failed to load more sale products", err);
-    } finally {
-      setSaleLoading(false);
-    }
-  }, [saleLoading, saleHasMore, salePage, selectDepartments]);
-
-  const loadMoreNewIn = useCallback(async () => {
-    if (newInLoading || !newInHasMore) return;
-    setNewInLoading(true);
-    try {
-      const nextPage = newInPage + 1;
-      const queryParams = new URLSearchParams({
-        sort: "newest",
-        page: nextPage.toString(),
-        limit: "15",
-      });
-      if (selectDepartments?.length) {
-        queryParams.set("departments", selectDepartments.join(","));
-      }
-      const res = await fetch(`${BASE_URL}/api/products?${queryParams.toString()}`);
-      const data = await res.json();
-      setNewInProducts((prev) => [...prev, ...(data.products || [])]);
-      setNewInPage(nextPage);
-      setNewInHasMore((data.products || []).length >= 15 && nextPage < (data.totalPages || 0));
-    } catch (err) {
-      console.error("Failed to load more new in products", err);
-    } finally {
-      setNewInLoading(false);
-    }
-  }, [newInLoading, newInHasMore, newInPage, selectDepartments]);
-
-  // useMemo so the random shuffle only runs when `featured` changes, not on every render
-  const mosaicProducts = useMemo(() => (featured ? getMosaicImages(featured) : []), [featured]);
+  const mosaicProducts = useMemo(
+    () => (featured ? getMosaicImages(featured) : []),
+    [featured],
+  );
   const hasCampaign =
     featured?.campaignHeroes && featured.campaignHeroes.length > 0;
   const hasMosaic = mosaicProducts.length >= 4;
@@ -405,8 +627,8 @@ export default function Home() {
               </em>
             </h1>
             <p className="font-sans text-[12px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-6 lg:mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
-              Compare prices across every brand. Track drops. Find the best time
-              to buy.
+              Price drops tracked daily. Compare looks side-by-side.
+              Get notified the moment your target price hits.
             </p>
             <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
               <SearchBar variant="hero" />
@@ -436,6 +658,9 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ══ FEATURE STRIP — surfaces Track · Compare · Notify ═════════════ */}
+        <FeatureStrip />
+
         {/* ══ EDITOR'S CHOICE ═══════════════════════════════════════════════ */}
         <Section
           title="Editor's Choice"
@@ -445,7 +670,6 @@ export default function Home() {
               : "Curated picks"
           }
           loading={loading}
-          className="border-t border-borderLight dark:border-borderLight-dark"
           action={
             !loading && editorChoiceProducts.length > 0 ? (
               <SeeAllButton
@@ -468,83 +692,31 @@ export default function Home() {
           />
         </Section>
 
-        {/* ══ PRICE TRACKER ═════════════════════════════════════════════════ */}
-        {(loading || trendingProducts.length > 0) && (
-          <Section
-            title="On the move"
-            subtitle="Recent price changes"
-            accentLabel="Live Tracking"
-            accentColor="text-accentRed"
+        {/* ══ THE DROP — editorial top-4 biggest discounts ═════════════════ */}
+        <TheDropSection
+          products={topDrops}
+          loading={loading}
+          onSeeAll={() => navigate("/collection/sale")}
+        />
+
+        {/* ══ BROWSE BY CATEGORY ════════════════════════════════════════════ */}
+        <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark">
+          <div className="flex justify-between items-baseline mb-6 border-b border-borderLight dark:border-borderLight-dark pb-4">
+            <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+              Browse by category
+            </h2>
+          </div>
+          <CategoryGrid
+            tiles={featured?.categoryTiles ?? null}
             loading={loading}
-            action={
-              !loading && trendingProducts.length > 0 ? (
-                <SeeAllButton
-                  onClick={() => {
-                    dispatch(clearFilters());
-                    const params = new URLSearchParams({ sort: "trending" });
-                    if (selectDepartments?.length)
-                      params.set("departments", selectDepartments.join(","));
-                    navigate(`/collection?${params.toString()}`);
-                  }}
-                />
-              ) : undefined
-            }
-          >
-            <ScrollCarousel
-              products={trendingProducts}
-              onLoadMore={loadMoreTrending}
-              hasMore={trendingHasMore}
-              loadingMore={trendingLoading}
-            />
-          </Section>
-        )}
-
-        {/* ══ SALE ══════════════════════════════════════════════════════════ */}
-        <Section
-          title="Price drops, right now."
-          accentLabel="Limited Time"
-          accentColor="text-accentRed"
-          loading={loading}
-          action={
-            !loading && saleProducts.length > 0 ? (
-              <SeeAllButton onClick={() => navigate("/collection/sale")} />
-            ) : undefined
-          }
-        >
-          <ScrollCarousel
-            products={saleProducts}
-            onLoadMore={loadMoreSale}
-            hasMore={saleHasMore}
-            loadingMore={saleLoading}
+            onNavigate={(search) => {
+              dispatch(clearFilters());
+              navigate(
+                `/collection?search=${encodeURIComponent(search)}&mode=category`,
+              );
+            }}
           />
-        </Section>
-
-        {/* ══ NEW IN ════════════════════════════════════════════════════════ */}
-        <Section
-          title="New in"
-          subtitle="Latest arrivals"
-          loading={loading}
-          action={
-            !loading && newInProducts.length > 0 ? (
-              <SeeAllButton
-                onClick={() => {
-                  dispatch(clearFilters());
-                  const params = new URLSearchParams({ sort: "newest" });
-                  if (selectDepartments?.length)
-                    params.set("departments", selectDepartments.join(","));
-                  navigate(`/collection?${params.toString()}`);
-                }}
-              />
-            ) : undefined
-          }
-        >
-          <ScrollCarousel
-            products={newInProducts}
-            onLoadMore={loadMoreNewIn}
-            hasMore={newInHasMore}
-            loadingMore={newInLoading}
-          />
-        </Section>
+        </section>
 
         {/* ══ BRAND SPLIT ═══════════════════════════════════════════════════ */}
         <section className="grid grid-cols-1 sm:grid-cols-3 border-t border-borderLight dark:border-borderLight-dark">
@@ -553,7 +725,11 @@ export default function Home() {
               {[0, 1, 2].map((i) => (
                 <div
                   key={i}
-                  className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${i < 2 ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark" : ""}`}
+                  className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${
+                    i < 2
+                      ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
+                      : ""
+                  }`}
                 >
                   <div className="h-2 w-10 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded mb-3" />
                   <div className="h-8 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
@@ -562,66 +738,43 @@ export default function Home() {
             </>
           ) : (
             <>
-              <div
-                onClick={() => {
-                  dispatch(clearFilters());
-                  dispatch(setSearchTerm(""));
-                  navigate("/collection/zara");
-                }}
-                className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
-              >
-                <div>
-                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                    Brand
-                  </p>
-                  <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
-                    Zara
-                  </h3>
+              {(
+                [
+                  { label: "Zara", path: "/collection/zara", border: true },
+                  { label: "Mango", path: "/collection/mango", border: true },
+                  {
+                    label: "Massimo Dutti",
+                    path: "/collection/massimo-dutti",
+                    border: false,
+                  },
+                ] as const
+              ).map(({ label, path, border }) => (
+                <div
+                  key={label}
+                  onClick={() => {
+                    dispatch(clearFilters());
+                    dispatch(setSearchTerm(""));
+                    navigate(path);
+                  }}
+                  className={`flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark ${
+                    border
+                      ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
+                      : ""
+                  }`}
+                >
+                  <div>
+                    <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                      Brand
+                    </p>
+                    <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
+                      {label}
+                    </h3>
+                  </div>
+                  <span className="text-textMuted dark:text-textMuted-dark">
+                    →
+                  </span>
                 </div>
-                <span className="text-textMuted dark:text-textMuted-dark">
-                  →
-                </span>
-              </div>
-              <div
-                onClick={() => {
-                  dispatch(clearFilters());
-                  dispatch(setSearchTerm(""));
-                  navigate("/collection/mango");
-                }}
-                className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
-              >
-                <div>
-                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                    Brand
-                  </p>
-                  <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
-                    Mango
-                  </h3>
-                </div>
-                <span className="text-textMuted dark:text-textMuted-dark">
-                  →
-                </span>
-              </div>
-              <div
-                onClick={() => {
-                  dispatch(clearFilters());
-                  dispatch(setSearchTerm(""));
-                  navigate("/collection/massimo-dutti");
-                }}
-                className="flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark"
-              >
-                <div>
-                  <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                    Brand
-                  </p>
-                  <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-tight text-textPrimary dark:text-textPrimary-dark">
-                    Massimo Dutti
-                  </h3>
-                </div>
-                <span className="text-textMuted dark:text-textMuted-dark">
-                  →
-                </span>
-              </div>
+              ))}
             </>
           )}
         </section>
