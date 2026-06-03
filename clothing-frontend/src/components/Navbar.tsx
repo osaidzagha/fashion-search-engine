@@ -6,6 +6,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { setDepartments } from "../store/productSlice";
 import toast from "react-hot-toast";
 import ConfirmModal from "./ConfirmModal";
+import DopeLogo from "./DopeLogo";
 
 const Navbar = () => {
   const dispatch = useDispatch();
@@ -167,9 +168,10 @@ const Navbar = () => {
           {/* CENTER — Logo */}
           <Link
             to="/"
-            className="absolute left-1/2 -translate-x-1/2 font-heading font-normal text-xl tracking-editorial uppercase text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-70"
+            className="absolute left-1/2 -translate-x-1/2 text-textPrimary dark:text-textPrimary-dark no-underline transition-opacity hover:opacity-60"
+            aria-label="Dope — Home"
           >
-            Dope
+            <DopeLogo height={20} />
           </Link>
 
           {/* RIGHT */}
