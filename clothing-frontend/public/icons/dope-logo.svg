@@ -1,20 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Dark background square with rounded corners -->
-  <rect width="64" height="64" rx="10" fill="#0a0a0a"/>
+  <!-- Deep charcoal background with slight warmth -->
+  <rect width="64" height="64" rx="12" fill="#111110"/>
 
-  <!-- Letter D — thin serif style drawn with paths -->
+  <!-- Letter D — clean, thin serif style -->
   <!-- Vertical stem -->
-  <rect x="14" y="14" width="3" height="36" fill="#ffffff"/>
-  <!-- Curved body of D -->
+  <rect x="15" y="14" width="3.5" height="36" rx="1" fill="#f0ede6"/>
+
+  <!-- D curve — the bowl -->
   <path
-    d="M17 14 Q42 14 42 32 Q42 50 17 50"
+    d="M18.5 14 C34 14, 42 20, 42 32 C42 44, 34 50, 18.5 50"
     fill="none"
-    stroke="#ffffff"
-    stroke-width="3"
+    stroke="#f0ede6"
+    stroke-width="3.5"
     stroke-linecap="round"
   />
 
-  <!-- Small downward arrow — bottom right, subtle accent -->
-  <line x1="48" y1="40" x2="48" y2="52" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.6"/>
-  <polyline points="44,48 48,53 52,48" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+  <!-- Accent dot — small red dot bottom-right, brand colour -->
+  <circle cx="50" cy="50" r="4" fill="#b94040"/>
 </svg>

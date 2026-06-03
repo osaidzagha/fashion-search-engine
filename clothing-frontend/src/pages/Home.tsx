@@ -69,19 +69,19 @@ const CATEGORIES: {
 // ─── Feature strip content ────────────────────────────────────────────────────
 const FEATURES = [
   {
-    icon: "↓",
-    title: "Track price drops",
-    desc: "Prices monitored daily across Zara, Mango & Massimo Dutti",
+    number: "01",
+    title: "Track every drop",
+    desc: "Prices checked daily across Zara, Mango & Massimo Dutti. Never miss a sale.",
   },
   {
-    icon: "⇄",
+    number: "02",
     title: "Compare side-by-side",
-    desc: "Hit + on any product card to compare styles and prices at a glance",
+    desc: 'Hit the + on any product to compare styles and prices in one view.',
   },
   {
-    icon: "◎",
+    number: "03",
     title: "Get notified",
-    desc: "Set a target price and we'll alert you the moment it's reached",
+    desc: "Set your target price. We alert you the moment it's reached — or lower.",
   },
 ];
 
@@ -190,27 +190,30 @@ function SeeAllButton({ onClick }: { onClick: () => void }) {
 // ─── Feature Strip ────────────────────────────────────────────────────────────
 function FeatureStrip() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 border-b border-borderLight dark:border-borderLight-dark">
+    <div className="grid grid-cols-1 md:grid-cols-3">
       {FEATURES.map((f, i) => (
         <div
           key={f.title}
-          className={`px-6 md:px-12 lg:px-16 py-7 flex gap-5 items-start ${
+          className={`px-8 md:px-12 lg:px-16 py-12 lg:py-16 flex flex-col gap-6 border-b border-borderLight dark:border-borderLight-dark ${
             i < 2
-              ? "border-b md:border-b-0 md:border-r border-borderLight dark:border-borderLight-dark"
+              ? "md:border-r border-borderLight dark:border-borderLight-dark"
               : ""
           }`}
         >
-          <span className="font-heading text-xl text-textMuted dark:text-textMuted-dark mt-0.5 flex-shrink-0 w-5 text-center">
-            {f.icon}
+          {/* Number */}
+          <span className="font-heading font-light text-[48px] lg:text-[64px] leading-none text-textPrimary dark:text-textPrimary-dark opacity-10 select-none">
+            {f.number}
           </span>
-          <div>
-            <p className="font-sans text-[10px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark mb-1.5">
-              {f.title}
-            </p>
-            <p className="font-sans text-[11px] leading-relaxed text-textMuted dark:text-textMuted-dark max-w-[240px]">
-              {f.desc}
-            </p>
-          </div>
+
+          {/* Title */}
+          <h3 className="font-heading font-light text-[22px] lg:text-[28px] leading-tight text-textPrimary dark:text-textPrimary-dark">
+            {f.title}
+          </h3>
+
+          {/* Desc */}
+          <p className="font-sans text-[12px] leading-[1.8] text-textSecondary dark:text-textSecondary-dark max-w-[280px]">
+            {f.desc}
+          </p>
         </div>
       ))}
     </div>
@@ -633,9 +636,10 @@ export default function Home() {
                 tracked.
               </em>
             </h1>
-            <p className="font-sans text-[12px] leading-relaxed text-textTertiary dark:text-textTertiary-dark mb-6 lg:mb-11 max-w-xs animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
-              Price drops tracked daily. Compare looks side-by-side.
-              Get notified the moment your target price hits.
+            <p className="font-sans text-[12px] leading-[1.9] text-textSecondary dark:text-textSecondary-dark mb-6 lg:mb-11 max-w-[280px] animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+              Daily price tracking across Zara, Mango & Massimo Dutti.
+              <br />
+              Set a target — get alerted the moment it hits.
             </p>
             <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
               <SearchBar variant="hero" />

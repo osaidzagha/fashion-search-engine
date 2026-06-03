@@ -135,6 +135,20 @@ export default function ProductDetails() {
       return;
     }
     if (!product) return;
+
+    // Validate target price — must be lower than current price
+    if (targetPrice) {
+      const tp = parseFloat(targetPrice);
+      if (isNaN(tp) || tp <= 0) {
+        toast.error("Enter a valid price");
+        return;
+      }
+      if (tp >= product.price) {
+        toast.error(`Target must be below current price (${product.price.toLocaleString("tr-TR")} ${product.currency})`);
+        return;
+      }
+    }
+
     setTrackLoading(true);
     try {
       if (tracked) {
@@ -142,7 +156,7 @@ export default function ProductDetails() {
           setTracked(false);
           setShowTargetInput(false);
           setTargetPrice("");
-          toast.success("Removed from Watchlist");
+          toast.success("Removed from watchlist");
         }
       } else {
         const tp = targetPrice ? parseFloat(targetPrice) : undefined;
@@ -151,8 +165,8 @@ export default function ProductDetails() {
           setShowTargetInput(false);
           toast.success(
             tp
-              ? `Tracking — alert at ${tp.toLocaleString("tr-TR")} ${product.currency}`
-              : "Tracking price drop",
+              ? `Tracking — you'll be alerted at ${tp.toLocaleString("tr-TR")} ${product.currency} or lower`
+              : "Tracking — you'll be notified on any price drop",
           );
         }
       }
@@ -644,63 +658,93 @@ export default function ProductDetails() {
               />
             </div>
 
-            <button
-              onClick={handleTrackPrice}
-              disabled={trackLoading}
-              className={[
-                "w-full py-3.5 mb-2.5 border font-sans text-[10px] tracking-[0.18em] uppercase flex items-center justify-center gap-2 cursor-pointer transition-all duration-200 ease-smooth",
-                trackLoading ? "opacity-50 cursor-wait" : "",
-                tracked
-                  ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
-                  : "bg-transparent text-textTertiary dark:text-textTertiary-dark border-borderLight dark:border-borderLight-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark",
-              ].join(" ")}
-            >
-              <span>{tracked ? "✓" : "♡"}</span>
-              {trackLoading
-                ? "…"
-                : tracked
-                  ? "Tracking price"
-                  : isAuthenticated
-                    ? "Track price drop"
-                    : "Sign in to track"}
-            </button>
+            {/* ── Price Tracker ── */}
+            <div className="mb-5">
+              {/* Section label */}
+              <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-3">
+                Price tracker
+              </p>
 
-            {/* Target price input — optional, shown inline */}
-            {!tracked && isAuthenticated && (
-              <div className="mb-2">
-                {!showTargetInput ? (
-                  <button
-                    onClick={() => setShowTargetInput(true)}
-                    className="w-full text-left font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer py-1"
-                  >
-                    + Set target price (optional)
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 border border-borderLight dark:border-borderLight-dark px-3 py-2">
-                    <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark whitespace-nowrap">
-                      Alert me at
-                    </span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={targetPrice}
-                      onChange={(e) => setTargetPrice(e.target.value)}
-                      placeholder={product.price.toString()}
-                      className="flex-1 bg-transparent font-heading text-[13px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
-                    />
-                    <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
-                      {product.currency}
-                    </span>
+              {/* Target price input — shown before tracking */}
+              {!tracked && isAuthenticated && (
+                <div className="mb-3">
+                  {!showTargetInput ? (
                     <button
-                      onClick={() => { setShowTargetInput(false); setTargetPrice(""); }}
-                      className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer"
+                      onClick={() => setShowTargetInput(true)}
+                      className="w-full text-left font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer py-1 flex items-center gap-2"
                     >
-                      ✕
+                      <span className="text-[13px] leading-none">+</span>
+                      Set a target price (optional)
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : (
+                    <div className="border border-borderLight dark:border-borderLight-dark">
+                      <div className="flex items-center gap-2 px-4 py-3">
+                        <span className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark whitespace-nowrap">
+                          Alert below
+                        </span>
+                        <input
+                          type="number"
+                          min="1"
+                          max={product.price - 1}
+                          value={targetPrice}
+                          onChange={(e) => setTargetPrice(e.target.value)}
+                          placeholder={(product.price * 0.8).toFixed(0)}
+                          className="flex-1 bg-transparent font-heading text-[15px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
+                        />
+                        <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
+                          {product.currency}
+                        </span>
+                        <button
+                          onClick={() => { setShowTargetInput(false); setTargetPrice(""); }}
+                          className="font-sans text-[11px] text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer leading-none"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {targetPrice && parseFloat(targetPrice) >= product.price && (
+                        <p className="px-4 pb-2 font-sans text-[9px] text-accentRed">
+                          Must be lower than current price ({product.price.toLocaleString("tr-TR")} {product.currency})
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Track button */}
+              <button
+                onClick={handleTrackPrice}
+                disabled={trackLoading || (!!targetPrice && parseFloat(targetPrice) >= product.price)}
+                className={[
+                  "w-full py-4 border font-sans text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 cursor-pointer transition-all duration-200 ease-smooth",
+                  trackLoading ? "opacity-50 cursor-wait" : "",
+                  (!!targetPrice && parseFloat(targetPrice) >= product.price) ? "opacity-30 cursor-not-allowed" : "",
+                  tracked
+                    ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+                    : "bg-transparent text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark",
+                ].join(" ")}
+              >
+                <span className="text-[16px] leading-none">{tracked ? "✓" : "♡"}</span>
+                {trackLoading
+                  ? "…"
+                  : tracked
+                    ? "Tracking — watching for drops"
+                    : isAuthenticated
+                      ? targetPrice
+                        ? `Track · alert me below ${parseFloat(targetPrice).toLocaleString("tr-TR")} ${product.currency}`
+                        : "Track price"
+                      : "Sign in to track"}
+              </button>
+
+              {/* Hint text */}
+              {!tracked && (
+                <p className="font-sans text-[9px] leading-relaxed text-textMuted dark:text-textMuted-dark mt-2">
+                  {targetPrice && parseFloat(targetPrice) < product.price
+                    ? `You'll be notified when the price reaches ${parseFloat(targetPrice).toLocaleString("tr-TR")} ${product.currency} or lower.`
+                    : "You'll be notified on any price drop."}
+                </p>
+              )}
+            </div>
 
             <a
               href={product.link}

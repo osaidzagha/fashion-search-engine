@@ -47,8 +47,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
-  // Show "All-time low" badge when current price is at or within 2% of historical minimum
+  // Show "All-time low" only when:
+  // (a) we have a valid histMin, AND
+  // (b) the product has ≥2 price history points (otherwise "lowest of 1" is meaningless)
+  const hasRealHistory =
+    product.historyPreview != null && product.historyPreview.length >= 2;
   const isAllTimeLow =
+    hasRealHistory &&
     product.histMin != null &&
     product.histMin > 0 &&
     product.price <= product.histMin * 1.02;
