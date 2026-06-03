@@ -272,9 +272,7 @@ function Section({
 }
 
 // ─── The Drop ─────────────────────────────────────────────────────────────────
-// Editorial section replacing the two price-change carousels.
-// Left: one large hero card with full image + price overlay.
-// Right: 3 stacked horizontal mini cards.
+// Editorial section: Left — one large hero. Right — 3 portrait cards stacked.
 function TheDropSection({
   products,
   loading,
@@ -297,21 +295,11 @@ function TheDropSection({
             <div className="h-7 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-3 md:gap-4">
-          <div className="min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
-          <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[3px]">
+          <div className="min-h-[480px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
+          <div className="grid grid-rows-3 gap-[3px] min-h-[480px] lg:min-h-[600px]">
             {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className={`flex gap-4 p-4 flex-1 items-center ${i < 2 ? "border-b border-borderLight dark:border-borderLight-dark" : ""}`}
-              >
-                <div className="w-20 h-20 bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-2 w-12 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
-                  <div className="h-3 w-36 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
-                  <div className="h-2 w-20 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
-                </div>
-              </div>
+              <div key={i} className="bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
             ))}
           </div>
         </div>
@@ -336,15 +324,16 @@ function TheDropSection({
         <SeeAllButton onClick={onSeeAll} />
       </div>
 
-      {/* Grid: 60% hero | 40% stack */}
-      <div className="grid grid-cols-1 lg:grid-cols-[60%_40%] gap-3 md:gap-4">
-        {/* Hero card */}
+      {/* Grid: 50/50 — hero left, 3 portraits right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[3px]">
+
+        {/* ── Left: Large hero card ── */}
         {hero && (() => {
           const heroDiscount = calcDiscount(hero);
           return (
             <div
               onClick={() => navigate(`/product/${hero.id}`)}
-              className="relative cursor-pointer overflow-hidden group min-h-[380px] lg:min-h-[520px] bg-bgSecondary dark:bg-bgSecondary-dark"
+              className="relative cursor-pointer overflow-hidden group min-h-[480px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark"
             >
               {hero.images?.[0] && (
                 <img
@@ -353,17 +342,14 @@ function TheDropSection({
                   className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
                 />
               )}
-              {/* Gradient overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-              {/* Discount badge */}
               {heroDiscount > 0 && (
                 <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
                   −{heroDiscount}%
                 </div>
               )}
 
-              {/* Content overlay */}
               <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
                 <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
                   {hero.brand}
@@ -386,52 +372,49 @@ function TheDropSection({
           );
         })()}
 
-        {/* Stacked mini cards — only render when we have side items */}
+        {/* ── Right: 3 equal portrait cards stacked vertically ── */}
         {sideItems.length > 0 && (
-          <div className="flex flex-col border border-borderLight dark:border-borderLight-dark">
-            {sideItems.map((product, i) => {
+          <div className="grid grid-rows-3 gap-[3px] min-h-[480px] lg:min-h-[600px]">
+            {sideItems.map((product) => {
               const disc = calcDiscount(product);
               return (
                 <div
                   key={product.id}
                   onClick={() => navigate(`/product/${product.id}`)}
-                  className={`flex gap-4 p-4 lg:p-5 cursor-pointer hover:bg-bgHover dark:hover:bg-bgHover-dark transition-colors duration-200 flex-1 items-center ${
-                    i < sideItems.length - 1
-                      ? "border-b border-borderLight dark:border-borderLight-dark"
-                      : ""
-                  }`}
+                  className="relative cursor-pointer overflow-hidden group bg-bgSecondary dark:bg-bgSecondary-dark"
                 >
-                  {/* Thumbnail */}
-                  <div className="w-20 h-20 lg:w-24 lg:h-24 flex-shrink-0 overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark">
-                    {product.images?.[0] && (
-                      <img
-                        src={product.images[0]}
-                        alt={product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+                  {product.images?.[0] && (
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
+                    />
+                  )}
+                  {/* Subtle gradient at bottom */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                  {/* Discount badge */}
+                  {disc > 0 && (
+                    <div className="absolute top-3 left-3 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-2 py-1">
+                      −{disc}%
+                    </div>
+                  )}
+
+                  {/* Text overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-4">
+                    <p className="font-sans text-[8px] tracking-editorial uppercase text-white/50 mb-0.5 truncate">
                       {product.brand}
                     </p>
-                    <p className="font-sans text-[12px] text-textPrimary dark:text-textPrimary-dark leading-snug mb-2 line-clamp-2">
+                    <p className="font-sans text-[11px] text-white leading-snug mb-1 line-clamp-1">
                       {product.name}
                     </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-sans text-[12px] font-medium text-textPrimary dark:text-textPrimary-dark">
+                    <div className="flex items-baseline gap-2">
+                      <span className="font-heading text-[13px] text-white">
                         {product.price.toLocaleString("tr-TR")} {product.currency}
                       </span>
                       {product.originalPrice && (
-                        <span className="font-sans text-[10px] text-textMuted dark:text-textMuted-dark line-through">
+                        <span className="font-heading text-[11px] text-white/40 line-through">
                           {product.originalPrice.toLocaleString("tr-TR")}
-                        </span>
-                      )}
-                      {disc > 0 && (
-                        <span className="font-sans text-[9px] tracking-widest uppercase text-accentRed">
-                          −{disc}%
                         </span>
                       )}
                     </div>
@@ -445,6 +428,7 @@ function TheDropSection({
     </section>
   );
 }
+
 
 // ─── Category Grid ────────────────────────────────────────────────────────────
 function CategoryGrid({

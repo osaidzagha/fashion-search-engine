@@ -138,8 +138,10 @@ export default function ProductDetails() {
 
     // Validate target price — must be lower than current price
     if (targetPrice) {
-      const tp = parseFloat(targetPrice);
-      if (isNaN(tp) || tp <= 0) {
+      const raw = targetPrice.trim();
+      const tp = parseFloat(raw);
+      // Catch NaN (invalid chars like "44-+") or non-positive numbers
+      if (!raw || isNaN(tp) || tp <= 0 || String(tp) === "NaN") {
         toast.error("Enter a valid price");
         return;
       }
@@ -671,9 +673,8 @@ export default function ProductDetails() {
                   {!showTargetInput ? (
                     <button
                       onClick={() => setShowTargetInput(true)}
-                      className="w-full text-left font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer py-1 flex items-center gap-2"
+                      className="w-full text-left font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer py-1"
                     >
-                      <span className="text-[13px] leading-none">+</span>
                       Set a target price (optional)
                     </button>
                   ) : (
@@ -686,9 +687,16 @@ export default function ProductDetails() {
                           type="number"
                           min="1"
                           max={product.price - 1}
+                          step="any"
                           value={targetPrice}
-                          onChange={(e) => setTargetPrice(e.target.value)}
-                          placeholder={(product.price * 0.8).toFixed(0)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            // Only allow digits and a single dot
+                            if (val === "" || /^\d*\.?\d*$/.test(val)) {
+                              setTargetPrice(val);
+                            }
+                          }}
+                          placeholder={Math.round(product.price * 0.8).toString()}
                           className="flex-1 bg-transparent font-heading text-[15px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
                         />
                         <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
