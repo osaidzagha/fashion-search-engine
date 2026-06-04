@@ -754,14 +754,31 @@ export default function ProductDetails() {
               )}
             </div>
 
-            <a
-              href={product.link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full py-3.5 mb-8 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark font-sans text-[10px] tracking-[0.22em] uppercase text-center no-underline font-medium transition-opacity duration-200 hover:opacity-80"
-            >
-              View on {product.brand} →
-            </a>
+            {/* ── View on brand ── */}
+            <div className="mb-8">
+              <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-4" />
+              <a
+                href={product.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-between px-4 py-3.5 border border-borderLight dark:border-borderLight-dark text-textSecondary dark:text-textSecondary-dark hover:border-textPrimary dark:hover:border-textPrimary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark no-underline transition-all duration-200 group"
+              >
+                <span className="font-sans text-[10px] tracking-[0.2em] uppercase">
+                  View on {product.brand}
+                </span>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="opacity-40 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200"
+                >
+                  <path d="M7 17L17 7M7 7h10v10" />
+                </svg>
+              </a>
+            </div>
 
             {product.sizes && product.sizes.length > 0 && (
               <div className="mb-7">
@@ -792,11 +809,11 @@ export default function ProductDetails() {
             <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-6" />
 
             {product.description && (
-              <div className="mb-5">
-                <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2.5">
+              <div className="mb-6">
+                <p className="font-sans text-[8px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-3">
                   About this piece
                 </p>
-                <p className="font-heading text-[15px] font-light italic leading-[1.75] text-textTertiary dark:text-textTertiary-dark m-0">
+                <p className="font-heading text-[17px] font-light italic leading-[1.8] text-textSecondary dark:text-textSecondary-dark m-0">
                   {product.description}
                 </p>
               </div>
@@ -818,7 +835,7 @@ export default function ProductDetails() {
                 {images.length} image{images.length !== 1 ? "s" : ""}
                 {(product as any).videos?.length > 0 ? " + video" : ""}
               </p>
-              <div className="flex gap-[3px]">
+              <div className="flex gap-[4px]">
                 {images.slice(0, 6).map((img, idx) => (
                   <button
                     key={idx}
@@ -826,7 +843,7 @@ export default function ProductDetails() {
                       setLightboxIdx(idx);
                       setLightboxOpen(true);
                     }}
-                    className="flex-shrink-0 w-10 h-[52px] overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark p-0 cursor-zoom-in transition-all duration-200 hover:border-borderDark dark:hover:border-borderDark-dark"
+                    className="flex-shrink-0 w-12 h-[62px] overflow-hidden bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark p-0 cursor-zoom-in transition-all duration-200 hover:border-textPrimary dark:hover:border-textPrimary-dark hover:scale-[1.04]"
                   >
                     <img
                       src={img}
@@ -836,7 +853,7 @@ export default function ProductDetails() {
                   </button>
                 ))}
                 {images.length > 6 && (
-                  <div className="flex-shrink-0 w-10 h-[52px] bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark flex items-center justify-center">
+                  <div className="flex-shrink-0 w-12 h-[62px] bg-bgSecondary dark:bg-bgSecondary-dark border border-borderLight dark:border-borderLight-dark flex items-center justify-center">
                     <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
                       +{images.length - 6}
                     </span>
