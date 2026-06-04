@@ -644,6 +644,10 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       shirts,
       trousers,
       knitwear,
+      dresses,
+      coats,
+      shoes,
+      bags,
     ] = await Promise.allSettled([
       ProductModel.aggregate([
         {
@@ -703,7 +707,7 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .sort({ timestamp: -1 })
         .lean(),
       ProductModel.findOne({
-        category: { $regex: "shirt", $options: "i" },
+        category: { $regex: "shirt|blouse|top", $options: "i" },
         images: { $exists: true, $not: { $size: 0 } },
         ...deptFilter,
       })
@@ -717,7 +721,36 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .sort({ timestamp: -1 })
         .lean(),
       ProductModel.findOne({
-        category: { $regex: "knit|sweater|jumper", $options: "i" },
+        category: { $regex: "knit|sweater|jumper|cardigan", $options: "i" },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .lean(),
+      // ── 4 additional categories ──
+      ProductModel.findOne({
+        category: { $regex: "dress|skirt", $options: "i" },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .lean(),
+      ProductModel.findOne({
+        category: { $regex: "coat|overcoat|trench|parka", $options: "i" },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .lean(),
+      ProductModel.findOne({
+        category: { $regex: "shoe|boot|sneaker|loafer|sandal", $options: "i" },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .lean(),
+      ProductModel.findOne({
+        category: { $regex: "bag|tote|clutch|backpack|crossbody", $options: "i" },
         images: { $exists: true, $not: { $size: 0 } },
         ...deptFilter,
       })
@@ -747,6 +780,10 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         shirts: getValue(shirts),
         trousers: getValue(trousers),
         knitwear: getValue(knitwear),
+        dresses: getValue(dresses),
+        coats: getValue(coats),
+        shoes: getValue(shoes),
+        bags: getValue(bags),
       },
     });
   } catch (error) {

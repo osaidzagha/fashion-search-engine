@@ -24,6 +24,10 @@ interface FeaturedData {
     shirts: Product | null;
     trousers: Product | null;
     knitwear: Product | null;
+    dresses: Product | null;
+    coats: Product | null;
+    shoes: Product | null;
+    bags: Product | null;
   };
 }
 
@@ -54,7 +58,7 @@ const CARD_WRAPPER =
 
 const SKELETON_COUNT = 6;
 
-// ─── Category definitions ─────────────────────────────────────────────────────
+// ─── Category definitions ────────────────────────────────────────────────────────────────────
 const CATEGORIES: {
   label: string;
   key: keyof FeaturedData["categoryTiles"];
@@ -64,6 +68,10 @@ const CATEGORIES: {
   { label: "Shirts", key: "shirts", search: "shirt" },
   { label: "Trousers", key: "trousers", search: "trouser" },
   { label: "Knitwear", key: "knitwear", search: "knitwear" },
+  { label: "Dresses", key: "dresses", search: "dress" },
+  { label: "Coats", key: "coats", search: "coat" },
+  { label: "Shoes", key: "shoes", search: "shoe" },
+  { label: "Bags", key: "bags", search: "bag" },
 ];
 
 // ─── Feature strip content ────────────────────────────────────────────────────
@@ -431,7 +439,8 @@ function TheDropSection({
 
 
 // ─── Category Grid ────────────────────────────────────────────────────────────
-function CategoryGrid({
+// ─── Category Rail ───────────────────────────────────────────────────────────────────
+function CategoryRail({
   tiles,
   loading,
   onNavigate,
@@ -440,46 +449,65 @@ function CategoryGrid({
   loading: boolean;
   onNavigate: (search: string) => void;
 }) {
+  // Only show categories that have a product image
+  const visible = loading
+    ? CATEGORIES
+    : CATEGORIES.filter((cat) => tiles?.[cat.key]?.images?.[0]);
+
   if (loading) {
     return (
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="flex gap-[3px] overflow-x-hidden">
         {CATEGORIES.map((cat) => (
           <div
             key={cat.key}
-            className="aspect-[3/4] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
+            className="flex-shrink-0 w-[220px] md:w-[280px] aspect-[2/3] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
           />
         ))}
       </div>
     );
   }
 
+  if (visible.length === 0) return null;
+
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-      {CATEGORIES.map((cat) => {
+    <div className="flex gap-[3px] overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {visible.map((cat) => {
         const product = tiles?.[cat.key];
         const imgSrc = product?.images?.[0];
         return (
           <div
             key={cat.key}
             onClick={() => onNavigate(cat.search)}
-            className="relative aspect-[3/4] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
+            className="relative flex-shrink-0 w-[200px] md:w-[260px] lg:w-[300px] aspect-[2/3] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
           >
             {imgSrc && (
               <img
                 src={imgSrc}
                 alt={cat.label}
                 loading="lazy"
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.05]"
+                className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
               />
             )}
-            <div className="absolute inset-0 bg-black/25 group-hover:bg-black/35 transition-colors duration-300" />
-            <div className="absolute bottom-0 left-0 right-0 p-4 md:p-5">
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-white/40 mb-0.5">
-                Browse
+            {/* Bottom gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
+            {/* Top-left fade for legibility */}
+            <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
+
+            {/* Label */}
+            <div className="absolute bottom-0 left-0 right-0 p-5">
+              <p className="font-sans text-[8px] tracking-editorial uppercase text-white/40 mb-1.5">
+                Shop
               </p>
-              <h3 className="font-heading font-light text-xl md:text-2xl text-white">
+              <h3 className="font-heading font-light text-[clamp(22px,3vw,32px)] leading-none text-white">
                 {cat.label}
               </h3>
+            </div>
+
+            {/* Hover arrow */}
+            <div className="absolute top-4 right-4 w-7 h-7 rounded-full border border-white/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
+                <path d="M7 17L17 7M7 7h10v10" />
+              </svg>
             </div>
           </div>
         );
@@ -695,13 +723,23 @@ export default function Home() {
         />
 
         {/* ══ BROWSE BY CATEGORY ════════════════════════════════════════════ */}
-        <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark">
-          <div className="flex justify-between items-baseline mb-6 border-b border-borderLight dark:border-borderLight-dark pb-4">
-            <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
-              Browse by category
-            </h2>
+        <section className="py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark overflow-hidden">
+          <div className="flex justify-between items-baseline mb-6 px-4 md:px-8 lg:px-16 border-b border-borderLight dark:border-borderLight-dark pb-4">
+            <div>
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                {!loading && featured?.categoryTiles
+                  ? `${CATEGORIES.filter((c) => featured.categoryTiles[c.key]?.images?.[0]).length} categories`
+                  : "Categories"}
+              </p>
+              <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                Browse by{" "}
+                <em className="italic text-textSecondary dark:text-textSecondary-dark">
+                  category.
+                </em>
+              </h2>
+            </div>
           </div>
-          <CategoryGrid
+          <CategoryRail
             tiles={featured?.categoryTiles ?? null}
             loading={loading}
             onNavigate={(search) => {
