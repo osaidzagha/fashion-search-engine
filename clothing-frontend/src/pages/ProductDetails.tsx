@@ -852,26 +852,27 @@ export default function ProductDetails() {
           ══════════════════════════════════════════════════════════ */}
         {/* ✅ FIX: Responsive padding on the Related Products section */}
         {relatedProducts.length > 0 && (
-          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 md:px-16 py-12 md:py-20 border-t border-borderLight dark:border-borderLight-dark">
-            <div className="flex justify-between items-baseline mb-8 md:mb-10 border-b border-borderLight dark:border-borderLight-dark pb-4 md:pb-5">
-              <div className="flex items-baseline gap-2 md:gap-4">
-                <h2 className="font-heading font-light text-2xl md:text-[28px] text-textPrimary dark:text-textPrimary-dark">
-                  You may also like
-                </h2>
-                <span className="hidden sm:inline font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
-                  Related pieces
-                </span>
-              </div>
-              <button
-                onClick={() => navigate(-1)}
-                className="font-sans text-[10px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer hover:opacity-50 transition-opacity duration-200 ease-smooth"
-              >
-                ← Back
-              </button>
+          <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 md:px-16 py-14 md:py-20 border-t border-borderLight dark:border-borderLight-dark">
+            {/* Header */}
+            <div className="mb-8 md:mb-12 border-b border-borderLight dark:border-borderLight-dark pb-5 md:pb-6">
+              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                {relatedProducts.slice(0, 8).length} similar piece{relatedProducts.slice(0, 8).length !== 1 ? "s" : ""} · {product.brand}
+              </p>
+              <h2 className="font-heading font-light text-[clamp(22px,4vw,34px)] leading-tight text-textPrimary dark:text-textPrimary-dark">
+                You might also{" "}
+                <em className="italic text-textSecondary dark:text-textSecondary-dark">
+                  like these.
+                </em>
+              </h2>
             </div>
-            <div className={CAROUSEL}>
+
+            {/* Carousel */}
+            <div className="flex gap-4 md:gap-5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]">
               {relatedProducts.slice(0, 8).map((p) => (
-                <div key={p.id} className={CARD_WRAPPER}>
+                <div
+                  key={p.id}
+                  className="min-w-[260px] md:min-w-[300px] max-w-[260px] md:max-w-[300px] flex-shrink-0 [scroll-snap-align:start]"
+                >
                   <ProductCard product={p} />
                 </div>
               ))}
