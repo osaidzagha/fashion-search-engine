@@ -3,7 +3,7 @@ import { FetchProductParams, PaginatedResponse, Product } from "../types";
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const AUTH_URL = `${BASE_URL}/api/auth`;
 
-// ─── Custom Error Class (The Zod Catcher) ──────────────────────────────────
+// ─── Custom Error Class ───────────────────────────────────────────────────────
 export class ApiError extends Error {
   public status: number;
   public validationErrors?: { field: string; message: string }[];
@@ -15,7 +15,7 @@ export class ApiError extends Error {
   }
 }
 
-// ─── The Global Interceptor ──────────────────────────────────────────────────
+// ─── Global Fetch Interceptor ─────────────────────────────────────────────────
 async function globalFetch(
   url: string,
   options: RequestInit = {},
@@ -31,31 +31,61 @@ async function globalFetch(
     },
   });
 
-  // 🚨 GLOBAL 401 HANDLER (The Logout Reflex)
   if (response.status === 401) {
     localStorage.removeItem("token");
-    // Broadcast an event to the React app to wipe Redux and redirect to login
     window.dispatchEvent(new Event("auth-expired"));
     throw new ApiError("Session expired. Please log in again.", 401);
   }
 
-  // 🚨 GLOBAL ERROR PARSER
   if (!response.ok) {
     let errorMessage = "An unexpected error occurred";
     let errorsArray = [];
-
     try {
       const data = await response.json();
       errorMessage = data.message || errorMessage;
-      errorsArray = data.errors || []; // Grabs the Zod errors if they exist!
-    } catch (e) {
+      errorsArray = data.errors || [];
+    } catch {
       errorMessage = `Server Error (${response.status})`;
     }
-
     throw new ApiError(errorMessage, response.status, errorsArray);
   }
 
   return response;
+}
+
+// ─── Featured Data Types ──────────────────────────────────────────────────────
+
+export interface CategoryTiles {
+  coats: Product | null;
+  jackets: Product | null;
+  suits: Product | null;
+  tops: Product | null;
+  knitwear: Product | null;
+  jeans: Product | null;
+  trousers: Product | null;
+  shorts: Product | null;
+  dresses: Product | null;
+  skirts: Product | null;
+  activewear: Product | null;
+  jumpsuits: Product | null;
+  shoes: Product | null;
+  bags: Product | null;
+  accessories: Product | null;
+  jewelry: Product | null;
+}
+
+export interface FeaturedData {
+  onSale: Product[];
+  newIn: Product[];
+  withVideo: Product[];
+  campaignHeroes: Product[];
+  categoryTiles: CategoryTiles;
+}
+
+export interface BrandCounts {
+  zara: number;
+  mango: number;
+  massimoDutti: number;
 }
 
 // ─── Products ─────────────────────────────────────────────────────────────────
@@ -68,15 +98,14 @@ export const fetchProductsFromAPI = async (
 
     if (filters.searchTerm) urlParams.set("search", filters.searchTerm);
     if (filters.page) urlParams.set("page", filters.page.toString());
-    if (filters.brands && filters.brands.length > 0)
+    if (filters.brands?.length)
       urlParams.set("brand", filters.brands.join(","));
-    if (filters.departments && filters.departments.length > 0)
+    if (filters.departments?.length)
       urlParams.set("departments", filters.departments.join(","));
     if (filters.maxPrice)
       urlParams.set("maxPrice", filters.maxPrice.toString());
-    if (filters.sizes && filters.sizes.length > 0)
-      urlParams.set("sizes", filters.sizes.join(","));
-    if (filters.colors && filters.colors.length > 0)
+    if (filters.sizes?.length) urlParams.set("sizes", filters.sizes.join(","));
+    if (filters.colors?.length)
       urlParams.set("colors", filters.colors.join(","));
     if (filters.onSale) urlParams.set("onSale", "true");
     if (filters.sort) urlParams.set("sort", filters.sort);
@@ -113,6 +142,65 @@ export async function fetchRelatedProducts(id: string): Promise<Product[]> {
     console.error("Failed to fetch related products:", error);
     return [];
   }
+}
+
+// ─── Featured ─────────────────────────────────────────────────────────────────
+
+/**
+ * Fetches the homepage featured payload — campaign heroes, sale products,
+ * new-in items, video products, and one representative product per category
+ * tile. The backend is expected to populate all 16 categoryTiles keys; any
+ * key it doesn't recognise will come back as null and the UI will hide that
+ * tile automatically.
+ */
+export async function fetchFeatured(
+  departments?: string[],
+): Promise<FeaturedData | null> {
+  try {
+    const params = new URLSearchParams();
+    if (departments?.length) params.set("departments", departments.join(","));
+
+    const response = await globalFetch(
+      `${BASE_URL}/api/products/featured?${params.toString()}`,
+    );
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch featured data:", error);
+    return null;
+  }
+}
+
+/**
+ * Fetches item counts for all three brands in parallel.
+ * Uses limit=1 so the backend does minimal work — we only need totalCount.
+ * Resolves to zeros on any failure so the UI degrades gracefully.
+ */
+export async function fetchBrandCounts(
+  departments?: string[],
+): Promise<BrandCounts> {
+  const deptParam = departments?.length
+    ? `&departments=${departments.join(",")}`
+    : "";
+
+  const get = async (brand: string): Promise<number> => {
+    try {
+      const res = await globalFetch(
+        `${BASE_URL}/api/products?brand=${encodeURIComponent(brand)}&limit=1${deptParam}`,
+      );
+      const data = await res.json();
+      return data.totalCount ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const [zara, mango, massimoDutti] = await Promise.all([
+    get("Zara"),
+    get("Mango"),
+    get("Massimo Dutti"),
+  ]);
+
+  return { zara, mango, massimoDutti };
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -183,7 +271,7 @@ export const removeFromWatchlist = async (
     await globalFetch(`${BASE_URL}/api/watchlist/${productId}`, {
       method: "DELETE",
     });
-    return true; // If globalFetch doesn't throw an error, it succeeded
+    return true;
   } catch (error) {
     console.error("Failed to remove from watchlist:", error);
     return false;
@@ -212,9 +300,7 @@ export const fetchCategories = async (): Promise<string[]> => {
 export const toggleCampaignHeroAPI = async (productId: string) => {
   const response = await globalFetch(
     `${BASE_URL}/api/admin/products/${productId}/campaign`,
-    {
-      method: "PUT",
-    },
+    { method: "PUT" },
   );
   return await response.json();
 };

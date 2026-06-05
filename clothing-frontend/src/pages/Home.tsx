@@ -11,27 +11,16 @@ import { ProductSkeleton } from "../components/ProductSkeleton";
 import { setSearchTerm, clearFilters } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 import DopeLogo from "../components/DopeLogo";
-
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-interface FeaturedData {
-  onSale: Product[];
-  newIn: Product[];
-  withVideo: Product[];
-  campaignHeroes: Product[];
-  categoryTiles: {
-    jackets: Product | null;
-    shirts: Product | null;
-    trousers: Product | null;
-    knitwear: Product | null;
-    dresses: Product | null;
-    coats: Product | null;
-    shoes: Product | null;
-    bags: Product | null;
-  };
-}
+import {
+  fetchFeatured,
+  fetchBrandCounts,
+  fetchProductsFromAPI,
+  type FeaturedData,
+  type BrandCounts,
+} from "../services/api";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
 function calcDiscount(p: Product): number {
   if (!p.originalPrice || p.originalPrice <= p.price) return 0;
   return Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100);
@@ -53,28 +42,61 @@ function isClothing(p: Product): boolean {
   return !NON_CLOTHING_RE.test(text);
 }
 
+function formatCount(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return n.toString();
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const CARD_WRAPPER =
   "min-w-[160px] max-w-[160px] sm:min-w-[200px] sm:max-w-[200px] md:min-w-[240px] md:max-w-[240px] lg:min-w-[260px] lg:max-w-[260px] flex-shrink-0";
 
 const SKELETON_COUNT = 6;
 
-// ─── Category definitions ────────────────────────────────────────────────────────────────────
+// ─── Category definitions — mirrors the full TAXONOMY ───────────────────────
+// All 16 main browseable categories. Keys match FeaturedData["categoryTiles"].
 const CATEGORIES: {
   label: string;
   key: keyof FeaturedData["categoryTiles"];
   search: string;
 }[] = [
-  { label: "Jackets", key: "jackets", search: "jacket" },
-  { label: "Shirts", key: "shirts", search: "shirt" },
-  { label: "Trousers", key: "trousers", search: "trouser" },
+  { label: "Coats", key: "coats", search: "coat overcoat trench parka" },
+  {
+    label: "Jackets",
+    key: "jackets",
+    search: "jacket bomber puffer windbreaker quilted",
+  },
+  { label: "Suits", key: "suits", search: "suit blazer tuxedo waistcoat" },
+  { label: "Tops", key: "tops", search: "top shirt blouse tee camisole polo" },
   { label: "Knitwear", key: "knitwear", search: "knitwear" },
+  { label: "Jeans", key: "jeans", search: "jeans denim" },
+  { label: "Trousers", key: "trousers", search: "trouser" },
+  { label: "Shorts", key: "shorts", search: "shorts bermuda" },
   { label: "Dresses", key: "dresses", search: "dress" },
-  { label: "Coats", key: "coats", search: "coat" },
+  { label: "Skirts", key: "skirts", search: "skirt" },
+  {
+    label: "Activewear",
+    key: "activewear",
+    search: "activewear sport training gym fitness",
+  },
+  { label: "Jumpsuits", key: "jumpsuits", search: "jumpsuit playsuit romper" },
   { label: "Shoes", key: "shoes", search: "shoe" },
   { label: "Bags", key: "bags", search: "bag" },
+  {
+    label: "Accessories",
+    key: "accessories",
+    search: "belt scarf hat sunglasses glove",
+  },
+  {
+    label: "Jewelry",
+    key: "jewelry",
+    search: "jewelry necklace earring ring bracelet",
+  },
 ];
 
 // ─── Feature strip content ────────────────────────────────────────────────────
+
 const FEATURES = [
   {
     label: "Track",
@@ -94,6 +116,7 @@ const FEATURES = [
 ];
 
 // ─── ScrollCarousel ───────────────────────────────────────────────────────────
+
 interface ScrollCarouselProps {
   products: Product[];
   onLoadMore: () => void;
@@ -184,11 +207,14 @@ function CarouselSkeleton() {
   );
 }
 
+// ─── SeeAllButton — larger touch target ──────────────────────────────────────
+
 function SeeAllButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity"
+      className="font-sans text-[9px] tracking-widest uppercase text-textTertiary dark:text-textTertiary-dark bg-transparent border-none cursor-pointer opacity-70 hover:opacity-40 transition-opacity py-2 px-1"
+      style={{ minHeight: 40 }}
     >
       See all →
     </button>
@@ -196,6 +222,7 @@ function SeeAllButton({ onClick }: { onClick: () => void }) {
 }
 
 // ─── Feature Strip ────────────────────────────────────────────────────────────
+
 function FeatureStrip() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 border-b border-borderLight dark:border-borderLight-dark">
@@ -206,19 +233,16 @@ function FeatureStrip() {
             i < 2 ? "md:border-r" : ""
           }`}
         >
-          {/* Eyebrow — same style as the hero's department label */}
           <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
             {f.label}
           </p>
-
-          {/* Statement — large italic serif, mirrors "Fashion, tracked." */}
           <h3 className="font-heading font-light text-[clamp(26px,4vw,40px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark">
             {f.statement[0]}
             <br />
-            <em className="italic text-textSecondary dark:text-textSecondary-dark">{f.statement[1]}</em>
+            <em className="italic text-textSecondary dark:text-textSecondary-dark">
+              {f.statement[1]}
+            </em>
           </h3>
-
-          {/* Body — single line, same size as hero subtitle */}
           <p className="font-sans text-[12px] leading-relaxed text-textSecondary dark:text-textSecondary-dark">
             {f.desc}
           </p>
@@ -228,7 +252,8 @@ function FeatureStrip() {
   );
 }
 
-// ─── Section wrapper (Editor's Choice only) ───────────────────────────────────
+// ─── Section wrapper ──────────────────────────────────────────────────────────
+
 function Section({
   title,
   subtitle,
@@ -280,7 +305,7 @@ function Section({
 }
 
 // ─── The Drop ─────────────────────────────────────────────────────────────────
-// Editorial section: Left — one large hero. Right — 3 portrait cards stacked.
+
 function TheDropSection({
   products,
   loading,
@@ -303,11 +328,14 @@ function TheDropSection({
             <div className="h-7 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
           </div>
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-[3px]">
-          <div className="min-h-[480px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
-          <div className="grid grid-rows-3 gap-[3px] min-h-[480px] lg:min-h-[600px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-[3px]">
+          <div className="sm:col-span-2 lg:col-span-1 min-h-[340px] sm:min-h-[480px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
+          <div className="grid grid-rows-3 gap-[3px] min-h-[340px] sm:min-h-[480px] lg:min-h-[600px]">
             {[0, 1, 2].map((i) => (
-              <div key={i} className="bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe" />
+              <div
+                key={i}
+                className="bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
+              />
             ))}
           </div>
         </div>
@@ -332,64 +360,69 @@ function TheDropSection({
         <SeeAllButton onClick={onSeeAll} />
       </div>
 
-      {/* Grid: 50/50 — hero left, 3 portraits right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[3px]">
+      {/*
+        Grid:
+        - Mobile: single column (hero full-width, side items stacked)
+        - sm+:    hero spans both columns as a banner, side items in a row below
+        - lg+:    classic 50/50 split — hero left, 3 stacked right
+      */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-[3px]">
+        {/* ── Hero card ── */}
+        {hero &&
+          (() => {
+            const heroDiscount = calcDiscount(hero);
+            return (
+              <div
+                onClick={() => navigate(`/product/${hero.id}`)}
+                className="relative cursor-pointer overflow-hidden group sm:col-span-2 lg:col-span-1 min-h-[340px] sm:min-h-[420px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark"
+              >
+                {hero.images?.[0] && (
+                  <img
+                    src={hero.images[0]}
+                    alt={hero.name}
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
+                  />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
 
-        {/* ── Left: Large hero card ── */}
-        {hero && (() => {
-          const heroDiscount = calcDiscount(hero);
-          return (
-            <div
-              onClick={() => navigate(`/product/${hero.id}`)}
-              className="relative cursor-pointer overflow-hidden group min-h-[480px] lg:min-h-[600px] bg-bgSecondary dark:bg-bgSecondary-dark"
-            >
-              {hero.images?.[0] && (
-                <img
-                  src={hero.images[0]}
-                  alt={hero.name}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.03]"
-                />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                {heroDiscount > 0 && (
+                  <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
+                    −{heroDiscount}%
+                  </div>
+                )}
 
-              {heroDiscount > 0 && (
-                <div className="absolute top-4 left-4 bg-accentRed text-white font-sans text-[11px] tracking-widest uppercase px-3 py-1.5">
-                  −{heroDiscount}%
-                </div>
-              )}
-
-              <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
-                <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
-                  {hero.brand}
-                </p>
-                <h3 className="font-heading font-light text-[clamp(20px,3vw,32px)] leading-tight text-white mb-3 max-w-xs">
-                  {hero.name}
-                </h3>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-heading text-xl text-white">
-                    {hero.price.toLocaleString("tr-TR")} {hero.currency}
-                  </span>
-                  {hero.originalPrice && (
-                    <span className="font-heading text-base text-white/40 line-through">
-                      {hero.originalPrice.toLocaleString("tr-TR")}
+                <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8">
+                  <p className="font-sans text-[9px] tracking-editorial uppercase text-white/50 mb-1">
+                    {hero.brand}
+                  </p>
+                  <h3 className="font-heading font-light text-[clamp(20px,3vw,32px)] leading-tight text-white mb-3 max-w-xs">
+                    {hero.name}
+                  </h3>
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-heading text-xl text-white">
+                      {hero.price.toLocaleString("tr-TR")} {hero.currency}
                     </span>
-                  )}
+                    {hero.originalPrice && (
+                      <span className="font-heading text-base text-white/40 line-through">
+                        {hero.originalPrice.toLocaleString("tr-TR")}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })()}
+            );
+          })()}
 
-        {/* ── Right: 3 equal portrait cards stacked vertically ── */}
+        {/* ── 3 portrait cards — stacked vertically on lg, row on sm ── */}
         {sideItems.length > 0 && (
-          <div className="grid grid-rows-3 gap-[3px] min-h-[480px] lg:min-h-[600px]">
+          <div className="grid sm:grid-cols-3 lg:grid-cols-1 sm:grid-rows-1 lg:grid-rows-3 gap-[3px] min-h-[200px] sm:min-h-[260px] lg:min-h-[600px]">
             {sideItems.map((product) => {
               const disc = calcDiscount(product);
               return (
                 <div
                   key={product.id}
                   onClick={() => navigate(`/product/${product.id}`)}
-                  className="relative cursor-pointer overflow-hidden group bg-bgSecondary dark:bg-bgSecondary-dark"
+                  className="relative cursor-pointer overflow-hidden group bg-bgSecondary dark:bg-bgSecondary-dark min-h-[200px] sm:min-h-[auto]"
                 >
                   {product.images?.[0] && (
                     <img
@@ -398,17 +431,14 @@ function TheDropSection({
                       className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.04]"
                     />
                   )}
-                  {/* Subtle gradient at bottom */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
 
-                  {/* Discount badge */}
                   {disc > 0 && (
                     <div className="absolute top-3 left-3 bg-accentRed text-white font-sans text-[9px] tracking-widest uppercase px-2 py-1">
                       −{disc}%
                     </div>
                   )}
 
-                  {/* Text overlay */}
                   <div className="absolute bottom-0 left-0 right-0 p-3 lg:p-4">
                     <p className="font-sans text-[8px] tracking-editorial uppercase text-white/50 mb-0.5 truncate">
                       {product.brand}
@@ -418,7 +448,8 @@ function TheDropSection({
                     </p>
                     <div className="flex items-baseline gap-2">
                       <span className="font-heading text-[13px] text-white">
-                        {product.price.toLocaleString("tr-TR")} {product.currency}
+                        {product.price.toLocaleString("tr-TR")}{" "}
+                        {product.currency}
                       </span>
                       {product.originalPrice && (
                         <span className="font-heading text-[11px] text-white/40 line-through">
@@ -437,9 +468,8 @@ function TheDropSection({
   );
 }
 
+// ─── Category Rail ────────────────────────────────────────────────────────────
 
-// ─── Category Grid ────────────────────────────────────────────────────────────
-// ─── Category Rail ───────────────────────────────────────────────────────────────────
 function CategoryRail({
   tiles,
   loading,
@@ -449,7 +479,6 @@ function CategoryRail({
   loading: boolean;
   onNavigate: (search: string) => void;
 }) {
-  // Only show categories that have a product image
   const visible = loading
     ? CATEGORIES
     : CATEGORIES.filter((cat) => tiles?.[cat.key]?.images?.[0]);
@@ -457,10 +486,10 @@ function CategoryRail({
   if (loading) {
     return (
       <div className="flex gap-[3px] overflow-x-hidden">
-        {CATEGORIES.map((cat) => (
+        {CATEGORIES.slice(0, 8).map((cat) => (
           <div
-            key={cat.key}
-            className="flex-shrink-0 w-[220px] md:w-[280px] aspect-[2/3] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
+            key={String(cat.key)}
+            className="flex-shrink-0 w-[180px] md:w-[240px] aspect-[2/3] bg-bgSecondary dark:bg-bgSecondary-dark animate-breathe"
           />
         ))}
       </div>
@@ -476,9 +505,9 @@ function CategoryRail({
         const imgSrc = product?.images?.[0];
         return (
           <div
-            key={cat.key}
+            key={String(cat.key)}
             onClick={() => onNavigate(cat.search)}
-            className="relative flex-shrink-0 w-[200px] md:w-[260px] lg:w-[300px] aspect-[2/3] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
+            className="relative flex-shrink-0 w-[160px] md:w-[220px] lg:w-[260px] aspect-[2/3] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
           >
             {imgSrc && (
               <img
@@ -488,24 +517,27 @@ function CategoryRail({
                 className="absolute inset-0 w-full h-full object-cover object-top transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.06]"
               />
             )}
-            {/* Bottom gradient */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
-            {/* Top-left fade for legibility */}
             <div className="absolute inset-0 bg-gradient-to-br from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-400" />
 
-            {/* Label */}
-            <div className="absolute bottom-0 left-0 right-0 p-5">
+            <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-5">
               <p className="font-sans text-[8px] tracking-editorial uppercase text-white/40 mb-1.5">
                 Shop
               </p>
-              <h3 className="font-heading font-light text-[clamp(22px,3vw,32px)] leading-none text-white">
+              <h3 className="font-heading font-light text-[clamp(18px,2.5vw,28px)] leading-none text-white">
                 {cat.label}
               </h3>
             </div>
 
-            {/* Hover arrow */}
             <div className="absolute top-4 right-4 w-7 h-7 rounded-full border border-white/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-1 group-hover:translate-y-0">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
+              <svg
+                width="10"
+                height="10"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="white"
+                strokeWidth="1.5"
+              >
                 <path d="M7 17L17 7M7 7h10v10" />
               </svg>
             </div>
@@ -516,7 +548,99 @@ function CategoryRail({
   );
 }
 
+// ─── Brand Split ──────────────────────────────────────────────────────────────
+
+function BrandSplit({
+  loading,
+  brandCounts,
+}: {
+  loading: boolean;
+  brandCounts: BrandCounts | null;
+}) {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const brands = [
+    {
+      label: "Zara",
+      path: "/collection/zara",
+      countKey: "zara" as keyof BrandCounts,
+      border: true,
+    },
+    {
+      label: "Mango",
+      path: "/collection/mango",
+      countKey: "mango" as keyof BrandCounts,
+      border: true,
+    },
+    {
+      label: "Massimo Dutti",
+      path: "/collection/massimo-dutti",
+      countKey: "massimoDutti" as keyof BrandCounts,
+      border: false,
+    },
+  ];
+
+  return (
+    <section className="grid grid-cols-1 sm:grid-cols-3 border-t border-borderLight dark:border-borderLight-dark">
+      {loading ? (
+        <>
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${
+                i < 2
+                  ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
+                  : ""
+              }`}
+            >
+              <div className="h-2 w-10 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded mb-3" />
+              <div className="h-8 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
+              <div className="h-2 w-16 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded mt-3" />
+            </div>
+          ))}
+        </>
+      ) : (
+        brands.map(({ label, path, countKey, border }) => {
+          const count = brandCounts?.[countKey];
+          return (
+            <div
+              key={label}
+              onClick={() => {
+                dispatch(clearFilters());
+                dispatch(setSearchTerm(""));
+                navigate(path);
+              }}
+              className={`flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark ${
+                border
+                  ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
+                  : ""
+              }`}
+            >
+              <div>
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
+                  Brand
+                </p>
+                <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
+                  {label}
+                </h3>
+                {count != null && count > 0 && (
+                  <p className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark mt-2">
+                    {formatCount(count)} items
+                  </p>
+                )}
+              </div>
+              <span className="text-textMuted dark:text-textMuted-dark">→</span>
+            </div>
+          );
+        })
+      )}
+    </section>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
+
 export default function Home() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -526,31 +650,34 @@ export default function Home() {
 
   const [featured, setFeatured] = useState<FeaturedData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [brandCounts, setBrandCounts] = useState<BrandCounts | null>(null);
 
-  // Editor's Choice is the only paginated carousel now
+  // Editor's Choice paginated carousel
   const [editorChoiceProducts, setEditorChoiceProducts] = useState<Product[]>(
     [],
   );
   const [editorChoicePage, setEditorChoicePage] = useState(1);
-  // Start false — set to true only after we know there are more pages
   const [editorChoiceHasMore, setEditorChoiceHasMore] = useState(false);
   const [editorChoiceLoading, setEditorChoiceLoading] = useState(false);
 
+  // ── Fetch featured data + brand counts ────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
+
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const queryParams = new URLSearchParams();
-        if (selectDepartments?.length) {
-          queryParams.set("departments", selectDepartments.join(","));
-        }
-        const res = await fetch(
-          `${BASE_URL}/api/products/featured?${queryParams.toString()}`,
-        );
-        const data = await res.json();
-        if (!cancelled) {
+        // Kick off featured + brand counts in parallel
+        const [data, counts] = await Promise.all([
+          fetchFeatured(selectDepartments),
+          fetchBrandCounts(selectDepartments),
+        ]);
+
+        if (cancelled) return;
+
+        if (data) {
           setFeatured(data);
+
           const videoProds = (data.withVideo || []).filter(isClothing);
           const fallbackProds = (data.newIn || [])
             .filter((p: Product) => !p.originalPrice)
@@ -561,35 +688,32 @@ export default function Home() {
           setEditorChoicePage(1);
           setEditorChoiceHasMore(videoProds.length >= 20);
         }
+
+        setBrandCounts(counts);
       } catch (err) {
         console.error("Failed to load featured products", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
     };
+
     fetchAll();
     return () => {
       cancelled = true;
     };
   }, [selectDepartments]);
 
+  // ── Load more Editor's Choice ─────────────────────────────────────────────
   const loadMoreEditorChoice = useCallback(async () => {
     if (editorChoiceLoading || !editorChoiceHasMore) return;
     setEditorChoiceLoading(true);
     try {
       const nextPage = editorChoicePage + 1;
-      const queryParams = new URLSearchParams({
-        hasVideo: "true",
-        page: nextPage.toString(),
-        limit: "20",
+      const data = await fetchProductsFromAPI({
+        hasVideo: true,
+        page: nextPage,
+        departments: selectDepartments,
       });
-      if (selectDepartments?.length) {
-        queryParams.set("departments", selectDepartments.join(","));
-      }
-      const res = await fetch(
-        `${BASE_URL}/api/products?${queryParams.toString()}`,
-      );
-      const data = await res.json();
       const newProducts = (data.products || []).filter(isClothing);
       setEditorChoiceProducts((prev) => [...prev, ...newProducts]);
       setEditorChoicePage(nextPage);
@@ -608,7 +732,7 @@ export default function Home() {
     selectDepartments,
   ]);
 
-  // Top 4 drops by discount — drives "The Drop" editorial section
+  // ── Derived data ──────────────────────────────────────────────────────────
   const topDrops = useMemo(() => {
     if (!featured?.onSale) return [];
     return [...featured.onSale]
@@ -621,6 +745,7 @@ export default function Home() {
     () => (featured ? getMosaicImages(featured) : []),
     [featured],
   );
+
   const hasCampaign =
     featured?.campaignHeroes && featured.campaignHeroes.length > 0;
   const hasMosaic = mosaicProducts.length >= 4;
@@ -631,6 +756,12 @@ export default function Home() {
       : selectDepartments?.[0] === "Women" || selectDepartments?.[0] === "WOMAN"
         ? "Women's Collection"
         : "Zara · Massimo Dutti · Mango";
+
+  // ── Visible category count for subtitle ──────────────────────────────────
+  const visibleCatCount = featured?.categoryTiles
+    ? CATEGORIES.filter((c) => featured.categoryTiles[c.key]?.images?.[0])
+        .length
+    : null;
 
   return (
     <PageTransition>
@@ -658,7 +789,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="relative w-full h-[55vw] min-h-[260px] max-h-[420px] lg:max-h-none lg:h-auto lg:min-h-full bg-black overflow-hidden">
+          <div className="relative w-full h-[55vw] min-h-[260px] max-h-[420px] sm:max-h-[560px] lg:max-h-none lg:h-auto lg:min-h-full bg-black overflow-hidden">
             {loading ? (
               <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 animate-pulse">
                 <div className="absolute bottom-6 left-6 space-y-3">
@@ -681,10 +812,10 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ══ FEATURE STRIP — surfaces Track · Compare · Notify ═════════════ */}
+        {/* ══ FEATURE STRIP ════════════════════════════════════════════════ */}
         <FeatureStrip />
 
-        {/* ══ EDITOR'S CHOICE ═══════════════════════════════════════════════ */}
+        {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════ */}
         <Section
           title="Editor's Choice"
           subtitle={
@@ -715,21 +846,23 @@ export default function Home() {
           />
         </Section>
 
-        {/* ══ THE DROP — editorial top-4 biggest discounts ═════════════════ */}
+        {/* ══ THE DROP ════════════════════════════════════════════════════ */}
         <TheDropSection
           products={topDrops}
           loading={loading}
           onSeeAll={() => navigate("/collection/sale")}
         />
 
-        {/* ══ BROWSE BY CATEGORY ════════════════════════════════════════════ */}
+        {/* ══ BROWSE BY CATEGORY ══════════════════════════════════════════ */}
         <section className="py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark overflow-hidden">
           <div className="flex justify-between items-baseline mb-6 px-4 md:px-8 lg:px-16 border-b border-borderLight dark:border-borderLight-dark pb-4">
             <div>
               <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
-                {!loading && featured?.categoryTiles
-                  ? `${CATEGORIES.filter((c) => featured.categoryTiles[c.key]?.images?.[0]).length} categories`
-                  : "Categories"}
+                {visibleCatCount != null
+                  ? `${visibleCatCount} ${visibleCatCount === 1 ? "category" : "categories"}`
+                  : loading
+                    ? "Categories"
+                    : `${CATEGORIES.length} categories`}
               </p>
               <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
                 Browse by{" "}
@@ -751,68 +884,10 @@ export default function Home() {
           />
         </section>
 
-        {/* ══ BRAND SPLIT ═══════════════════════════════════════════════════ */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 border-t border-borderLight dark:border-borderLight-dark">
-          {loading ? (
-            <>
-              {[0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className={`px-6 md:px-12 lg:px-16 py-8 lg:py-12 ${
-                    i < 2
-                      ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
-                      : ""
-                  }`}
-                >
-                  <div className="h-2 w-10 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded mb-3" />
-                  <div className="h-8 w-32 bg-textPrimary/[0.06] dark:bg-textPrimary-dark/[0.08] animate-breathe rounded" />
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
-              {(
-                [
-                  { label: "Zara", path: "/collection/zara", border: true },
-                  { label: "Mango", path: "/collection/mango", border: true },
-                  {
-                    label: "Massimo Dutti",
-                    path: "/collection/massimo-dutti",
-                    border: false,
-                  },
-                ] as const
-              ).map(({ label, path, border }) => (
-                <div
-                  key={label}
-                  onClick={() => {
-                    dispatch(clearFilters());
-                    dispatch(setSearchTerm(""));
-                    navigate(path);
-                  }}
-                  className={`flex items-center justify-between px-6 md:px-12 lg:px-16 py-8 lg:py-12 cursor-pointer transition-colors duration-300 hover:bg-bgHover dark:hover:bg-bgHover-dark ${
-                    border
-                      ? "border-b sm:border-b-0 sm:border-r border-borderLight dark:border-borderLight-dark"
-                      : ""
-                  }`}
-                >
-                  <div>
-                    <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                      Brand
-                    </p>
-                    <h3 className="font-heading font-light text-3xl lg:text-4xl tracking-wider text-textPrimary dark:text-textPrimary-dark">
-                      {label}
-                    </h3>
-                  </div>
-                  <span className="text-textMuted dark:text-textMuted-dark">
-                    →
-                  </span>
-                </div>
-              ))}
-            </>
-          )}
-        </section>
+        {/* ══ BRAND SPLIT ════════════════════════════════════════════════ */}
+        <BrandSplit loading={loading} brandCounts={brandCounts} />
 
-        {/* ══ FOOTER ════════════════════════════════════════════════════════ */}
+        {/* ══ FOOTER ════════════════════════════════════════════════════ */}
         <footer className="px-6 lg:px-16 py-6 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-borderLight dark:border-borderLight-dark">
           <span className="text-textSecondary dark:text-textSecondary-dark">
             <DopeLogo size="sm" />

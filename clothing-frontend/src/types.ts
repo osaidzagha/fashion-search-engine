@@ -14,7 +14,7 @@ export interface Product {
   images: string[];
 
   // ─── VIDEO & MEDIA FIELDS (CRITICAL) ───
-  video?: string;      // Zara uses this
+  video?: string; // Zara uses this
   videoUrl?: string;
   videos?: string[];
   media?: MediaItem[]; // Massimo Dutti uses this
@@ -42,8 +42,8 @@ export interface PaginatedResponse {
 }
 
 export interface FetchProductParams {
-  searchTerm: string;
-  page: number;
+  searchTerm?: string; // optional — not all fetches are search-driven
+  page?: number; // optional — defaults to 1 on the backend
   brands?: string[];
   departments?: string[];
   sizes?: string[];
