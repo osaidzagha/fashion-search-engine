@@ -73,7 +73,6 @@ const excludeMap: Record<string, string> = {
     "jeans pant pants trousers trouser skirt dress shirt jacket bag horn tree",
   sneaker: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
   sneakers: "jeans pant pants trousers trouser skirt dress shirt jacket bag",
-  // ✅ FIX: sandals should exclude hair accessories and non-footwear
   sandal:
     "hair slide clip barrette scrunchie earring necklace bracelet ring belt bag jeans pant pants trouser trousers shirt jacket coat dress skirt",
   sandals:
@@ -154,7 +153,6 @@ function buildBaseFilter(query: any): any {
   }
 
   if (query.onSale === "true") {
-    // ✅ FIX: require originalPrice to actually be higher than current price
     filter.originalPrice = { $exists: true, $ne: null, $gt: 0 };
     filter.$expr = { $gt: ["$originalPrice", "$price"] };
   }
@@ -300,7 +298,6 @@ export const getProducts = async (req: Request, res: Response) => {
       applySearchFilter(filter, rawSearch, req.query.mode === "category");
     }
 
-    // ── Facet query (sizes + colors) — filter out junk color values ──────────
     const facetPipeline: any[] = [
       { $match: filter },
       {
@@ -312,9 +309,6 @@ export const getProducts = async (req: Request, res: Response) => {
             { $sort: { _id: 1 } },
           ],
           colors: [
-            // Exclude blank, null, "Default", and pure numeric/code values
-            // like "02", "08", "50" that come from brand internal colour codes.
-            // Regex requires at least one letter so "Navy Blue" passes but "02" doesn't.
             {
               $match: {
                 color: {
@@ -333,11 +327,6 @@ export const getProducts = async (req: Request, res: Response) => {
       },
     ];
 
-    // ── DISCOUNT SORT ─────────────────────────────────────────────────────────
-    // ✅ FIX: show ALL products, compute discountPct (0 for non-sale items),
-    //         sort by discountPct desc so discounted items float to the top.
-    //         Previously this only showed products with originalPrice, which
-    //         produced empty/near-empty results for categories with few sales.
     if (sortParam === "discount") {
       const discountPipeline: any[] = [
         { $match: filter },
@@ -407,9 +396,6 @@ export const getProducts = async (req: Request, res: Response) => {
       const trendingPipeline: any[] = [
         {
           $match: {
-            // Guard: only include documents where priceHistory is a real array
-            // with at least 2 entries. $ifNull prevents a crash when the field
-            // is missing or null (MongoDB's $size errors on non-arrays).
             $expr: { $gte: [{ $size: { $ifNull: ["$priceHistory", []] } }, 2] },
             images: { $exists: true, $not: { $size: 0 } },
             ...filter,
@@ -461,7 +447,11 @@ export const getProducts = async (req: Request, res: Response) => {
           ...filter,
         };
         const [fallbackProducts, fallbackTotal] = await Promise.all([
-          ProductModel.find(fallbackFilter, { description: 0, composition: 0, videos: 0 })
+          ProductModel.find(fallbackFilter, {
+            description: 0,
+            composition: 0,
+            videos: 0,
+          })
             .sort({ updatedAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -484,7 +474,6 @@ export const getProducts = async (req: Request, res: Response) => {
       });
     }
 
-    // ── STANDARD SORTS (lowest / highest / newest / text score) ──────────────
     let sortOption: any = {};
 
     if (sortParam === "lowest") {
@@ -501,22 +490,13 @@ export const getProducts = async (req: Request, res: Response) => {
       sortOption = { timestamp: -1 };
     }
 
-    // Aggregation: compute histMin + historyPreview, then exclude heavy fields.
-    // IMPORTANT: $project here is EXCLUSION-ONLY (all values are 0) so MongoDB
-    // keeps every other field on the document.  Mixing 0 and 1 in the same
-    // $project (except _id) would flip it to an inclusion projection and strip
-    // every field not explicitly listed — which is what was breaking the frontend.
     const standardPipeline: any[] = [
       { $match: filter },
       ...(filter.$text
         ? [{ $addFields: { score: { $meta: "textScore" } } }]
         : []),
       {
-        // $addFields adds computed fields WITHOUT touching any existing ones.
         $addFields: {
-          // $min over an array field path returns the minimum element.
-          // Guard with $ifNull so documents missing priceHistory get their
-          // current price as the fallback minimum.
           histMin: {
             $min: {
               $cond: {
@@ -526,7 +506,6 @@ export const getProducts = async (req: Request, res: Response) => {
               },
             },
           },
-          // Last 10 price history entries for the sparkline.
           historyPreview: {
             $slice: [{ $ifNull: ["$priceHistory", []] }, -10],
           },
@@ -538,8 +517,6 @@ export const getProducts = async (req: Request, res: Response) => {
           data: [
             { $skip: skip },
             { $limit: limit },
-            // Exclusion-only $project: strips the heavy raw arrays AFTER pagination.
-            // All values are 0 — MongoDB keeps every other field on the document.
             {
               $project: {
                 priceHistory: 0,
@@ -553,7 +530,6 @@ export const getProducts = async (req: Request, res: Response) => {
         },
       },
     ];
-
 
     const [standardResult, facetResult] = await Promise.all([
       ProductModel.aggregate(standardPipeline),
@@ -577,7 +553,6 @@ export const getProducts = async (req: Request, res: Response) => {
     res.status(500).json({ message: "Server Error" });
   }
 };
-
 
 // ─── GET /api/products/:id ────────────────────────────────────────────────────
 export const getProductById = async (req: Request, res: Response) => {
@@ -635,25 +610,44 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       ...deptFilter,
     };
 
+    // ── Helper: find one tile product by category regex ───────────────────────
+    const tile = (regex: string) =>
+      ProductModel.findOne({
+        category: { $regex: regex, $options: "i" },
+        images: { $exists: true, $not: { $size: 0 } },
+        ...deptFilter,
+      })
+        .sort({ timestamp: -1 })
+        .lean();
+
     const [
       onSaleRaw,
       newInRaw,
       withVideoRaw,
       campaignHeroesRaw,
-      jackets,
-      shirts,
-      trousers,
-      knitwear,
-      dresses,
-      coats,
-      shoes,
-      bags,
+      // ── 16 category tiles ─────────────────────────────────────────────────
+      tCoats,
+      tJackets,
+      tSuits,
+      tTops,
+      tKnitwear,
+      tJeans,
+      tTrousers,
+      tShorts,
+      tDresses,
+      tSkirts,
+      tActivewear,
+      tJumpsuits,
+      tShoes,
+      tBags,
+      tAccessories,
+      tJewelry,
     ] = await Promise.allSettled([
+      // ── onSale ──────────────────────────────────────────────────────────────
       ProductModel.aggregate([
         {
           $match: {
             originalPrice: { $exists: true, $ne: null, $gt: 0 },
-            // ✅ FIX: only genuinely discounted items in the sale carousel
             $expr: { $gt: ["$originalPrice", "$price"] },
             ...deptFilter,
           },
@@ -673,11 +667,11 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
             },
           },
         },
-        // ✅ FIX: biggest discount first, not newest first
         { $sort: { discountPct: -1, timestamp: -1 } },
         { $limit: 12 },
       ]),
 
+      // ── newIn ────────────────────────────────────────────────────────────────
       ProductModel.find({
         images: { $exists: true, $not: { $size: 0 } },
         ...deptFilter,
@@ -686,76 +680,35 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
         .limit(15)
         .lean(),
 
+      // ── withVideo ────────────────────────────────────────────────────────────
       ProductModel.find(videoOmniQuery)
         .sort({ timestamp: -1 })
         .limit(20)
         .lean(),
 
-      ProductModel.find({
-        isCampaignHero: true,
-        ...videoOmniQuery,
-      })
+      // ── campaignHeroes ───────────────────────────────────────────────────────
+      ProductModel.find({ isCampaignHero: true, ...videoOmniQuery })
         .sort({ timestamp: -1 })
         .limit(30)
         .lean(),
 
-      ProductModel.findOne({
-        category: { $regex: "jacket", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "shirt|blouse|top", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "trouser|pant|jean", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "knit|sweater|jumper|cardigan", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      // ── 4 additional categories ──
-      ProductModel.findOne({
-        category: { $regex: "dress|skirt", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "coat|overcoat|trench|parka", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "shoe|boot|sneaker|loafer|sandal", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
-      ProductModel.findOne({
-        category: { $regex: "bag|tote|clutch|backpack|crossbody", $options: "i" },
-        images: { $exists: true, $not: { $size: 0 } },
-        ...deptFilter,
-      })
-        .sort({ timestamp: -1 })
-        .lean(),
+      // ── category tiles ───────────────────────────────────────────────────────
+      tile("coat|overcoat|trench|parka|peacoat"),
+      tile("jacket|bomber|puffer|windbreaker|anorak"),
+      tile("suit|blazer|tuxedo|waistcoat|sportcoat"),
+      tile("shirt|blouse|tee|t-shirt|camisole|tank|polo|overshirt"),
+      tile("knit|sweater|jumper|cardigan|pullover"),
+      tile("jean|denim"),
+      tile("trouser|chino|slacks|cargo"),
+      tile("short|bermuda"),
+      tile("dress|gown"),
+      tile("skirt|skort"),
+      tile("activewear|legging|tracksuit|gym|training|sport"),
+      tile("jumpsuit|playsuit|romper|overall"),
+      tile("shoe|boot|sneaker|loafer|sandal|trainer"),
+      tile("bag|tote|clutch|backpack|crossbody|handbag"),
+      tile("belt|scarf|hat|cap|beanie|glove|sunglasses|wallet"),
+      tile("jewelry|jewellery|necklace|earring|ring|bracelet|brooch"),
     ]);
 
     const getValue = (result: PromiseSettledResult<any>) =>
@@ -776,14 +729,22 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       withVideo,
       campaignHeroes,
       categoryTiles: {
-        jackets: getValue(jackets),
-        shirts: getValue(shirts),
-        trousers: getValue(trousers),
-        knitwear: getValue(knitwear),
-        dresses: getValue(dresses),
-        coats: getValue(coats),
-        shoes: getValue(shoes),
-        bags: getValue(bags),
+        coats: getValue(tCoats),
+        jackets: getValue(tJackets),
+        suits: getValue(tSuits),
+        tops: getValue(tTops),
+        knitwear: getValue(tKnitwear),
+        jeans: getValue(tJeans),
+        trousers: getValue(tTrousers),
+        shorts: getValue(tShorts),
+        dresses: getValue(tDresses),
+        skirts: getValue(tSkirts),
+        activewear: getValue(tActivewear),
+        jumpsuits: getValue(tJumpsuits),
+        shoes: getValue(tShoes),
+        bags: getValue(tBags),
+        accessories: getValue(tAccessories),
+        jewelry: getValue(tJewelry),
       },
     });
   } catch (error) {
@@ -798,7 +759,6 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
     const q = (req.query.q as string)?.trim();
     if (!q || q.length < 2) return res.status(200).json([]);
 
-    // Use the weighted text index (name weight=10) instead of a regex COLLSCAN
     const products = await ProductModel.find(
       { $text: { $search: q } },
       { score: { $meta: "textScore" }, name: 1 },
@@ -859,7 +819,6 @@ export const getCategories = async (req: Request, res: Response) => {
       deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
     }
 
-    // Single aggregation instead of 12 parallel exists() round-trips
     const facetStages: Record<string, any[]> = {};
     potentialCategories.forEach((cat) => {
       facetStages[cat] = [
@@ -984,8 +943,6 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
 };
 
 // ─── GET /api/products/trending ──────────────────────────────────────────────
-// Shows products sorted by: real price movement first, then most-tracked,
-// then newest. Falls back to newest products if DB has no history yet.
 export const getTrendingProducts = async (req: Request, res: Response) => {
   try {
     const deptFilter: any = {};
@@ -1003,11 +960,6 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
       };
     }
 
-    // ✅ FIX: aggregate to sort by real movement first, then history depth.
-    // hasRealMovement = true if any entry differs from the first price.
-    // This means the section populates even when all prices are still flat —
-    // those products show their chart and tracking started state, which is
-    // useful. Real movers float to the top as the scraper accumulates runs.
     const results = await ProductModel.aggregate([
       {
         $match: {
@@ -1028,7 +980,6 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
           hasRealMovement: { $ne: ["$firstPrice", "$lastPrice"] },
         },
       },
-      // Real movers first, then deepest history, then newest
       { $sort: { hasRealMovement: -1, historySize: -1, updatedAt: -1 } },
       { $limit: 12 },
       {
@@ -1044,7 +995,6 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
       },
     ]);
 
-    // Fallback: if no products have 2+ history entries yet, show newest
     if (results.length === 0) {
       const fallback = await ProductModel.find(
         { images: { $exists: true, $not: { $size: 0 } }, ...deptFilter },
