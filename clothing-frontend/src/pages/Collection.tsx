@@ -69,11 +69,13 @@ export default function Collection() {
   const location = useLocation();
 
   // ── URL primitives ────────────────────────────────────────────────────────
-  const qFromUrl =
-    searchParams.get("search") ||
-    searchParams.get("q") ||
-    searchParams.get("category") ||
-    "";
+  // `displayTerm` — shown in the heading ("Results for Tops")
+  // `apiQuery`    — passed to the backend (multi-word regex like "top shirt blouse tee camisole polo")
+  //                 falls back to displayTerm for direct search-bar searches that don't set ?q=
+  const displayTerm = searchParams.get("search") || "";
+  const apiQuery =
+    searchParams.get("q") || searchParams.get("category") || displayTerm;
+
   const currentSort = searchParams.get("sort") || "";
   const displayTitle = searchParams.get("title");
   const modeFromUrl = searchParams.get("mode") || "";
@@ -97,10 +99,7 @@ export default function Collection() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
-  // Accumulated product list for infinite scroll
   const [displayProducts, setDisplayProducts] = useState<Product[]>([]);
-  // Tracks where the last batch of new items starts — ProductGrid uses this
-  // to skip the entrance animation for already-visible cards (fixes black-page bug)
   const [newItemsStart, setNewItemsStart] = useState(0);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -109,14 +108,26 @@ export default function Collection() {
     if (displayTitle)
       return { title: displayTitle, desc: "Explore our curated catalog." };
     if (hasVideoFromUrl)
-      return { title: "Editor's Choice", desc: "Curated picks with video lookbooks." };
-    if (currentSort === "newest")
-      return { title: "New Arrivals", desc: "The latest additions to our curation." };
-    if (currentSort === "trending")
-      return { title: "On the Move", desc: "Products with recent price activity." };
-    if (qFromUrl && !type)
       return {
-        title: `Results for "${qFromUrl}"`,
+        title: "Editor's Choice",
+        desc: "Curated picks with video lookbooks.",
+      };
+    if (currentSort === "newest")
+      return {
+        title: "New Arrivals",
+        desc: "The latest additions to our curation.",
+      };
+    if (currentSort === "trending")
+      return {
+        title: "On the Move",
+        desc: "Products with recent price activity.",
+      };
+    // Use displayTerm for the heading — clean single word ("Tops"), not the raw query
+    if (apiQuery && !type)
+      return {
+        title: displayTerm
+          ? `Results for "${displayTerm}"`
+          : `Results for "${apiQuery}"`,
         desc: "Explore items matching your search.",
       };
     switch (type) {
@@ -155,13 +166,15 @@ export default function Collection() {
   // ── Dynamic page title (SEO) ──────────────────────────────────────────────
   useEffect(() => {
     document.title = `${header.title} — Dope`;
-    return () => { document.title = "Dope | Fashion Price Tracker"; };
+    return () => {
+      document.title = "Dope | Fashion Price Tracker";
+    };
   }, [header.title]);
 
-  // ── Sync search term from URL ─────────────────────────────────────────────
+  // ── Sync search term from URL — use apiQuery so the backend gets the full query ──
   useEffect(() => {
-    dispatch(setSearchTerm(qFromUrl));
-  }, [qFromUrl, dispatch]);
+    dispatch(setSearchTerm(apiQuery));
+  }, [apiQuery, dispatch]);
 
   // ── Reset page + accumulated list when filters or mode changes ────────────
   useEffect(() => {
@@ -216,13 +229,10 @@ export default function Collection() {
         const data = await fetchProductsFromAPI(filters);
 
         if (!ignore) {
-          // Accumulate for infinite scroll; replace on first page
           if (currentPage === 1) {
             setNewItemsStart(0);
             setDisplayProducts(data.products);
           } else {
-            // Capture current length BEFORE appending so ProductGrid knows
-            // which items are new and need the fade-in animation.
             const prevCount = displayProducts.length;
             setNewItemsStart(prevCount);
             setDisplayProducts((prev) => [...prev, ...data.products]);
@@ -279,7 +289,7 @@ export default function Collection() {
           setCurrentPage((p) => p + 1);
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     observer.observe(sentinel);
@@ -311,7 +321,7 @@ export default function Collection() {
           </h1>
           <div className="w-full max-w-[500px] mt-8">
             <SearchBar
-              initialValue={displayTitle ? "" : qFromUrl}
+              initialValue={displayTitle ? "" : displayTerm}
               variant="compact"
             />
           </div>
@@ -321,7 +331,6 @@ export default function Collection() {
         <div className="flex flex-col flex-1 w-full max-w-[1800px] mx-auto px-6 md:px-16 lg:px-24 py-10 md:py-14 pb-24 md:pb-32">
           {/* ── Utility bar ── */}
           <div className="flex justify-between items-center mb-10 md:mb-12 border-b border-borderLight dark:border-borderLight-dark pb-4">
-            {/* LEFT: Filter trigger */}
             <button
               onClick={() => setIsFilterOpen(true)}
               className="flex items-center gap-2 font-sans text-[10px] md:text-[11px] tracking-widest uppercase bg-transparent border-none cursor-pointer text-textPrimary dark:text-textPrimary-dark hover:opacity-60 transition-opacity duration-200"
@@ -332,7 +341,6 @@ export default function Collection() {
               )}
             </button>
 
-            {/* RIGHT: Count + custom sort */}
             <div className="flex items-center gap-4 md:gap-8">
               <span className="hidden sm:block font-sans text-[10px] md:text-[11px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark">
                 {isLoading && currentPage === 1
@@ -371,12 +379,10 @@ export default function Collection() {
                 newItemsStart={newItemsStart}
               />
 
-              {/* ── Infinite scroll sentinel ── */}
               {currentPage < totalPages && (
                 <div ref={sentinelRef} className="h-8 w-full" />
               )}
 
-              {/* ── Loading more indicator ── */}
               {isLoading && currentPage > 1 && (
                 <div className="flex justify-center py-10">
                   <span className="font-sans text-[9px] tracking-[0.25em] uppercase text-textMuted dark:text-textMuted-dark animate-pulse">

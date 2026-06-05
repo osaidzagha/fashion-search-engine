@@ -109,31 +109,34 @@ export default function PriceHistoryChart({
 
   // 2. Smart Deduplication: Keep first, last, and the edges of price changes
   const chartData = formattedHistory.filter((entry, i, arr) => {
-    if (i === 0) return true; // Always keep the first entry
-    if (i === arr.length - 1) return true; // Always keep the latest entry
+    if (i === 0) return true;
+    if (i === arr.length - 1) return true;
 
     const prev = arr[i - 1];
     const next = arr[i + 1];
 
-    const isPriceChange = entry.price !== prev.price; // Price just dropped/rose
-    const isJustBeforeChange = entry.price !== next.price; // Price will drop/rise tomorrow
+    const isPriceChange = entry.price !== prev.price;
+    const isJustBeforeChange = entry.price !== next.price;
 
     return isPriceChange || isJustBeforeChange;
   });
 
-  // 3. If history is too thin to chart, try to synthesise a retail→now line.
-  //    This handles products that were first scraped already on sale:
-  //    priceHistory = [{price: 1190, date: today}] but originalPrice = 2490.
-  if (chartData.length <= 1) {
+  // 3. Check if there's any real price movement — two identical prices is not a chart
+  const hasRealMovement =
+    chartData.length >= 2 &&
+    chartData.some((d) => d.price !== chartData[0].price);
+
+  // 4. If no real movement, try to synthesise a retail→now line.
+  //    Handles products scraped already on sale: priceHistory has one price
+  //    but originalPrice is higher.
+  if (!hasRealMovement) {
     if (originalPrice && originalPrice > currentPrice) {
-      // Show the known drop: retail price → current sale price
       const syntheticData = [
         { price: originalPrice, date: "Retail" },
         { price: currentPrice, date: "Now" },
       ];
       const syntheticMax = originalPrice;
       const syntheticMin = currentPrice;
-      const t2 = TOKENS[theme] ?? TOKENS.light;
       return (
         <div>
           <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
@@ -141,25 +144,42 @@ export default function PriceHistoryChart({
           </p>
           <div style={{ width: "100%", height: 140 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={syntheticData} margin={{ top: 15, right: 5, left: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={t2.grid} />
+              <LineChart
+                data={syntheticData}
+                margin={{ top: 15, right: 5, left: 5, bottom: 5 }}
+              >
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke={t.grid}
+                />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, fill: t2.axis }}
+                  tick={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 9,
+                    fill: t.axis,
+                  }}
                   axisLine={false}
                   tickLine={false}
                   dy={10}
                 />
-                <YAxis hide domain={[syntheticMin * 0.92, syntheticMax * 1.08]} />
+                <YAxis
+                  hide
+                  domain={[syntheticMin * 0.92, syntheticMax * 1.08]}
+                />
                 <Line
                   type="monotone"
                   dataKey="price"
-                  stroke={t2.line}
+                  stroke={t.line}
                   strokeWidth={1.5}
-                  dot={{ r: 3, fill: t2.line, strokeWidth: 0 }}
+                  dot={{ r: 3, fill: t.line, strokeWidth: 0 }}
                   isAnimationActive={false}
                 />
-                <Tooltip content={<PriceTooltip currency={currency} theme={theme} />} cursor={{ stroke: t2.grid, strokeWidth: 1 }} />
+                <Tooltip
+                  content={<PriceTooltip currency={currency} theme={theme} />}
+                  cursor={{ stroke: t.grid, strokeWidth: 1 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -167,7 +187,7 @@ export default function PriceHistoryChart({
       );
     }
 
-    // Truly no data yet
+    // Truly no data / no movement — show placeholder, no "all time low" badge
     return (
       <div>
         <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
@@ -185,7 +205,7 @@ export default function PriceHistoryChart({
     );
   }
 
-  // 4. Scaling
+  // 5. Scaling — only reached when real movement exists
   const dataMax = Math.max(...chartData.map((d) => d.price));
   const dataMin = Math.min(...chartData.map((d) => d.price));
   const absoluteMax = originalPrice
