@@ -56,40 +56,82 @@ const SKELETON_COUNT = 6;
 
 // ─── Category definitions — mirrors the full TAXONOMY ───────────────────────
 // All 16 main browseable categories. Keys match FeaturedData["categoryTiles"].
+// `display` = clean label shown in the Collection page heading ("Results for Tops")
+// `search`  = multi-word query fed to the backend category search (never shown to user)
 const CATEGORIES: {
   label: string;
+  display: string;
   key: keyof FeaturedData["categoryTiles"];
   search: string;
 }[] = [
-  { label: "Coats", key: "coats", search: "coat overcoat trench parka" },
+  {
+    label: "Coats",
+    display: "Coats",
+    key: "coats",
+    search: "coat overcoat trench parka",
+  },
   {
     label: "Jackets",
+    display: "Jackets",
     key: "jackets",
     search: "jacket bomber puffer windbreaker quilted",
   },
-  { label: "Suits", key: "suits", search: "suit blazer tuxedo waistcoat" },
-  { label: "Tops", key: "tops", search: "top shirt blouse tee camisole polo" },
-  { label: "Knitwear", key: "knitwear", search: "knitwear" },
-  { label: "Jeans", key: "jeans", search: "jeans denim" },
-  { label: "Trousers", key: "trousers", search: "trouser" },
-  { label: "Shorts", key: "shorts", search: "shorts bermuda" },
-  { label: "Dresses", key: "dresses", search: "dress" },
-  { label: "Skirts", key: "skirts", search: "skirt" },
+  {
+    label: "Suits",
+    display: "Suits",
+    key: "suits",
+    search: "suit blazer tuxedo waistcoat",
+  },
+  {
+    label: "Tops",
+    display: "Tops",
+    key: "tops",
+    search: "top shirt blouse tee camisole polo",
+  },
+  {
+    label: "Knitwear",
+    display: "Knitwear",
+    key: "knitwear",
+    search: "knitwear",
+  },
+  { label: "Jeans", display: "Jeans", key: "jeans", search: "jeans denim" },
+  {
+    label: "Trousers",
+    display: "Trousers",
+    key: "trousers",
+    search: "trouser",
+  },
+  {
+    label: "Shorts",
+    display: "Shorts",
+    key: "shorts",
+    search: "shorts bermuda",
+  },
+  { label: "Dresses", display: "Dresses", key: "dresses", search: "dress" },
+  { label: "Skirts", display: "Skirts", key: "skirts", search: "skirt" },
   {
     label: "Activewear",
+    display: "Activewear",
     key: "activewear",
     search: "activewear sport training gym fitness",
   },
-  { label: "Jumpsuits", key: "jumpsuits", search: "jumpsuit playsuit romper" },
-  { label: "Shoes", key: "shoes", search: "shoe" },
-  { label: "Bags", key: "bags", search: "bag" },
+  {
+    label: "Jumpsuits",
+    display: "Jumpsuits",
+    key: "jumpsuits",
+    search: "jumpsuit playsuit romper",
+  },
+  { label: "Shoes", display: "Shoes", key: "shoes", search: "shoe" },
+  { label: "Bags", display: "Bags", key: "bags", search: "bag" },
   {
     label: "Accessories",
+    display: "Accessories",
     key: "accessories",
     search: "belt scarf hat sunglasses glove",
   },
   {
     label: "Jewelry",
+    display: "Jewelry",
     key: "jewelry",
     search: "jewelry necklace earring ring bracelet",
   },
@@ -477,7 +519,7 @@ function CategoryRail({
 }: {
   tiles: FeaturedData["categoryTiles"] | null;
   loading: boolean;
-  onNavigate: (search: string) => void;
+  onNavigate: (display: string, search: string) => void;
 }) {
   const visible = loading
     ? CATEGORIES
@@ -506,7 +548,7 @@ function CategoryRail({
         return (
           <div
             key={String(cat.key)}
-            onClick={() => onNavigate(cat.search)}
+            onClick={() => onNavigate(cat.display, cat.search)}
             className="relative flex-shrink-0 w-[160px] md:w-[220px] lg:w-[260px] aspect-[2/3] overflow-hidden cursor-pointer group bg-bgSecondary dark:bg-bgSecondary-dark"
           >
             {imgSrc && (
@@ -875,10 +917,10 @@ export default function Home() {
           <CategoryRail
             tiles={featured?.categoryTiles ?? null}
             loading={loading}
-            onNavigate={(search) => {
+            onNavigate={(display, search) => {
               dispatch(clearFilters());
               navigate(
-                `/collection?search=${encodeURIComponent(search)}&mode=category`,
+                `/collection?search=${encodeURIComponent(display)}&q=${encodeURIComponent(search)}&mode=category`,
               );
             }}
           />
