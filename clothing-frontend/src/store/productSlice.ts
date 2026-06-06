@@ -85,12 +85,11 @@ const productSlice = createSlice({
       state.maxPrice = action.payload;
     },
 
-    // 👇 NEW: Wipes all filters clean, but keeps the items and compare queue intact
+    // AFTER
     clearFilters(state) {
       state.selectBrands = [];
       state.selectSizes = [];
       state.selectColors = [];
-      state.selectDepartments = [];
       state.maxPrice = undefined;
     },
 

@@ -521,8 +521,9 @@ function CategoryRail({
   loading: boolean;
   onNavigate: (display: string, search: string) => void;
 }) {
-  const visible = CATEGORIES; // always show all 16
-
+  const visible = loading
+    ? CATEGORIES
+    : CATEGORIES.filter((cat) => tiles?.[cat.key]?.images?.[0]);
   if (loading) {
     return (
       <div className="flex gap-[3px] overflow-x-hidden">
