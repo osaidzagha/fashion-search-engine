@@ -47,11 +47,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
-  // Show "All-time low" only when:
-  // (a) we have a valid histMin, AND
-  // (b) the product has ≥2 price history points (otherwise "lowest of 1" is meaningless)
+  // AFTER
   const hasRealHistory =
-    product.historyPreview != null && product.historyPreview.length >= 2;
+    product.historyPreview != null &&
+    product.historyPreview.length >= 2 &&
+    product.historyPreview.some((p) => p !== product.historyPreview![0]);
+
   const isAllTimeLow =
     hasRealHistory &&
     product.histMin != null &&
@@ -266,11 +267,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
 
           {/* Tiny sparkline — only when we have preview data */}
-          {product.historyPreview && product.historyPreview.length >= 2 && (
-            <div className="flex-shrink-0 opacity-70">
-              <PriceSparkline data={product.historyPreview} />
-            </div>
-          )}
+          {product.historyPreview &&
+            product.historyPreview.length >= 2 &&
+            product.historyPreview.some(
+              (p) => p !== product.historyPreview![0],
+            ) && (
+              <div className="flex-shrink-0 opacity-70">
+                <PriceSparkline data={product.historyPreview} />
+              </div>
+            )}
         </div>
       </div>{" "}
       {/* ✅ This correctly closes the Info wrapper now */}
