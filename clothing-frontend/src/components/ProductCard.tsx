@@ -47,7 +47,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
 
-  // AFTER
   const hasRealHistory =
     product.historyPreview != null &&
     product.historyPreview.length >= 2 &&
@@ -57,7 +56,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     hasRealHistory &&
     product.histMin != null &&
     product.histMin > 0 &&
-    product.price <= product.histMin * 1.02;
+    product.histMin < product.price * 0.99 === false // histMin IS the current price → not a low
+      ? false
+      : hasRealHistory &&
+        product.histMin != null &&
+        product.histMin > 0 &&
+        product.price <= product.histMin * 1.02;
 
   const handleMouseEnter = useCallback(() => {
     setIsPlaying(true);
