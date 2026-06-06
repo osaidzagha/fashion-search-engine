@@ -521,9 +521,7 @@ function CategoryRail({
   loading: boolean;
   onNavigate: (display: string, search: string) => void;
 }) {
-  const visible = loading
-    ? CATEGORIES
-    : CATEGORIES.filter((cat) => tiles?.[cat.key]?.images?.[0]);
+  const visible = CATEGORIES; // always show all 16
 
   if (loading) {
     return (
@@ -919,9 +917,15 @@ export default function Home() {
             loading={loading}
             onNavigate={(display, search) => {
               dispatch(clearFilters());
-              navigate(
-                `/collection?search=${encodeURIComponent(display)}&q=${encodeURIComponent(search)}&mode=category`,
-              );
+              const params = new URLSearchParams({
+                search: display,
+                q: search,
+                mode: "category",
+              });
+              if (selectDepartments?.length) {
+                params.set("departments", selectDepartments.join(","));
+              }
+              navigate(`/collection?${params.toString()}`);
             }}
           />
         </section>
