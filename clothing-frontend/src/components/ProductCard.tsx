@@ -46,22 +46,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const discount = isOnSale
     ? discountPercent(product.originalPrice!, product.price)
     : 0;
+  const previewPrices = (product.historyPreview ?? []).map((p: any) => p.price);
 
   const hasRealHistory =
-    product.historyPreview != null &&
-    product.historyPreview.length >= 2 &&
-    product.historyPreview.some((p) => p !== product.historyPreview![0]);
+    previewPrices.length >= 2 &&
+    previewPrices.some((p: number) => p !== previewPrices[0]);
 
   const isAllTimeLow =
     hasRealHistory &&
     product.histMin != null &&
     product.histMin > 0 &&
-    product.histMin < product.price * 0.99 === false // histMin IS the current price → not a low
-      ? false
-      : hasRealHistory &&
-        product.histMin != null &&
-        product.histMin > 0 &&
-        product.price <= product.histMin * 1.02;
+    product.price <= product.histMin * 1.02;
 
   const handleMouseEnter = useCallback(() => {
     setIsPlaying(true);
@@ -271,13 +266,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
 
           {/* Tiny sparkline — only when we have preview data */}
-          {product.historyPreview &&
-            product.historyPreview.length >= 2 &&
-            product.historyPreview.some(
-              (p) => p !== product.historyPreview![0],
-            ) && (
+          {previewPrices.length >= 2 &&
+            previewPrices.some((p) => p !== previewPrices[0]) && (
               <div className="flex-shrink-0 opacity-70">
-                <PriceSparkline data={product.historyPreview} />
+                <PriceSparkline data={product.historyPreview ?? []} />
               </div>
             )}
         </div>
