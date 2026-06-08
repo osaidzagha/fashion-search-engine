@@ -5,6 +5,11 @@ import { useCompare } from "../context/CompareContext";
 import { ProductSkeleton } from "./ProductSkeleton";
 import { PriceSparkline } from "./PriceSparkline";
 
+// ─── NEW IMPORTS FOR WATCHLIST ───
+import { useSelector } from "react-redux";
+import { RootState } from "../store/store";
+import { addToWatchlist, removeFromWatchlist } from "../services/api";
+
 interface ProductCardProps {
   product: Product;
 }
@@ -36,6 +41,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     useCompare();
   const isComparing = isInCompare(product.id);
   const isQueueFull = compareList.length >= 2 && !isComparing;
+
+  // ─── NEW WATCHLIST STATE ───
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.isAuthenticated,
+  );
+  // Note: Ideally initialize isTracked from a global Redux set of tracked IDs if you have it
+  const [isTracked, setIsTracked] = useState(false);
+  const [showPriceInput, setShowPriceInput] = useState(false);
+  const [targetPrice, setTargetPrice] = useState("");
+  const [isSubmittingPrice, setIsSubmittingPrice] = useState(false);
+  const priceInputRef = useRef<HTMLInputElement>(null);
 
   const hasHoverImage = product.images && product.images.length > 1;
   const videoSrc = resolveVideoSrc(product);
@@ -88,17 +104,62 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     [isPlaying],
   );
 
+  // ─── NEW WATCHLIST HANDLERS ───
+  const handleHeartClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!isAuthenticated) {
+      // Add your toast notification here
+      console.log("Sign in to track items");
+      return;
+    }
+
+    setIsTracked((prev) => !prev); // Optimistic UI toggle
+
+    if (!isTracked) {
+      setShowPriceInput(true);
+      setTimeout(() => priceInputRef.current?.focus(), 100);
+      await addToWatchlist(product.id);
+    } else {
+      setShowPriceInput(false);
+      await removeFromWatchlist(product.id);
+    }
+  };
+
+  const handleSetTargetPrice = async (
+    e: React.MouseEvent | React.KeyboardEvent,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!targetPrice) {
+      setShowPriceInput(false);
+      return;
+    }
+
+    setIsSubmittingPrice(true);
+    try {
+      await addToWatchlist(product.id, Number(targetPrice));
+      setShowPriceInput(false);
+    } catch (error) {
+      console.error("Failed to set target price");
+    } finally {
+      setIsSubmittingPrice(false);
+    }
+  };
+
   const showHoverImage = hasHoverImage && !videoSrc;
 
   return (
     <Link
       to={`/product/${encodeURIComponent(product.id)}`}
-      className="group block no-underline cursor-pointer"
+      className="group block no-underline cursor-pointer relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       {/* ── Image / Video ── */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase dark:bg-bgHover-dark">
+      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase dark:bg-bgHover-dark rounded-md">
         {!isImageLoaded && <ProductSkeleton isCardMode={true} />}
 
         {product.images && product.images.length > 0 && (
@@ -184,7 +245,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </div>
         )}
 
-        {/* All-time low badge — bottom-left, doesn't clash with discount (top-left) */}
+        {/* All-time low badge */}
         {isAllTimeLow && !videoSrc && (
           <div className="absolute bottom-3 left-3 z-10 bg-black/75 backdrop-blur-sm text-white font-sans text-[7px] tracking-[0.18em] uppercase px-2 py-1 border border-white/15">
             All‑time low
@@ -212,8 +273,72 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </button>
         )}
 
+        {/* ─── NEW: TARGET PRICE SLIDE-UP ─── */}
+        {showPriceInput && (
+          <div
+            className="absolute bottom-12 right-2 z-30 flex animate-slide-up flex-col gap-2 rounded-lg bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md p-2.5 shadow-xl border border-black/5 dark:border-white/10 w-44"
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+          >
+            <p className="text-[10px] uppercase tracking-widest font-sans text-textSecondary dark:text-textSecondary-dark">
+              Alert Below
+            </p>
+            <div className="flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <input
+                  ref={priceInputRef}
+                  type="number"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder={product.price.toString()}
+                  className="w-full rounded-[4px] border border-black/10 dark:border-white/20 bg-transparent py-1 px-2 text-xs text-textPrimary dark:text-textPrimary-dark focus:border-textPrimary dark:focus:border-textPrimary-dark focus:outline-none"
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && handleSetTargetPrice(e)
+                  }
+                />
+              </div>
+              <button
+                onClick={handleSetTargetPrice}
+                disabled={isSubmittingPrice}
+                className="rounded-[4px] bg-textPrimary dark:bg-textPrimary-dark px-3 py-1 text-xs font-medium text-bgPrimary dark:text-bgPrimary-dark disabled:opacity-50 transition-opacity hover:opacity-80"
+              >
+                {isSubmittingPrice ? "..." : "Set"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ─── NEW: HEART / WATCHLIST BUTTON ─── */}
+        <button
+          onClick={handleHeartClick}
+          className={`absolute bottom-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-full shadow-md transition-all duration-300 md:opacity-0 md:group-hover:opacity-100 ${
+            isTracked
+              ? "bg-textPrimary dark:bg-textPrimary-dark"
+              : "bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 hover:bg-black/10 dark:hover:bg-white/10"
+          } ${showPriceInput ? "md:opacity-100" : ""}`}
+          aria-label={isTracked ? "Remove from watchlist" : "Add to watchlist"}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill={isTracked ? "currentColor" : "none"}
+            stroke={isTracked ? "none" : "currentColor"}
+            strokeWidth="2"
+            className={
+              isTracked
+                ? "text-bgPrimary dark:text-bgPrimary-dark"
+                : "text-textPrimary dark:text-textPrimary-dark"
+            }
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
+
         {/* Desktop hover overlay */}
-        <div className="hidden md:flex absolute bottom-0 left-0 right-0 pt-6 pb-3 px-3 bg-gradient-to-t from-black/30 to-transparent items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="hidden md:flex absolute bottom-0 left-0 right-0 pt-6 pb-3 px-3 bg-gradient-to-t from-black/30 to-transparent items-end justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
           <span className="font-sans text-[8px] tracking-widest uppercase text-white/90">
             View →
           </span>
@@ -225,14 +350,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           )}
         </div>
       </div>
+
       {/* ── Info ── */}
       <div className="pt-2.5 pb-1">
-        {/* Brand — was textSecondary (#888 light) → now (#444 light), much more readable */}
         <p className="font-sans text-[9px] tracking-widest uppercase text-textSecondary dark:text-textSecondary-dark mb-0.5">
           {product.brand}
         </p>
 
-        {/* Name — textPrimary, already good, kept as-is */}
         <p className="font-heading text-[14px] md:text-[16px] font-light italic text-textPrimary dark:text-textPrimary-dark mb-1 leading-tight truncate">
           {product.name
             .split(" ")
@@ -240,12 +364,9 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             .join(" ")}
         </p>
 
-        {/* ❌ DELETE THE </div> THAT WAS RIGHT HERE ❌ */}
-
         {/* Sparkline + price row */}
         <div className="flex items-end justify-between gap-2">
           <div className="flex items-baseline gap-1.5">
-            {/* Price */}
             <p
               className={[
                 "font-heading text-[13px] md:text-[14px] m-0",
@@ -257,7 +378,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               {product.price.toLocaleString("tr-TR")} {product.currency}
             </p>
 
-            {/* Strikethrough original price */}
             {isOnSale && (
               <p className="font-heading text-[11px] text-textMuted dark:text-textMuted-dark line-through m-0">
                 {product.originalPrice!.toLocaleString("tr-TR")}
@@ -265,7 +385,6 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             )}
           </div>
 
-          {/* Tiny sparkline — only when we have preview data */}
           {previewPrices.length >= 2 &&
             previewPrices.some((p) => p !== previewPrices[0]) && (
               <div className="flex-shrink-0 opacity-70">
@@ -273,8 +392,8 @@ export const ProductCard = ({ product }: ProductCardProps) => {
               </div>
             )}
         </div>
-      </div>{" "}
-      {/* ✅ This correctly closes the Info wrapper now */}
+      </div>
+
       {/* Hover underline */}
       <div className="h-px w-full bg-textPrimary dark:bg-textPrimary-dark origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-400 ease-smooth mt-1.5" />
     </Link>

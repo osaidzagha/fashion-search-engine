@@ -61,6 +61,29 @@ export const addToWatchlist = async (
     const product = await ProductModel.findOne({ id: productId });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
+    // 1. Check if the user is already tracking this product
+    const user = await UserModel.findOne({
+      _id: userId,
+      "watchlist.productId": productId,
+    });
+
+    if (user) {
+      // 2. If it exists AND a new target price is provided, update it
+      if (targetPrice) {
+        await UserModel.findOneAndUpdate(
+          { _id: userId, "watchlist.productId": productId },
+          { $set: { "watchlist.$.targetPrice": targetPrice } },
+        );
+        return res
+          .status(200)
+          .json({ message: "Target price updated", productId, targetPrice });
+      }
+
+      // If it exists but no new target price was provided
+      return res.status(200).json({ message: "Already tracking this product" });
+    }
+
+    // 3. If it does not exist, add it as a new entry
     const watchlistEntry: any = {
       productId,
       trackedPrice: product.price,
@@ -68,18 +91,9 @@ export const addToWatchlist = async (
     };
     if (targetPrice) watchlistEntry.targetPrice = targetPrice;
 
-    const updated = await UserModel.findOneAndUpdate(
-      {
-        _id: userId,
-        "watchlist.productId": { $ne: productId },
-      },
-      { $push: { watchlist: watchlistEntry } },
-      { new: true },
-    );
-
-    if (!updated) {
-      return res.status(200).json({ message: "Already tracking this product" });
-    }
+    await UserModel.findByIdAndUpdate(userId, {
+      $push: { watchlist: watchlistEntry },
+    });
 
     return res.status(200).json({ message: "Added to watchlist", productId });
   } catch (error) {
@@ -87,7 +101,6 @@ export const addToWatchlist = async (
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 // DELETE /api/watchlist/:productId
 export const removeFromWatchlist = async (
   req: AuthRequest,
