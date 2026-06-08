@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
+import { RootState } from "../store/store";
 import { Product } from "../types";
 import PageTransition from "../components/PageTransition";
 import {
   fetchProductById,
+  fetchRelatedProducts,
   addToWatchlist,
   removeFromWatchlist,
-  checkIsTracked,
 } from "../services/api";
+import { toggleTrackedProductId } from "../store/productSlice";
 import { Spinner } from "../components/Spinner";
 import ProductCard from "../components/ProductCard";
 import PriceHistoryChart from "../components/PriceHistoryChart";
@@ -50,26 +52,27 @@ function getGridClasses(idx: number): { colSpan: string; aspect: string } {
   }
 }
 
-// ✅ FIX: Added mobile spacing to constants
-const CAROUSEL =
-  "flex gap-4 md:gap-6 overflow-x-auto pb-6 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]";
-const CARD_WRAPPER =
-  "min-w-[220px] md:min-w-[260px] max-w-[220px] md:max-w-[260px] flex-shrink-0 [scroll-snap-align:start]";
-
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const panelRef = useRef<HTMLDivElement>(null);
 
   const { isAuthenticated, userInfo, token } = useSelector(
-    (state: any) => state.auth,
+    (state: RootState) => state.auth,
   );
   const isAdmin = userInfo?.role === "admin";
+
+  // ✅ NEW: Sync directly with global Redux state
+  const isTracked = useSelector((state: RootState) =>
+    state.products.trackedProductIds.includes(id || ""),
+  );
 
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );
+
   useEffect(() => {
     const observer = new MutationObserver(() => {
       setIsDarkMode(document.documentElement.classList.contains("dark"));
@@ -85,7 +88,6 @@ export default function ProductDetails() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
-  const [tracked, setTracked] = useState(false);
   const [trackLoading, setTrackLoading] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState(0);
@@ -113,19 +115,10 @@ export default function ProductDetails() {
       .finally(() => setIsLoading(false));
   }, [id]);
 
-  useEffect(() => {
-    if (!id || !isAuthenticated) return;
-    checkIsTracked(id).then(setTracked);
-  }, [id, isAuthenticated]);
-
+  // ✅ FIX: Replaced raw fetch bypass with clean api service
   useEffect(() => {
     if (!id) return;
-    fetch(
-      `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/products/${id}/related`,
-    )
-      .then((r) => r.json())
-      .then(setRelatedProducts)
-      .catch(console.error);
+    fetchRelatedProducts(id).then(setRelatedProducts).catch(console.error);
   }, [id]);
 
   const handleTrackPrice = async () => {
@@ -136,43 +129,52 @@ export default function ProductDetails() {
     }
     if (!product) return;
 
-    // Validate target price — must be lower than current price
     if (targetPrice) {
       const raw = targetPrice.trim();
       const tp = parseFloat(raw);
-      // Catch NaN (invalid chars like "44-+") or non-positive numbers
-      if (!raw || isNaN(tp) || tp <= 0 || String(tp) === "NaN") {
+      // ✅ FIX: Cleaned up NaN logic
+      if (!raw || isNaN(tp) || tp <= 0) {
         toast.error("Enter a valid price");
         return;
       }
       if (tp >= product.price) {
-        toast.error(`Target must be below current price (${product.price.toLocaleString("tr-TR")} ${product.currency})`);
+        toast.error(
+          `Target must be below current price (${product.price.toLocaleString("tr-TR")} ${product.currency})`,
+        );
         return;
       }
     }
 
     setTrackLoading(true);
+    // Optimistic toggle
+    dispatch(toggleTrackedProductId(product.id));
+
     try {
-      if (tracked) {
-        if (await removeFromWatchlist(product.id)) {
-          setTracked(false);
+      if (isTracked) {
+        const success = await removeFromWatchlist(product.id);
+        if (success) {
           setShowTargetInput(false);
           setTargetPrice("");
           toast.success("Removed from watchlist");
+        } else {
+          dispatch(toggleTrackedProductId(product.id)); // revert
         }
       } else {
         const tp = targetPrice ? parseFloat(targetPrice) : undefined;
-        if (await addToWatchlist(product.id, tp)) {
-          setTracked(true);
+        const success = await addToWatchlist(product.id, tp);
+        if (success) {
           setShowTargetInput(false);
           toast.success(
             tp
               ? `Tracking — you'll be alerted at ${tp.toLocaleString("tr-TR")} ${product.currency} or lower`
               : "Tracking — you'll be notified on any price drop",
           );
+        } else {
+          dispatch(toggleTrackedProductId(product.id)); // revert
         }
       }
     } catch (err) {
+      dispatch(toggleTrackedProductId(product.id)); // revert
       toast.error("Failed to update watchlist");
     } finally {
       setTrackLoading(false);
@@ -246,7 +248,6 @@ export default function ProductDetails() {
     }
   };
 
-  // ── Loading ──
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
@@ -255,7 +256,6 @@ export default function ProductDetails() {
     );
   }
 
-  // ── Not found ──
   if (!product) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-bgPrimary dark:bg-bgPrimary-dark gap-4">
@@ -315,7 +315,6 @@ export default function ProductDetails() {
   return (
     <PageTransition>
       <div className="bg-bgPrimary dark:bg-bgPrimary-dark min-h-screen">
-        {/* ── Lightbox ── */}
         {lightboxOpen && (
           <ImageLightbox
             images={images}
@@ -325,7 +324,6 @@ export default function ProductDetails() {
           />
         )}
 
-        {/* ── ADMIN MEDIA MANAGER OVERLAY ── */}
         {isMediaManagerOpen && (
           <div className="fixed inset-0 z-[100] bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md overflow-y-auto pt-16 pb-10 px-6 md:pt-20 md:px-10">
             <div className="max-w-7xl mx-auto">
@@ -415,9 +413,6 @@ export default function ProductDetails() {
           </div>
         )}
 
-        {/* ══════════════════════════════════════════════════════════
-          SECTION 1 — CINEMATIC HERO
-          ══════════════════════════════════════════════════════════ */}
         <div
           className={[
             "relative w-full h-screen overflow-hidden",
@@ -430,7 +425,6 @@ export default function ProductDetails() {
             }
           }}
         >
-          {/* Hero media */}
           {heroMedia?.type === "video" ? (
             <video
               src={heroMedia.src}
@@ -458,7 +452,6 @@ export default function ProductDetails() {
 
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent pointer-events-none" />
 
-          {/* ✅ FIX: Responsive positioning for buttons */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -529,12 +522,7 @@ export default function ProductDetails() {
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════════════════════
-          SECTION 2 — Stack on mobile, Two-column sticky on desktop
-          ══════════════════════════════════════════════════════════ */}
-        {/* ✅ FIX: Stacks columns on mobile, splits on desktop */}
         <div className="flex flex-col md:grid md:grid-cols-[55%_45%] lg:grid-cols-[60%_40%] items-start border-t border-borderLight dark:border-borderLight-dark">
-          {/* ── LEFT: Asymmetric mixed media grid ── */}
           <div className="w-full grid grid-cols-2 gap-[3px] bg-borderLight dark:bg-borderLight-dark md:border-r border-borderLight dark:border-borderLight-dark">
             {gridMedia.map((media, idx) => {
               const { colSpan, aspect } = getGridClasses(idx);
@@ -593,12 +581,9 @@ export default function ProductDetails() {
             })}
           </div>
 
-          {/* ── RIGHT: Sticky info panel ── */}
-          {/* ✅ FIX: Allowed to flow naturally on mobile, sticky only on md+ */}
-          {/* ✅ FIX: Replaced hardcoded style={{padding}} with responsive Tailwind padding */}
           <div
             ref={panelRef}
-          className="w-full relative md:sticky top-0 md:h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 scrollbar-hide px-6 py-10 md:p-12 lg:p-16"
+            className="w-full relative md:sticky top-0 md:h-screen overflow-y-auto bg-bgPrimary dark:bg-bgPrimary-dark flex flex-col gap-0 scrollbar-hide px-6 py-10 md:p-12 lg:p-16"
           >
             <div className="flex justify-between items-start mb-4">
               <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
@@ -662,13 +647,11 @@ export default function ProductDetails() {
 
             {/* ── Price Tracker ── */}
             <div className="mb-5">
-              {/* Section label */}
               <p className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-3">
                 Price tracker
               </p>
 
-              {/* Target price input — shown before tracking */}
-              {!tracked && isAuthenticated && (
+              {!isTracked && isAuthenticated && (
                 <div className="mb-3">
                   {!showTargetInput ? (
                     <button
@@ -691,51 +674,64 @@ export default function ProductDetails() {
                           value={targetPrice}
                           onChange={(e) => {
                             const val = e.target.value;
-                            // Only allow digits and a single dot
                             if (val === "" || /^\d*\.?\d*$/.test(val)) {
                               setTargetPrice(val);
                             }
                           }}
-                          placeholder={Math.round(product.price * 0.8).toString()}
+                          placeholder={Math.round(
+                            product.price * 0.8,
+                          ).toString()}
                           className="flex-1 bg-transparent font-heading text-[15px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
                         />
                         <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
                           {product.currency}
                         </span>
                         <button
-                          onClick={() => { setShowTargetInput(false); setTargetPrice(""); }}
+                          onClick={() => {
+                            setShowTargetInput(false);
+                            setTargetPrice("");
+                          }}
                           className="font-sans text-[11px] text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer leading-none"
                         >
                           ✕
                         </button>
                       </div>
-                      {targetPrice && parseFloat(targetPrice) >= product.price && (
-                        <p className="px-4 pb-2 font-sans text-[9px] text-accentRed">
-                          Must be lower than current price ({product.price.toLocaleString("tr-TR")} {product.currency})
-                        </p>
-                      )}
+                      {targetPrice &&
+                        parseFloat(targetPrice) >= product.price && (
+                          <p className="px-4 pb-2 font-sans text-[9px] text-accentRed">
+                            Must be lower than current price (
+                            {product.price.toLocaleString("tr-TR")}{" "}
+                            {product.currency})
+                          </p>
+                        )}
                     </div>
                   )}
                 </div>
               )}
 
-              {/* Track button */}
               <button
                 onClick={handleTrackPrice}
-                disabled={trackLoading || (!!targetPrice && parseFloat(targetPrice) >= product.price)}
+                disabled={
+                  trackLoading ||
+                  (!!targetPrice && parseFloat(targetPrice) >= product.price)
+                }
                 className={[
                   "w-full py-4 border font-sans text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 cursor-pointer transition-all duration-200 ease-smooth",
                   trackLoading ? "opacity-50 cursor-wait" : "",
-                  (!!targetPrice && parseFloat(targetPrice) >= product.price) ? "opacity-30 cursor-not-allowed" : "",
-                  tracked
+                  !!targetPrice && parseFloat(targetPrice) >= product.price
+                    ? "opacity-30 cursor-not-allowed"
+                    : "",
+                  isTracked
                     ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark border-textPrimary dark:border-textPrimary-dark"
                     : "bg-transparent text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark hover:bg-textPrimary dark:hover:bg-textPrimary-dark hover:text-bgPrimary dark:hover:text-bgPrimary-dark",
                 ].join(" ")}
               >
-                <span className="text-[16px] leading-none">{tracked ? "✓" : "♡"}</span>
+                <span className="text-[16px] leading-none">
+                  {isTracked ? "✓" : "♡"}
+                </span>
                 {trackLoading
                   ? "…"
-                  : tracked
+                  : isTracked
                     ? "Tracking — watching for drops"
                     : isAuthenticated
                       ? targetPrice
@@ -744,8 +740,7 @@ export default function ProductDetails() {
                       : "Sign in to track"}
               </button>
 
-              {/* Hint text */}
-              {!tracked && (
+              {!isTracked && (
                 <p className="font-sans text-[9px] leading-relaxed text-textMuted dark:text-textMuted-dark mt-2">
                   {targetPrice && parseFloat(targetPrice) < product.price
                     ? `You'll be notified when the price reaches ${parseFloat(targetPrice).toLocaleString("tr-TR")} ${product.currency} or lower.`
@@ -754,7 +749,6 @@ export default function ProductDetails() {
               )}
             </div>
 
-            {/* ── View on brand ── */}
             <div className="mb-8">
               <div className="h-px bg-borderLight dark:bg-borderLight-dark mb-4" />
               <a
@@ -864,16 +858,13 @@ export default function ProductDetails() {
           </div>
         </div>
 
-        {/* ══════════════════════════════════════════════════════════
-          SECTION 3 — Related products
-          ══════════════════════════════════════════════════════════ */}
-        {/* ✅ FIX: Responsive padding on the Related Products section */}
         {relatedProducts.length > 0 && (
           <section className="bg-bgPrimary dark:bg-bgPrimary-dark px-6 md:px-16 py-14 md:py-20 border-t border-borderLight dark:border-borderLight-dark">
-            {/* Header */}
             <div className="mb-8 md:mb-12 border-b border-borderLight dark:border-borderLight-dark pb-5 md:pb-6">
               <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-2">
-                {relatedProducts.slice(0, 8).length} similar piece{relatedProducts.slice(0, 8).length !== 1 ? "s" : ""} · {product.brand}
+                {relatedProducts.slice(0, 8).length} similar piece
+                {relatedProducts.slice(0, 8).length !== 1 ? "s" : ""} ·{" "}
+                {product.brand}
               </p>
               <h2 className="font-heading font-light text-[clamp(22px,4vw,34px)] leading-tight text-textPrimary dark:text-textPrimary-dark">
                 You might also{" "}
@@ -882,8 +873,6 @@ export default function ProductDetails() {
                 </em>
               </h2>
             </div>
-
-            {/* Carousel */}
             <div className="flex gap-4 md:gap-5 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [scroll-snap-type:x_mandatory] [-webkit-overflow-scrolling:touch]">
               {relatedProducts.slice(0, 8).map((p) => (
                 <div
@@ -897,7 +886,6 @@ export default function ProductDetails() {
           </section>
         )}
 
-        {/* 🍞 THE DELETE CONFIRMATION MODAL */}
         <ConfirmModal
           isOpen={isDeleteModalOpen}
           title="Delete Product"

@@ -96,6 +96,12 @@ export default function Collection() {
     maxPrice,
   } = useSelector((state: RootState) => state.products);
 
+  // ✅ FIX: Extracting stable string values for the useEffect dependency arrays
+  const selectBrandsStr = (selectBrands || []).join(",");
+  const selectDepartmentsStr = (selectDepartments || []).join(",");
+  const selectSizesStr = (selectSizes || []).join(",");
+  const selectColorsStr = (selectColors || []).join(",");
+
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -190,10 +196,10 @@ export default function Collection() {
     brandsFromUrl,
     deptsFromUrl,
     searchTerm,
-    (selectBrands || []).join(","),
-    (selectDepartments || []).join(","),
-    (selectSizes || []).join(","),
-    (selectColors || []).join(","),
+    selectBrandsStr, // ✅ Replaced inline join
+    selectDepartmentsStr, // ✅ Replaced inline join
+    selectSizesStr, // ✅ Replaced inline join
+    selectColorsStr, // ✅ Replaced inline join
     maxPrice,
   ]);
 
@@ -259,10 +265,10 @@ export default function Collection() {
   }, [
     searchTerm,
     currentPage,
-    (selectBrands || []).join(","),
-    (selectDepartments || []).join(","),
-    (selectSizes || []).join(","),
-    (selectColors || []).join(","),
+    selectBrandsStr, // ✅ Replaced inline join
+    selectDepartmentsStr, // ✅ Replaced inline join
+    selectSizesStr, // ✅ Replaced inline join
+    selectColorsStr, // ✅ Replaced inline join
     maxPrice,
     type,
     currentSort,

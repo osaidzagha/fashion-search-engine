@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { useCompare } from "../context/CompareContext";
 import { ProductSkeleton } from "./ProductSkeleton";
 import { PriceSparkline } from "./PriceSparkline";
+import { useDispatch } from "react-redux";
+import { toggleTrackedProductId } from "../store/productSlice";
 
 // ─── NEW IMPORTS FOR WATCHLIST ───
 import { useSelector } from "react-redux";
@@ -47,7 +49,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     (state: RootState) => state.auth.isAuthenticated,
   );
   // Note: Ideally initialize isTracked from a global Redux set of tracked IDs if you have it
-  const [isTracked, setIsTracked] = useState(false);
+  const dispatch = useDispatch();
+  const isTracked = useSelector((state: RootState) =>
+    state.products.trackedProductIds.includes(product.id),
+  );
   const [showPriceInput, setShowPriceInput] = useState(false);
   const [targetPrice, setTargetPrice] = useState("");
   const [isSubmittingPrice, setIsSubmittingPrice] = useState(false);
@@ -110,20 +115,29 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      // Add your toast notification here
+      // Assuming you want to use toast here since it's in your App!
       console.log("Sign in to track items");
       return;
     }
 
-    setIsTracked((prev) => !prev); // Optimistic UI toggle
+    // Optimistic UI toggle via Redux
+    dispatch(toggleTrackedProductId(product.id));
 
+    // Note: isTracked here refers to the state BEFORE the click,
+    // so if it WAS false, it means we are tracking it now.
     if (!isTracked) {
       setShowPriceInput(true);
       setTimeout(() => priceInputRef.current?.focus(), 100);
-      await addToWatchlist(product.id);
+
+      const success = await addToWatchlist(product.id);
+      // Revert if API fails
+      if (!success) dispatch(toggleTrackedProductId(product.id));
     } else {
       setShowPriceInput(false);
-      await removeFromWatchlist(product.id);
+
+      const success = await removeFromWatchlist(product.id);
+      // Revert if API fails
+      if (!success) dispatch(toggleTrackedProductId(product.id));
     }
   };
 

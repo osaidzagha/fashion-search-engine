@@ -9,7 +9,8 @@ interface ProductState {
   selectSizes: string[];
   selectColors?: string[];
   isLoading: boolean;
-  compareQueue: Product[]; // ✅ Queue state is here
+  compareQueue: Product[];
+  trackedProductIds: string[]; // ✅ Watchlist IDs go here
   searchTerm: string;
   selectBrands?: string[];
   selectDepartments?: string[];
@@ -26,7 +27,8 @@ const initialState: ProductState = {
   selectBrands: [],
   selectDepartments: [],
   selectSizes: [],
-  compareQueue: [], // ✅ Queue starts empty
+  compareQueue: [],
+  trackedProductIds: [], // ✅ Starts empty
   selectColors: [],
   maxPrice: undefined,
 };
@@ -84,8 +86,6 @@ const productSlice = createSlice({
     setMaxPrice(state, action: PayloadAction<number | undefined>) {
       state.maxPrice = action.payload;
     },
-
-    // AFTER
     clearFilters(state) {
       state.selectBrands = [];
       state.selectSizes = [];
@@ -93,7 +93,7 @@ const productSlice = createSlice({
       state.maxPrice = undefined;
     },
 
-    // The brain logic for the Compare feature
+    // ─── Compare Feature ───
     toggleCompare(state, action: PayloadAction<Product>) {
       const exists = state.compareQueue.find((p) => p.id === action.payload.id);
       if (exists) {
@@ -108,6 +108,24 @@ const productSlice = createSlice({
     },
     clearCompare(state) {
       state.compareQueue = [];
+    },
+
+    // ─── Watchlist / Tracked Items Feature ───
+    setTrackedProductIds(state, action: PayloadAction<string[]>) {
+      state.trackedProductIds = action.payload;
+    },
+    toggleTrackedProductId(state, action: PayloadAction<string>) {
+      const id = action.payload;
+      if (state.trackedProductIds.includes(id)) {
+        state.trackedProductIds = state.trackedProductIds.filter(
+          (pid) => pid !== id,
+        );
+      } else {
+        state.trackedProductIds.push(id);
+      }
+    },
+    clearTrackedProductIds(state) {
+      state.trackedProductIds = [];
     },
   },
 });
@@ -126,7 +144,10 @@ export const {
   setBrands,
   toggleCompare,
   clearCompare,
-  clearFilters, // ✅ Exported here!
+  clearFilters,
+  setTrackedProductIds, // ✅ Exported
+  toggleTrackedProductId, // ✅ Exported
+  clearTrackedProductIds, // ✅ Exported
 } = productSlice.actions;
 
 export default productSlice.reducer;

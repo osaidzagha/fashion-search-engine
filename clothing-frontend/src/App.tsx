@@ -5,9 +5,15 @@ import {
   Route,
   useNavigate,
 } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { logout } from "./store/authSlice"; // Adjust if your logout action is named differently
-import toast from "react-hot-toast";
+import { useDispatch, useSelector } from "react-redux";
+import { logout } from "./store/authSlice";
+import { RootState } from "./store/store";
+import { fetchWatchlist } from "./services/api";
+import {
+  setTrackedProductIds,
+  clearTrackedProductIds,
+} from "./store/productSlice";
+import toast, { Toaster } from "react-hot-toast";
 
 // Existing imports...
 import Home from "./pages/Home";
@@ -18,7 +24,6 @@ import Profile from "./pages/Profile";
 
 import Watchlist from "./pages/Watchlist";
 import { CompareProvider } from "./context/CompareContext";
-import { Toaster } from "react-hot-toast";
 import { CompareBar } from "./components/CompareBar";
 import { CompareOverlay } from "./components/CompareOverlay";
 import ProtectedRoute from "./utils/ProtectedRoute";
@@ -61,6 +66,30 @@ function GlobalAuthListener() {
 }
 // ──────────────────────────────────────────────────────────────────────────────
 
+// ─── THE HYDRATOR ─────────────────────────────────────────────────────────────
+function GlobalWatchlistHydrator() {
+  const dispatch = useDispatch();
+  const isAuthenticated = useSelector(
+    (state: RootState) => state.auth.isAuthenticated,
+  );
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Fetch user's tracked items and load them into Redux
+      fetchWatchlist().then((products) => {
+        const ids = products.map((p) => p.id);
+        dispatch(setTrackedProductIds(ids));
+      });
+    } else {
+      // Clear the store if they log out
+      dispatch(clearTrackedProductIds());
+    }
+  }, [isAuthenticated, dispatch]);
+
+  return null; // Invisible component
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function App() {
   return (
     <CompareProvider>
@@ -81,8 +110,9 @@ export default function App() {
         />
 
         <Router>
-          {/* 👇 Drop the listener inside the Router! */}
+          {/* 👇 Drop the listeners inside the Router! */}
           <GlobalAuthListener />
+          <GlobalWatchlistHydrator />
           <ScrollToTop />
 
           <AnimatedRoutes />
