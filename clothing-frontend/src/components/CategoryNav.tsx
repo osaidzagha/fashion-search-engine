@@ -33,9 +33,6 @@ export const CategoryNav: React.FC = () => {
         break;
 
       case "sale":
-        // ✅ FIX: onSale=true is the only filter needed — passing search+mode
-        // on top of it ran applySearchFilter which narrowed results to only
-        // products matching the q string, producing ~26 instead of 100+.
         params.set("onSale", "true");
         break;
 
@@ -63,8 +60,10 @@ export const CategoryNav: React.FC = () => {
   });
 
   return (
+    // ✅ z-[110] — must sit above Navbar's z-[100] so the dropdown and backdrop
+    // fully cover the sticky navbar shadow and all page content beneath it.
     <div
-      className="relative z-50 border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
+      className="relative z-[110] border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
       onMouseLeave={() => setActiveMenu(null)}
     >
       {/* ─── TOP LEVEL TABS ─── */}
@@ -89,14 +88,6 @@ export const CategoryNav: React.FC = () => {
           );
         })}
       </nav>
-
-      {/* ─── BACKDROP OVERLAY ─── */}
-      <div
-        className={`
-          absolute top-full left-0 w-full h-[100vh] bg-black/20 dark:bg-black/40 backdrop-blur-sm transition-opacity duration-400 ease-elegant pointer-events-none
-          ${activeMenu ? "opacity-100" : "opacity-0"}
-        `}
-      />
 
       {/* ─── MEGA-MENU ─── */}
       <div
@@ -132,6 +123,19 @@ export const CategoryNav: React.FC = () => {
           </ul>
         </div>
       </div>
+
+      {/* ─── BACKDROP OVERLAY ─── */}
+      {/* Rendered after the mega-menu in DOM so it doesn't cover the menu itself,
+          but covers all page content below. pointer-events-auto when active so
+          hovering off the nav area onto the backdrop correctly closes the menu. */}
+      <div
+        className={`
+          fixed top-0 left-0 w-full h-full bg-black/20 dark:bg-black/40 backdrop-blur-sm
+          transition-opacity duration-400 ease-elegant -z-[1]
+          ${activeMenu ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
+        `}
+        onMouseEnter={() => setActiveMenu(null)}
+      />
     </div>
   );
 };
