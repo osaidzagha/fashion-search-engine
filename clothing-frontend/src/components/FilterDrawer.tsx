@@ -54,7 +54,7 @@ const JUNK_COLORS = new Set([
   "undefined",
   "None",
   "none",
-  "striped",  // pattern, not colour
+  "striped", // pattern, not colour
   "Striped",
   "multicoloured",
   "Multicoloured",
@@ -63,8 +63,8 @@ const JUNK_COLORS = new Set([
 
 function isJunkColor(c: string): boolean {
   if (JUNK_COLORS.has(c)) return true;
-  if (/^\d+$/.test(c.trim())) return true;   // pure numeric: "02", "50"
-  if (c.trim().length <= 2) return true;      // single letter codes: "S", "M"
+  if (/^\d+$/.test(c.trim())) return true; // pure numeric: "02", "50"
+  if (c.trim().length <= 2) return true; // single letter codes: "S", "M"
   return false;
 }
 
@@ -115,7 +115,7 @@ const COLOR_HEX: Record<string, string> = {
   // ── Blues ──
   blue: "#4a90d9",
   "navy blue": "#0a1a5c",
-  "navy": "#0a1a5c",
+  navy: "#0a1a5c",
   "dark navy": "#050d2e",
   "dark blue": "#0a2580",
   "medium blue": "#3a70b0",
@@ -343,11 +343,11 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
                             ...(hex && !isGradient
                               ? { backgroundColor: hex }
                               : isGradient
-                              ? { backgroundImage: hex }
-                              : {
-                                  // unknown color — show a neutral swatch
-                                  backgroundColor: "#d0d0d0",
-                                }),
+                                ? { backgroundImage: hex }
+                                : {
+                                    // unknown color — show a neutral swatch
+                                    backgroundColor: "#d0d0d0",
+                                  }),
                           }}
                         />
                         {/* Label */}
@@ -437,7 +437,10 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
         {/* Sticky footer */}
         <div className="p-6 md:p-8 border-t border-borderLight dark:border-borderLight-dark bg-bgPrimary dark:bg-bgPrimary-dark flex gap-4 transition-colors duration-500">
           <button
-            onClick={() => dispatch(clearFilters())}
+            onClick={() => {
+              dispatch(clearFilters());
+              onClose();
+            }}
             className="flex-1 py-4 border border-borderLight dark:border-borderLight-dark text-textMuted dark:text-textMuted-dark font-sans text-[10px] tracking-[0.2em] uppercase hover:text-textPrimary dark:hover:text-textPrimary-dark transition-all duration-300 bg-transparent cursor-pointer"
           >
             Clear

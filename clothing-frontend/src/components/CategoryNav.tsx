@@ -31,17 +31,14 @@ export const CategoryNav: React.FC = () => {
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
-
       case "sale":
         params.set("onSale", "true");
         break;
-
       case "newest":
         params.set("sort", "newest");
         if (item.q) params.set("search", item.q);
         params.set("mode", "category");
         break;
-
       case "brand":
         params.set("brands", item.q);
         break;
@@ -60,82 +57,105 @@ export const CategoryNav: React.FC = () => {
   });
 
   return (
-    // ✅ z-[110] — must sit above Navbar's z-[100] so the dropdown and backdrop
-    // fully cover the sticky navbar shadow and all page content beneath it.
-    <div
-      className="relative z-[110] border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
-      onMouseLeave={() => setActiveMenu(null)}
-    >
-      {/* ─── TOP LEVEL TABS ─── */}
-      <nav className="flex justify-start md:justify-center gap-6 md:gap-10 px-6 md:px-8 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TAXONOMY.map((category) => {
-          const isActive = activeMenu === category.key;
-          return (
-            <button
-              key={category.key}
-              onMouseEnter={() => setActiveMenu(category.key)}
-              className={`
-                py-4 md:py-6 font-sans text-[10px] md:text-xs tracking-[0.14em] uppercase transition-all duration-300 ease-smooth border-b-2 flex-shrink-0
-                ${
-                  isActive
-                    ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
-                    : "text-textSecondary dark:text-textSecondary-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
-                }
-              `}
-            >
-              {category.label}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* ─── MEGA-MENU ─── */}
+    <>
+      {/*
+        ── Backdrop ──────────────────────────────────────────────────────────
+        Rendered OUTSIDE the nav element so it sits in the root stacking
+        context. z-[108] puts it:
+          - above the Navbar (z-[100]) and all page content
+          - below the CategoryNav bar itself (z-[110])
+          - below the mega-menu (z-[110])
+        pointer-events-auto when active so hovering onto it closes the menu.
+      */}
       <div
+        aria-hidden="true"
         className={`
-          absolute top-full left-0 w-full bg-bgPrimary dark:bg-bgPrimary-dark border-b border-borderDark dark:border-borderDark-dark shadow-premium dark:shadow-premium-dark
-          transition-all duration-400 ease-elegant origin-top overflow-hidden
-          ${activeMenu ? "opacity-100 scale-y-100" : "opacity-0 scale-y-0 pointer-events-none"}
-        `}
-      >
-        <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-12 md:py-10">
-          <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 md:gap-x-12">
-            {filteredSubCategories?.map((item, idx) => {
-              const isSale = item.type === "sale";
-              const isNew = item.type === "newest";
-              const isFeatured = isSale || isNew;
-
-              return (
-                <li key={idx} className="flex">
-                  <button
-                    onClick={() => handleNavClick(item)}
-                    className={`
-                      text-left font-sans text-[12px] md:text-[13px] capitalize transition-colors duration-200 ease-smooth py-1 w-full
-                      ${isSale ? "text-accentRed hover:opacity-70 font-medium" : ""}
-                      ${isNew ? "text-textPrimary dark:text-textPrimary-dark font-medium hover:opacity-70" : ""}
-                      ${!isFeatured ? "text-textSecondary dark:text-textSecondary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark" : ""}
-                    `}
-                  >
-                    {item.label}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </div>
-
-      {/* ─── BACKDROP OVERLAY ─── */}
-      {/* Rendered after the mega-menu in DOM so it doesn't cover the menu itself,
-          but covers all page content below. pointer-events-auto when active so
-          hovering off the nav area onto the backdrop correctly closes the menu. */}
-      <div
-        className={`
-          fixed top-0 left-0 w-full h-full bg-black/20 dark:bg-black/40 backdrop-blur-sm
-          transition-opacity duration-400 ease-elegant -z-[1]
+          fixed inset-0 bg-black/25 dark:bg-black/50 backdrop-blur-sm
+          transition-opacity duration-300 ease-elegant
+          z-[108]
           ${activeMenu ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
         `}
         onMouseEnter={() => setActiveMenu(null)}
+        onClick={() => setActiveMenu(null)}
       />
-    </div>
+
+      {/*
+        ── Nav shell ─────────────────────────────────────────────────────────
+        z-[110] — above Navbar (z-[100]) and above the backdrop (z-[108]).
+        The mega-menu is absolute inside this, so it inherits z-[110] and
+        naturally paints above the backdrop.
+      */}
+      <div
+        className="relative z-[110] border-b border-borderDark dark:border-borderDark-dark bg-bgPrimary dark:bg-bgPrimary-dark transition-colors duration-500 ease-smooth"
+        onMouseLeave={() => setActiveMenu(null)}
+      >
+        {/* ─── TOP LEVEL TABS ─── */}
+        <nav className="flex justify-start md:justify-center gap-6 md:gap-10 px-6 md:px-8 overflow-x-auto whitespace-nowrap [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {TAXONOMY.map((category) => {
+            const isActive = activeMenu === category.key;
+            return (
+              <button
+                key={category.key}
+                onMouseEnter={() => setActiveMenu(category.key)}
+                className={`
+                  py-4 md:py-6 font-sans text-[10px] md:text-xs tracking-[0.14em] uppercase
+                  transition-all duration-300 ease-smooth border-b-2 flex-shrink-0
+                  ${
+                    isActive
+                      ? "text-textPrimary dark:text-textPrimary-dark border-textPrimary dark:border-textPrimary-dark"
+                      : "text-textSecondary dark:text-textSecondary-dark border-transparent hover:text-textPrimary dark:hover:text-textPrimary-dark"
+                  }
+                `}
+              >
+                {category.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* ─── MEGA-MENU ─── */}
+        <div
+          className={`
+            absolute top-full left-0 w-full
+            bg-bgPrimary dark:bg-bgPrimary-dark
+            border-b border-borderDark dark:border-borderDark-dark
+            shadow-premium dark:shadow-premium-dark
+            transition-all duration-300 ease-elegant origin-top overflow-hidden
+            ${
+              activeMenu
+                ? "opacity-100 scale-y-100"
+                : "opacity-0 scale-y-0 pointer-events-none"
+            }
+          `}
+        >
+          <div className="max-w-[1400px] mx-auto px-6 py-6 md:px-12 md:py-10">
+            <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-y-4 gap-x-6 md:gap-x-12">
+              {filteredSubCategories?.map((item, idx) => {
+                const isSale = item.type === "sale";
+                const isNew = item.type === "newest";
+                const isFeatured = isSale || isNew;
+
+                return (
+                  <li key={idx} className="flex">
+                    <button
+                      onClick={() => handleNavClick(item)}
+                      className={`
+                        text-left font-sans text-[12px] md:text-[13px] capitalize
+                        transition-colors duration-200 ease-smooth py-1 w-full
+                        ${isSale ? "text-accentRed hover:opacity-70 font-medium" : ""}
+                        ${isNew ? "text-textPrimary dark:text-textPrimary-dark font-medium hover:opacity-70" : ""}
+                        ${!isFeatured ? "text-textSecondary dark:text-textSecondary-dark hover:text-textPrimary dark:hover:text-textPrimary-dark" : ""}
+                      `}
+                    >
+                      {item.label}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
