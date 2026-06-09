@@ -13,6 +13,7 @@ import {
   setAvailableSizes,
   setAvailableColors,
   setSearchTerm,
+  clearFilters, // ✅ added
 } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 
@@ -68,10 +69,16 @@ export default function Collection() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const location = useLocation();
 
+  // ✅ Clear drawer filters every time the user navigates to a new collection
+  // route. location.key changes on every navigation (including same-path
+  // navigations), so this fires on mount AND whenever the user arrives here
+  // from a different page — but NOT on sort/filter changes within the same page.
+  useEffect(() => {
+    dispatch(clearFilters());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
+
   // ── URL primitives ────────────────────────────────────────────────────────
-  // `displayTerm` — shown in the heading ("Results for Tops")
-  // `apiQuery`    — passed to the backend (multi-word regex like "top shirt blouse tee camisole polo")
-  //                 falls back to displayTerm for direct search-bar searches that don't set ?q=
   const displayTerm = searchParams.get("search") || "";
   const apiQuery =
     searchParams.get("q") || searchParams.get("category") || displayTerm;
@@ -96,7 +103,6 @@ export default function Collection() {
     maxPrice,
   } = useSelector((state: RootState) => state.products);
 
-  // ✅ FIX: Extracting stable string values for the useEffect dependency arrays
   const selectBrandsStr = (selectBrands || []).join(",");
   const selectDepartmentsStr = (selectDepartments || []).join(",");
   const selectSizesStr = (selectSizes || []).join(",");
@@ -128,7 +134,6 @@ export default function Collection() {
         title: "On the Move",
         desc: "Products with recent price activity.",
       };
-    // Use displayTerm for the heading — clean single word ("Tops"), not the raw query
     if (apiQuery && !type)
       return {
         title: displayTerm
@@ -169,7 +174,7 @@ export default function Collection() {
 
   const header = getHeaderInfo();
 
-  // ── Dynamic page title (SEO) ──────────────────────────────────────────────
+  // ── Dynamic page title ────────────────────────────────────────────────────
   useEffect(() => {
     document.title = `${header.title} — Dope`;
     return () => {
@@ -177,7 +182,7 @@ export default function Collection() {
     };
   }, [header.title]);
 
-  // ── Sync search term from URL — use apiQuery so the backend gets the full query ──
+  // ── Sync search term from URL ─────────────────────────────────────────────
   useEffect(() => {
     dispatch(setSearchTerm(apiQuery));
   }, [apiQuery, dispatch]);
@@ -196,10 +201,10 @@ export default function Collection() {
     brandsFromUrl,
     deptsFromUrl,
     searchTerm,
-    selectBrandsStr, // ✅ Replaced inline join
-    selectDepartmentsStr, // ✅ Replaced inline join
-    selectSizesStr, // ✅ Replaced inline join
-    selectColorsStr, // ✅ Replaced inline join
+    selectBrandsStr,
+    selectDepartmentsStr,
+    selectSizesStr,
+    selectColorsStr,
     maxPrice,
   ]);
 
@@ -265,10 +270,10 @@ export default function Collection() {
   }, [
     searchTerm,
     currentPage,
-    selectBrandsStr, // ✅ Replaced inline join
-    selectDepartmentsStr, // ✅ Replaced inline join
-    selectSizesStr, // ✅ Replaced inline join
-    selectColorsStr, // ✅ Replaced inline join
+    selectBrandsStr,
+    selectDepartmentsStr,
+    selectSizesStr,
+    selectColorsStr,
     maxPrice,
     type,
     currentSort,
@@ -280,7 +285,7 @@ export default function Collection() {
     dispatch,
   ]);
 
-  // ── Infinite scroll via IntersectionObserver ──────────────────────────────
+  // ── Infinite scroll ───────────────────────────────────────────────────────
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
