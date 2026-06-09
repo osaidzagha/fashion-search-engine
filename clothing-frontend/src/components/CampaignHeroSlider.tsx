@@ -11,10 +11,6 @@ function shuffleArray<T>(array: T[]): T[] {
   return shuffled;
 }
 
-// ✅ Resolves video from ALL brand field shapes:
-// Zara uses: video, videoUrl
-// Massimo uses: media[].url (type=video)
-// Mango uses: videos[]
 function resolveVideo(product: Product): string {
   if (product.videos?.[0]) return product.videos[0];
   if (product.video) return product.video;
@@ -32,10 +28,10 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   const navigate = useNavigate();
   const [currentDeck, setCurrentDeck] = useState<Product[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-
-  // ✅ Don't use window.innerWidth for mobile detection —
-  // use pointer/hover media query which is more reliable across Android/iOS
   const [isTouchDevice, setIsTouchDevice] = useState(false);
+  // Track whether user manually navigated (pauses auto-advance briefly)
+  const userNavigatedRef = useRef(false);
+  const pauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const heroIds = heroes
     .map((h) => h.id)
@@ -43,7 +39,6 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     .join(",");
 
   useEffect(() => {
-    // Touch detection — works on Android Chrome, iOS Safari, tablets
     const hasTouch = window.matchMedia(
       "(hover: none) and (pointer: coarse)",
     ).matches;
@@ -58,10 +53,52 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [heroIds]);
 
-  // Touch device: auto-advance with timer (video won't autoplay reliably)
+  const goTo = useCallback(
+    (index: number, isUserAction = false) => {
+      if (isUserAction) {
+        userNavigatedRef.current = true;
+        if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+        // Resume auto-advance after 6s of user inactivity
+        pauseTimerRef.current = setTimeout(() => {
+          userNavigatedRef.current = false;
+        }, 6000);
+      }
+
+      setCurrentIndex((prev) => {
+        let next = index;
+        if (next < 0) {
+          next = currentDeck.length - 1;
+        } else if (next >= currentDeck.length) {
+          setCurrentDeck((d) => shuffleArray([...d]));
+          next = 0;
+        }
+        return next;
+      });
+    },
+    [currentDeck.length],
+  );
+
+  const goPrev = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      goTo(currentIndex - 1, true);
+    },
+    [currentIndex, goTo],
+  );
+
+  const goNext = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      goTo(currentIndex + 1, true);
+    },
+    [currentIndex, goTo],
+  );
+
+  // Touch device: auto-advance
   useEffect(() => {
     if (!isTouchDevice || currentDeck.length === 0) return;
     const timer = setInterval(() => {
+      if (userNavigatedRef.current) return;
       setCurrentIndex((prev) => {
         if (prev >= currentDeck.length - 1) {
           setCurrentDeck((d) => shuffleArray([...d]));
@@ -74,6 +111,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
   }, [isTouchDevice, currentDeck.length]);
 
   const handleVideoEnd = useCallback(() => {
+    if (userNavigatedRef.current) return;
     setCurrentIndex((prev) => {
       if (prev >= currentDeck.length - 1) {
         setCurrentDeck((d) => shuffleArray([...d]));
@@ -87,10 +125,17 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
     navigate(`/product/${encodeURIComponent(heroId)}`);
   };
 
+  useEffect(() => {
+    return () => {
+      if (pauseTimerRef.current) clearTimeout(pauseTimerRef.current);
+    };
+  }, []);
+
   if (currentDeck.length === 0) return null;
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-black group">
+    <div className="relative w-full h-full overflow-hidden bg-black group/slider">
+      {/* ── Slides ── */}
       {currentDeck.map((hero, index) => {
         const isActive = index === currentIndex;
         const heroImage = hero.images?.[0] || "";
@@ -107,14 +152,12 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
             }`}
           >
             {isTouchDevice ? (
-              // Touch devices: image slideshow (video autoplay blocked)
               <img
                 src={heroImage}
                 alt={hero.name}
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : (
-              // Desktop: video with image poster fallback
               <HeroVideo
                 src={heroVideo}
                 poster={heroImage}
@@ -129,7 +172,7 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
               <span className="font-sans text-[8px] md:text-[10px] tracking-[0.3em] uppercase text-white/70">
                 {hero.brand}
               </span>
-              <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-10 md:pr-16">
+              <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-16 md:pr-24">
                 {hero.name}
               </h3>
               <div className="flex items-center gap-3 mt-1">
@@ -148,20 +191,72 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
         );
       })}
 
-      {/* Progress dots */}
-      <div className="absolute bottom-5 right-5 z-30 flex gap-2">
-        {currentDeck.map((_, i) => (
+      {/* ── Prev / Next arrows ── */}
+      {currentDeck.length > 1 && (
+        <>
+          {/* Prev */}
           <button
-            key={i}
-            onClick={(e) => {
-              e.stopPropagation();
-              setCurrentIndex(i);
-            }}
-            className={`h-[2px] transition-all duration-700 ${
-              i === currentIndex ? "w-6 bg-white" : "w-3 bg-white/30"
-            }`}
-          />
-        ))}
+            onClick={goPrev}
+            aria-label="Previous"
+            className="absolute left-3 md:left-5 top-1/2 -translate-y-1/2 z-30 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-black/30 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all duration-200 opacity-0 group-hover/slider:opacity-100 hover:scale-105"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+
+          {/* Next */}
+          <button
+            onClick={goNext}
+            aria-label="Next"
+            className="absolute right-3 md:right-5 top-1/2 -translate-y-1/2 z-30 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-black/30 hover:bg-black/60 backdrop-blur-sm border border-white/20 text-white transition-all duration-200 opacity-0 group-hover/slider:opacity-100 hover:scale-105"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </>
+      )}
+
+      {/* ── Progress dots + counter ── */}
+      <div className="absolute bottom-5 right-5 z-30 flex items-center gap-3">
+        {/* Slide counter */}
+        <span className="font-sans text-[8px] tracking-[0.16em] text-white/40 tabular-nums">
+          {currentIndex + 1}/{currentDeck.length}
+        </span>
+
+        {/* Dots */}
+        <div className="flex gap-1.5">
+          {currentDeck.map((_, i) => (
+            <button
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                goTo(i, true);
+              }}
+              aria-label={`Go to slide ${i + 1}`}
+              className={`h-[2px] transition-all duration-500 ${
+                i === currentIndex
+                  ? "w-6 bg-white"
+                  : "w-2.5 bg-white/30 hover:bg-white/50"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -218,7 +313,7 @@ function HeroVideo({
         setVideoFailed(true);
         setTimeout(onEnded, 4000);
       }}
-      className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity duration-1000"
+      className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover/slider:opacity-100 transition-opacity duration-1000"
     />
   );
 }

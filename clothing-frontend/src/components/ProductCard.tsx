@@ -1,13 +1,12 @@
 import { useRef, useState, useCallback } from "react";
 import { Product } from "../types";
 import { Link } from "react-router-dom";
-import { useCompare } from "../context/CompareContext";
+import { useCompare, MAX_COMPARE } from "../context/CompareContext";
 import { ProductSkeleton } from "./ProductSkeleton";
 import { PriceSparkline } from "./PriceSparkline";
 import { useDispatch } from "react-redux";
 import { toggleTrackedProductId } from "../store/productSlice";
-
-// ─── NEW IMPORTS FOR WATCHLIST ───
+import toast from "react-hot-toast";
 import { useSelector } from "react-redux";
 import { RootState } from "../store/store";
 import { addToWatchlist, removeFromWatchlist } from "../services/api";
@@ -18,6 +17,12 @@ interface ProductCardProps {
 
 function discountPercent(original: number, current: number): number {
   return Math.round(((original - current) / original) * 100);
+}
+
+function formatPrice(price: number): string {
+  return price.toLocaleString("tr-TR", {
+    maximumFractionDigits: 0,
+  });
 }
 
 function resolveVideoSrc(p: any): string | undefined {
@@ -42,13 +47,12 @@ export const ProductCard = ({ product }: ProductCardProps) => {
   const { compareList, addToCompare, removeFromCompare, isInCompare } =
     useCompare();
   const isComparing = isInCompare(product.id);
-  const isQueueFull = compareList.length >= 2 && !isComparing;
+  // ✅ Fix: use MAX_COMPARE (3) instead of hardcoded 2
+  const isQueueFull = compareList.length >= MAX_COMPARE && !isComparing;
 
-  // ─── NEW WATCHLIST STATE ───
   const isAuthenticated = useSelector(
     (state: RootState) => state.auth.isAuthenticated,
   );
-  // Note: Ideally initialize isTracked from a global Redux set of tracked IDs if you have it
   const dispatch = useDispatch();
   const isTracked = useSelector((state: RootState) =>
     state.products.trackedProductIds.includes(product.id),
@@ -109,35 +113,32 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     [isPlaying],
   );
 
-  // ─── NEW WATCHLIST HANDLERS ───
   const handleHeartClick = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (!isAuthenticated) {
-      // Assuming you want to use toast here since it's in your App!
-      console.log("Sign in to track items");
+      toast("Sign in to track prices", { icon: "🔒" });
       return;
     }
 
-    // Optimistic UI toggle via Redux
-    dispatch(toggleTrackedProductId(product.id));
-
-    // Note: isTracked here refers to the state BEFORE the click,
-    // so if it WAS false, it means we are tracking it now.
     if (!isTracked) {
+      // Show price input — don't add to watchlist yet
       setShowPriceInput(true);
       setTimeout(() => priceInputRef.current?.focus(), 100);
-
-      const success = await addToWatchlist(product.id);
-      // Revert if API fails
-      if (!success) dispatch(toggleTrackedProductId(product.id));
     } else {
+      // Remove from watchlist
+      dispatch(toggleTrackedProductId(product.id));
       setShowPriceInput(false);
+      setTargetPrice("");
 
       const success = await removeFromWatchlist(product.id);
-      // Revert if API fails
-      if (!success) dispatch(toggleTrackedProductId(product.id));
+      if (!success) {
+        dispatch(toggleTrackedProductId(product.id));
+        toast.error("Failed to remove from watchlist");
+      } else {
+        toast("Removed from watchlist", { icon: "🗑️" });
+      }
     }
   };
 
@@ -147,19 +148,53 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!targetPrice) {
-      setShowPriceInput(false);
+    const tp = parseFloat(targetPrice);
+
+    if (!targetPrice || isNaN(tp) || tp <= 0) {
+      toast.error("Enter a valid price");
+      return;
+    }
+
+    // ✅ Fix: enforce price must be below current price
+    if (tp >= product.price) {
+      toast.error(
+        `Target must be below current price (${formatPrice(product.price)} ${product.currency})`,
+      );
       return;
     }
 
     setIsSubmittingPrice(true);
     try {
-      await addToWatchlist(product.id, Number(targetPrice));
-      setShowPriceInput(false);
-    } catch (error) {
-      console.error("Failed to set target price");
+      const success = await addToWatchlist(product.id, tp);
+      if (success) {
+        dispatch(toggleTrackedProductId(product.id));
+        setShowPriceInput(false);
+        setTargetPrice("");
+        toast.success(
+          `Alert set — we'll notify you when it drops below ${formatPrice(tp)} ${product.currency}`,
+        );
+      } else {
+        toast.error("Failed to set price alert");
+      }
+    } catch {
+      toast.error("Failed to set price alert");
     } finally {
       setIsSubmittingPrice(false);
+    }
+  };
+
+  const handleSkipTargetPrice = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowPriceInput(false);
+    setTargetPrice("");
+
+    const success = await addToWatchlist(product.id);
+    if (success) {
+      dispatch(toggleTrackedProductId(product.id));
+      toast.success(`Added to watchlist`);
+    } else {
+      toast.error("Failed to add to watchlist");
     }
   };
 
@@ -287,47 +322,58 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </button>
         )}
 
-        {/* ─── NEW: TARGET PRICE SLIDE-UP ─── */}
+        {/* ── Target price input ── */}
         {showPriceInput && (
           <div
-            className="absolute bottom-12 right-2 z-30 flex animate-slide-up flex-col gap-2 rounded-lg bg-bgPrimary/95 dark:bg-bgPrimary-dark/95 backdrop-blur-md p-2.5 shadow-xl border border-black/5 dark:border-white/10 w-44"
+            className="absolute bottom-12 right-2 z-30 flex animate-slide-up flex-col gap-2 bg-bgPrimary/98 dark:bg-bgPrimary-dark/98 backdrop-blur-md p-3 shadow-xl border border-black/8 dark:border-white/12 w-48"
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
             }}
           >
-            <p className="text-[10px] uppercase tracking-widest font-sans text-textSecondary dark:text-textSecondary-dark">
-              Alert Below
-            </p>
-            <div className="flex items-center gap-1.5">
-              <div className="relative flex-1">
-                <input
-                  ref={priceInputRef}
-                  type="number"
-                  value={targetPrice}
-                  onChange={(e) => setTargetPrice(e.target.value)}
-                  placeholder={product.price.toString()}
-                  className="w-full rounded-[4px] border border-black/10 dark:border-white/20 bg-transparent py-1 px-2 text-xs text-textPrimary dark:text-textPrimary-dark focus:border-textPrimary dark:focus:border-textPrimary-dark focus:outline-none"
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && handleSetTargetPrice(e)
-                  }
-                />
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[9px] uppercase tracking-widest font-sans text-textPrimary dark:text-textPrimary-dark font-medium">
+                  Set price alert
+                </p>
+                <p className="text-[9px] font-sans text-textMuted dark:text-textMuted-dark mt-0.5">
+                  Must be below {formatPrice(product.price)} {product.currency}
+                </p>
               </div>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <input
+                ref={priceInputRef}
+                type="number"
+                value={targetPrice}
+                onChange={(e) => setTargetPrice(e.target.value)}
+                placeholder={String(Math.round(product.price * 0.9))}
+                className="w-full border border-black/12 dark:border-white/20 bg-transparent py-1.5 px-2 text-xs text-textPrimary dark:text-textPrimary-dark focus:border-textPrimary dark:focus:border-textPrimary-dark focus:outline-none"
+                onKeyDown={(e) => e.key === "Enter" && handleSetTargetPrice(e)}
+              />
               <button
                 onClick={handleSetTargetPrice}
                 disabled={isSubmittingPrice}
-                className="rounded-[4px] bg-textPrimary dark:bg-textPrimary-dark px-3 py-1 text-xs font-medium text-bgPrimary dark:text-bgPrimary-dark disabled:opacity-50 transition-opacity hover:opacity-80"
+                className="bg-textPrimary dark:bg-textPrimary-dark px-3 py-1.5 text-xs font-medium text-bgPrimary dark:text-bgPrimary-dark disabled:opacity-50 transition-opacity hover:opacity-80 whitespace-nowrap"
               >
-                {isSubmittingPrice ? "..." : "Set"}
+                {isSubmittingPrice ? "…" : "Set"}
               </button>
             </div>
+
+            <button
+              onClick={handleSkipTargetPrice}
+              className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark bg-transparent border-none cursor-pointer text-left hover:text-textSecondary dark:hover:text-textSecondary-dark transition-colors"
+            >
+              Skip, just watch →
+            </button>
           </div>
         )}
 
-        {/* ─── NEW: HEART / WATCHLIST BUTTON ─── */}
+        {/* ── Heart / watchlist button ── */}
         <button
           onClick={handleHeartClick}
-          className={`absolute bottom-2 right-2 z-20 flex h-7 w-7 items-center justify-center rounded-full shadow-md transition-all duration-300 md:opacity-0 md:group-hover:opacity-100 ${
+          className={`absolute bottom-2 right-2 z-20 flex h-7 w-7 items-center justify-center shadow-md transition-all duration-300 md:opacity-0 md:group-hover:opacity-100 ${
             isTracked
               ? "bg-textPrimary dark:bg-textPrimary-dark"
               : "bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 hover:bg-black/10 dark:hover:bg-white/10"
@@ -389,16 +435,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                   : "text-textTertiary dark:text-textTertiary-dark",
               ].join(" ")}
             >
-              {product.price.toLocaleString("tr-TR")} {product.currency}
+              {formatPrice(product.price)} {product.currency}
             </p>
 
             {isOnSale && (
               <p className="font-heading text-[11px] text-textMuted dark:text-textMuted-dark line-through m-0">
-                {product.originalPrice!.toLocaleString("tr-TR")}
+                {formatPrice(product.originalPrice!)}
               </p>
             )}
           </div>
-
           {previewPrices.length >= 2 &&
             previewPrices.some((p) => p !== previewPrices[0]) && (
               <div className="flex-shrink-0 opacity-70">
