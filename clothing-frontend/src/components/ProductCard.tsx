@@ -20,9 +20,7 @@ function discountPercent(original: number, current: number): number {
 }
 
 function formatPrice(price: number): string {
-  return price.toLocaleString("tr-TR", {
-    maximumFractionDigits: 0,
-  });
+  return price.toLocaleString("tr-TR");
 }
 
 function resolveVideoSrc(p: any): string | undefined {
