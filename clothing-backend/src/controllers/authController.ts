@@ -18,7 +18,6 @@ const OTP_EXPIRY_MS = 30 * 60 * 1000;
 const otpExpiry = () => new Date(Date.now() + OTP_EXPIRY_MS);
 const RESEND_COOLDOWN_MS = 60 * 1000;
 
-// Helper to fix mobile keyboard spaces
 const sanitizeEmail = (email: string) => email.toLowerCase().trim();
 
 export const registerUser = async (
@@ -35,29 +34,28 @@ export const registerUser = async (
 
     const existingUser = await UserModel.findOne({ email: safeEmail });
 
-    // Inside authController.ts -> registerUser
+    // ── Google account trying to register with email/password ──
+    if (existingUser && existingUser.authProvider === "google") {
+      return res.status(400).json({
+        message:
+          "This email is linked to a Google account. Please sign in with Google.",
+      });
+    }
 
     // ── Already registered but NOT verified ──
     if (existingUser && !existingUser.isVerified) {
-      // ✅ FIX: Generate a new OTP, update their data, and send a fresh email
       const otp = generateOTP();
-
       existingUser.verificationToken = otp;
       existingUser.verificationExpires = otpExpiry();
       existingUser.name = name;
-
-      // Update password to their newest attempt just in case
       const salt = await bcrypt.genSalt(10);
       existingUser.password = await bcrypt.hash(password, salt);
-
       await existingUser.save();
-
       try {
         await sendVerificationEmail(existingUser.email, otp);
       } catch (mailError) {
         console.error("⚠️ [registerUser] Email delivery failed:", mailError);
       }
-
       return res.status(200).json({
         message: "Account updated. Please check your email for the new code.",
         email: existingUser.email,
@@ -74,8 +72,6 @@ export const registerUser = async (
     const hashedPassword = await bcrypt.hash(password, salt);
     const otp = generateOTP();
 
-
-
     const user = await UserModel.create({
       name,
       email: safeEmail,
@@ -83,6 +79,7 @@ export const registerUser = async (
       isVerified: false,
       verificationToken: otp,
       verificationExpires: otpExpiry(),
+      authProvider: "local",
     });
 
     if (!user) {
@@ -120,6 +117,14 @@ export const loginUser = async (
     const { password } = req.body;
     const user = await UserModel.findOne({ email: safeEmail });
 
+    // ── Google account trying to log in with a password ──
+    if (user && user.authProvider === "google") {
+      return res.status(400).json({
+        message:
+          "This account uses Google sign-in. Please use the 'Continue with Google' button.",
+      });
+    }
+
     if (user && !user.isVerified) {
       return res.status(401).json({
         message:
@@ -127,7 +132,11 @@ export const loginUser = async (
       });
     }
 
-    if (user && (await bcrypt.compare(password, user.password))) {
+    if (
+      user &&
+      user.password &&
+      (await bcrypt.compare(password, user.password))
+    ) {
       return res.status(200).json({
         _id: user.id,
         name: user.name,
@@ -244,8 +253,6 @@ export const resendOTP = async (
     user.verificationExpires = otpExpiry();
     await user.save();
 
-
-
     try {
       await sendVerificationEmail(safeEmail, otp);
     } catch (mailError) {
@@ -259,7 +266,6 @@ export const resendOTP = async (
   }
 };
 
-// ─── POST /api/auth/forgot-password ──────────────────────────────────────────
 export const forgotPassword = async (
   req: Request,
   res: Response,
@@ -271,44 +277,43 @@ export const forgotPassword = async (
 
     const user = await UserModel.findOne({ email: safeEmail });
 
-    // For security, do not reveal if the user exists or not
-    if (!user) {
-      return res
-        .status(200)
-        .json({
-          message:
-            "If an account exists with that email, a reset code has been sent.",
-        });
+    // ── Google-only account can't reset a password they don't have ──
+    if (user && user.authProvider === "google") {
+      return res.status(400).json({
+        message:
+          "This account uses Google sign-in and has no password to reset.",
+      });
     }
 
-    // Generate a new 6-digit OTP
+    // Don't reveal whether the account exists
+    if (!user) {
+      return res.status(200).json({
+        message:
+          "If an account exists with that email, a reset code has been sent.",
+      });
+    }
+
     const otp = generateOTP();
-    user.verificationToken = otp; // Reusing this field for the password reset OTP
+    user.verificationToken = otp;
     user.verificationExpires = otpExpiry();
     await user.save();
 
-
-
     try {
-      // You can update sendVerificationEmail later to accept a "type" parameter to change the email wording
       await sendVerificationEmail(safeEmail, otp);
     } catch (mailError) {
       console.error("⚠️ [forgotPassword] Email failed:", mailError);
     }
 
-    return res
-      .status(200)
-      .json({
-        message:
-          "If an account exists with that email, a reset code has been sent.",
-      });
+    return res.status(200).json({
+      message:
+        "If an account exists with that email, a reset code has been sent.",
+    });
   } catch (error) {
     console.error("❌ [forgotPassword] Error:", error);
     return res.status(500).json({ message: "Server error." });
   }
 };
 
-// ─── POST /api/auth/reset-password ───────────────────────────────────────────
 export const resetPassword = async (
   req: Request,
   res: Response,
@@ -333,7 +338,6 @@ export const resetPassword = async (
       return res.status(400).json({ message: "Invalid request." });
     }
 
-    // Check if OTP matches and is not expired
     if (
       user.verificationToken !== otp ||
       !user.verificationExpires ||
@@ -344,12 +348,8 @@ export const resetPassword = async (
         .json({ message: "Invalid or expired reset code." });
     }
 
-    // Hash the new password
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-    // Update password and clear the OTP fields
-    user.password = hashedPassword;
+    user.password = await bcrypt.hash(newPassword, salt);
     user.verificationToken = undefined;
     user.verificationExpires = undefined;
     await user.save();

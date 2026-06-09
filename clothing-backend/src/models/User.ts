@@ -3,7 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IWatchlistItem {
   productId: string;
   trackedPrice: number;
-  targetPrice?: number; // User's desired price threshold
+  targetPrice?: number;
   addedAt: Date;
 }
 
@@ -20,13 +20,17 @@ export interface IUser extends Document {
   preferences: {
     priceAlertEnabled: boolean;
   };
+  // ── Google OAuth ──
+  googleId?: string;
+  authProvider: "local" | "google";
 }
 
 const UserSchema: Schema = new Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true, lowercase: true },
-    password: { type: String, required: true },
+    // required: false so Google users can be created without a password
+    password: { type: String, required: false, default: "" },
     role: { type: String, enum: ["user", "admin"], default: "user" },
     savedItems: [{ type: String }],
     isVerified: { type: Boolean, default: false },
@@ -36,14 +40,16 @@ const UserSchema: Schema = new Schema(
       {
         productId: { type: String, required: true },
         trackedPrice: { type: Number, required: true },
-        targetPrice: { type: Number }, // optional alert threshold
+        targetPrice: { type: Number },
         addedAt: { type: Date, default: Date.now },
       },
     ],
-    // ── NEW ──
     preferences: {
       priceAlertEnabled: { type: Boolean, default: true },
     },
+    // ── Google OAuth ──
+    googleId: { type: String, sparse: true }, // sparse: allows multiple nulls
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
   },
   { timestamps: true },
 );

@@ -13,6 +13,8 @@ import userRoutes from "./routes/userRoutes";
 import { cleanupStaleRuns } from "./scrapers/scraperManager";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import "./config/passport"; // initialise the strategy
+import passport from "passport";
 
 // 👇 IMPORT THE NEW ERROR HANDLER
 import { errorHandler } from "./middlewares/errorHandler";
@@ -43,6 +45,7 @@ const authLimiter = rateLimit({
   message: { error: "Too many requests" },
 });
 app.use("/api/auth", authLimiter);
+app.use(passport.initialize());
 
 // ── Rate limiting on scraper admin routes (prevents Puppeteer spam) ───────────
 const scraperLimiter = rateLimit({

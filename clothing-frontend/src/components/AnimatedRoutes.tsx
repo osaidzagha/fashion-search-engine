@@ -8,6 +8,7 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import Watchlist from "../pages/Watchlist";
 import AdminDashboard from "../pages/AdminDashboard";
+import OAuthCallback from "../pages/OAuthCallback";
 import VerifyOTP from "../pages/VerifyOTP";
 import Collection from "../pages/Collection";
 import Profile from "../pages/Profile";
@@ -38,6 +39,7 @@ export default function AnimatedRoutes() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/oauth/callback" element={<OAuthCallback />} />
 
         {/* 🔐 Any logged-in user */}
         <Route element={<ProtectedRoute />}>

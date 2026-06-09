@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -29,7 +29,6 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Editable input — name only */
 function EditableInput({
   label,
   type = "text",
@@ -37,6 +36,7 @@ function EditableInput({
   onChange,
   placeholder,
   autoComplete,
+  error,
 }: {
   label: string;
   type?: string;
@@ -44,6 +44,7 @@ function EditableInput({
   onChange: (v: string) => void;
   placeholder?: string;
   autoComplete?: string;
+  error?: string;
 }) {
   return (
     <div className="flex flex-col">
@@ -54,13 +55,21 @@ function EditableInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         autoComplete={autoComplete}
-        className="w-full bg-transparent border-b border-borderLight dark:border-borderLight-dark py-3 font-sans text-[13px] tracking-wide text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/50 dark:placeholder:text-textMuted-dark/50 focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
+        className={`w-full bg-transparent border-b py-3 font-sans text-[13px] tracking-wide text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/50 dark:placeholder:text-textMuted-dark/50 focus:outline-none transition-colors duration-200 ${
+          error
+            ? "border-accentRed focus:border-accentRed"
+            : "border-borderLight dark:border-borderLight-dark focus:border-textPrimary dark:focus:border-textPrimary-dark"
+        }`}
       />
+      {error && (
+        <p className="mt-1.5 font-sans text-[9px] tracking-wide text-accentRed">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
 
-/** Read-only display field — email */
 function ReadOnlyField({
   label,
   value,
@@ -87,19 +96,22 @@ function ReadOnlyField({
   );
 }
 
-/** Sharp password input for security tab */
+// BUG FIX #1: Changed `bottom-3` to `top-1/2 -translate-y-1/2` so the
+// show/hide button is vertically centred and always clickable.
 function PasswordInput({
   label,
   value,
   onChange,
   placeholder,
   autoComplete,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   autoComplete?: string;
+  error?: string;
 }) {
   const [visible, setVisible] = useState(false);
 
@@ -113,19 +125,28 @@ function PasswordInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder || "••••••••"}
           autoComplete={autoComplete}
-          className="w-full bg-transparent border-b border-borderLight dark:border-borderLight-dark py-3 pr-10 font-sans text-[13px] tracking-widest text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/40 dark:placeholder:text-textMuted-dark/40 placeholder:tracking-normal focus:outline-none focus:border-textPrimary dark:focus:border-textPrimary-dark transition-colors duration-200"
+          className={`w-full bg-transparent border-b py-3 pr-12 font-sans text-[13px] tracking-widest text-textPrimary dark:text-textPrimary-dark placeholder:text-textMuted/40 dark:placeholder:text-textMuted-dark/40 placeholder:tracking-normal focus:outline-none transition-colors duration-200 ${
+            error
+              ? "border-accentRed focus:border-accentRed"
+              : "border-borderLight dark:border-borderLight-dark focus:border-textPrimary dark:focus:border-textPrimary-dark"
+          }`}
         />
-        {/* show/hide toggle */}
+        {/* FIX: was `bottom-3`, now vertically centred */}
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           tabIndex={-1}
-          className="absolute right-0 bottom-3 font-sans text-[8px] tracking-[0.15em] uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-150"
+          className="absolute right-0 top-1/2 -translate-y-1/2 font-sans text-[8px] tracking-[0.15em] uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-150 px-1 py-1"
           aria-label={visible ? "Hide password" : "Show password"}
         >
           {visible ? "Hide" : "Show"}
         </button>
       </div>
+      {error && (
+        <p className="mt-1.5 font-sans text-[9px] tracking-wide text-accentRed">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -163,16 +184,21 @@ function ActionButton({
 function Toggle({
   enabled,
   onChange,
+  disabled,
 }: {
   enabled: boolean;
   onChange: (v: boolean) => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       role="switch"
       aria-checked={enabled}
-      onClick={() => onChange(!enabled)}
-      className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer items-center border transition-colors duration-300 focus:outline-none ${
+      onClick={() => !disabled && onChange(!enabled)}
+      disabled={disabled}
+      className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center border transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-textPrimary dark:focus-visible:ring-textPrimary-dark ${
+        disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"
+      } ${
         enabled
           ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark"
           : "border-borderLight dark:border-borderLight-dark bg-transparent"
@@ -189,7 +215,15 @@ function Toggle({
   );
 }
 
-function Avatar({ name }: { name: string }) {
+function Avatar({
+  name,
+  joinedAt,
+  onAvatarClick,
+}: {
+  name: string;
+  joinedAt?: string;
+  onAvatarClick?: () => void;
+}) {
   const initials = name
     .split(" ")
     .slice(0, 2)
@@ -197,10 +231,49 @@ function Avatar({ name }: { name: string }) {
     .join("");
 
   return (
-    <div className="w-16 h-16 border border-borderLight dark:border-borderLight-dark flex items-center justify-center flex-shrink-0">
-      <span className="font-heading font-light text-2xl leading-none text-textPrimary dark:text-textPrimary-dark">
-        {initials || "?"}
-      </span>
+    <div className="flex items-end gap-6">
+      {/* Avatar with hover affordance for future upload */}
+      <button
+        type="button"
+        onClick={onAvatarClick}
+        title="Change avatar (coming soon)"
+        className="w-16 h-16 border border-borderLight dark:border-borderLight-dark flex items-center justify-center flex-shrink-0 group relative overflow-hidden transition-colors duration-200 hover:border-textPrimary dark:hover:border-textPrimary-dark focus:outline-none focus-visible:ring-2 focus-visible:ring-textPrimary dark:focus-visible:ring-textPrimary-dark"
+      >
+        <span className="font-heading font-light text-2xl leading-none text-textPrimary dark:text-textPrimary-dark group-hover:opacity-0 transition-opacity duration-200">
+          {initials || "?"}
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-textMuted dark:text-textMuted-dark"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </span>
+      </button>
+
+      <div className="min-w-0">
+        <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5">
+          Member Account
+        </p>
+        <h1 className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark truncate">
+          {name}
+        </h1>
+        {joinedAt && (
+          <p className="font-sans text-[9px] tracking-widest text-textMuted dark:text-textMuted-dark mt-1.5">
+            Member since {joinedAt}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -213,37 +286,62 @@ function ErrorBanner({ message }: { message: string }) {
   );
 }
 
+/** Subtle unsaved-changes dot indicator next to tab label */
+function DirtyDot() {
+  return (
+    <span className="inline-block w-1 h-1 rounded-full bg-accentRed ml-1.5 mb-0.5 align-middle" />
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Profile() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { userInfo, token } = useSelector((state: RootState) => state.auth);
 
-  // Honour ?tab= query param (e.g. from any future deep-link)
   const tabParam = searchParams.get("tab") as Tab | null;
   const [activeTab, setActiveTab] = useState<Tab>(
-    tabParam && ["general", "security", "preferences"].includes(tabParam)
-      ? tabParam
-      : "general",
+    tabParam && TABS.some((t) => t.id === tabParam) ? tabParam : "general",
   );
+
+  // BUG FIX #5: Sync activeTab when URL query param changes (e.g. deep-links)
+  useEffect(() => {
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      setActiveTab(tabParam as Tab);
+    }
+  }, [tabParam]);
+
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
 
   // ── General ──
   const [name, setName] = useState(userInfo?.name || "");
+  const [nameError, setNameError] = useState("");
   const [generalLoading, setGeneralLoading] = useState(false);
   const [generalError, setGeneralError] = useState("");
+  const isGeneralDirty = name.trim() !== (userInfo?.name || "").trim();
 
   // ── Security ──
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState("");
+  const isSecurityDirty = !!(currentPassword || newPassword || confirmPassword);
 
   // ── Preferences ──
+  // BUG FIX #2: Initialise priceAlertEnabled from userInfo if available,
+  // falling back to true only if the server hasn't provided a value yet.
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [priceAlertEnabled, setPriceAlertEnabled] = useState(true);
+  const [priceAlertEnabled, setPriceAlertEnabled] = useState<boolean>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (userInfo as any)?.priceAlertEnabled ?? true,
+  );
   const [prefLoading, setPrefLoading] = useState(false);
 
   // ── Delete account ──
@@ -251,6 +349,9 @@ export default function Profile() {
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  // Avatar upload input ref (wired up for future use)
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!userInfo) navigate("/login");
@@ -260,16 +361,40 @@ export default function Profile() {
     setIsDarkMode(document.documentElement.classList.contains("dark"));
   }, []);
 
+  // Keep name field in sync if userInfo updates externally (e.g. after save)
+  useEffect(() => {
+    if (userInfo?.name) setName(userInfo.name);
+  }, [userInfo?.name]);
+
+  // BUG FIX #2 (cont.): re-sync priceAlertEnabled if userInfo updates
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const val = (userInfo as any)?.priceAlertEnabled;
+    if (typeof val === "boolean") setPriceAlertEnabled(val);
+  }, [userInfo]);
+
   const authHeaders = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
   };
 
-  // ── General save (name only) ──
+  // ── Inline name validation ──
+  const handleNameChange = (v: string) => {
+    setName(v);
+    if (!v.trim()) {
+      setNameError("Name cannot be empty.");
+    } else if (v.trim().length < 2) {
+      setNameError("Name must be at least 2 characters.");
+    } else {
+      setNameError("");
+    }
+  };
+
+  // ── General save ──
   const handleGeneralSave = async () => {
     setGeneralError("");
-    if (!name.trim()) {
-      setGeneralError("Name cannot be empty.");
+    if (!name.trim() || nameError) {
+      setNameError(nameError || "Name cannot be empty.");
       return;
     }
     setGeneralLoading(true);
@@ -293,25 +418,30 @@ export default function Profile() {
     }
   };
 
+  // ── Inline password validation ──
+  const validatePasswords = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!currentPassword) errors.current = "Required.";
+    if (!newPassword) {
+      errors.new = "Required.";
+    } else if (newPassword.length < 8) {
+      errors.new = "Must be at least 8 characters.";
+    } else if (currentPassword === newPassword) {
+      errors.new = "Must differ from your current password.";
+    }
+    if (!confirmPassword) {
+      errors.confirm = "Required.";
+    } else if (newPassword !== confirmPassword) {
+      errors.confirm = "Passwords do not match.";
+    }
+    setPwErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   // ── Password save ──
   const handlePasswordSave = async () => {
     setSecurityError("");
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      setSecurityError("All fields are required.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setSecurityError("New passwords do not match.");
-      return;
-    }
-    if (newPassword.length < 8) {
-      setSecurityError("New password must be at least 8 characters.");
-      return;
-    }
-    if (currentPassword === newPassword) {
-      setSecurityError("New password must differ from your current password.");
-      return;
-    }
+    if (!validatePasswords()) return;
     setSecurityLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/users/password`, {
@@ -328,6 +458,7 @@ export default function Profile() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      setPwErrors({});
     } catch {
       setSecurityError("Network error. Please try again.");
     } finally {
@@ -343,6 +474,7 @@ export default function Profile() {
   };
 
   const handleAlertToggle = async (val: boolean) => {
+    const previous = priceAlertEnabled;
     setPriceAlertEnabled(val);
     setPrefLoading(true);
     try {
@@ -352,13 +484,13 @@ export default function Profile() {
         body: JSON.stringify({ priceAlertEnabled: val }),
       });
       if (!res.ok) {
-        setPriceAlertEnabled(!val);
+        setPriceAlertEnabled(previous);
         toast.error("Failed to save preference.");
       } else {
         toast.success(val ? "Price alerts enabled." : "Price alerts disabled.");
       }
     } catch {
-      setPriceAlertEnabled(!val);
+      setPriceAlertEnabled(previous);
       toast.error("Network error.");
     } finally {
       setPrefLoading(false);
@@ -393,6 +525,21 @@ export default function Profile() {
     }
   };
 
+  // Format join date from userInfo if available
+  const joinedAt = (() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = (userInfo as any)?.createdAt;
+    if (!raw) return undefined;
+    try {
+      return new Date(raw).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return undefined;
+    }
+  })();
+
   if (!userInfo) return null;
 
   return (
@@ -400,39 +547,55 @@ export default function Profile() {
       <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark">
         {/* ── Page header ── */}
         <div className="border-b border-borderLight dark:border-borderLight-dark px-6 md:px-12 py-10 md:py-14">
-          <div className="max-w-4xl mx-auto flex items-end gap-6">
-            <Avatar name={userInfo.name} />
-            <div className="min-w-0">
-              <p className="font-sans text-[8px] tracking-[0.22em] uppercase text-textMuted dark:text-textMuted-dark mb-1.5">
-                Member Account
-              </p>
-              <h1 className="font-heading font-light text-3xl md:text-4xl leading-none text-textPrimary dark:text-textPrimary-dark truncate">
-                {userInfo.name}
-              </h1>
-              <p className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark mt-2">
-                {userInfo.email}
-              </p>
-            </div>
+          <div className="max-w-4xl mx-auto">
+            {/* Hidden input for future avatar upload */}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={() =>
+                toast("Avatar upload coming soon.", { icon: "🖼️" })
+              }
+            />
+            <Avatar
+              name={userInfo.name}
+              joinedAt={joinedAt}
+              onAvatarClick={() => avatarInputRef.current?.click()}
+            />
+            <p className="font-sans text-[10px] tracking-widest text-textMuted dark:text-textMuted-dark mt-3">
+              {userInfo.email}
+            </p>
           </div>
         </div>
 
         <div className="max-w-4xl mx-auto px-6 md:px-12 py-10 md:py-14">
           <div className="flex flex-col md:flex-row gap-10 md:gap-16">
             {/* ── Sidebar tabs ── */}
-            <nav className="flex flex-row md:flex-col gap-1 md:gap-0.5 w-full md:w-[160px] flex-shrink-0">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex-1 md:flex-none text-center md:text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase border transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
-                      : "border-transparent text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <nav
+              className="flex flex-row md:flex-col gap-1 md:gap-0.5 w-full md:w-[160px] flex-shrink-0"
+              aria-label="Profile sections"
+            >
+              {TABS.map((tab) => {
+                const isDirty =
+                  (tab.id === "general" && isGeneralDirty) ||
+                  (tab.id === "security" && isSecurityDirty);
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    aria-current={activeTab === tab.id ? "page" : undefined}
+                    className={`flex-1 md:flex-none text-center md:text-left px-4 py-2.5 font-sans text-[9px] tracking-widest uppercase border transition-all duration-200 ${
+                      activeTab === tab.id
+                        ? "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark"
+                        : "border-transparent text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark"
+                    }`}
+                  >
+                    {tab.label}
+                    {isDirty && activeTab !== tab.id && <DirtyDot />}
+                  </button>
+                );
+              })}
             </nav>
 
             {/* ── Tab content ── */}
@@ -444,11 +607,11 @@ export default function Profile() {
                     <EditableInput
                       label="Full Name"
                       value={name}
-                      onChange={setName}
+                      onChange={handleNameChange}
                       placeholder="Your full name"
                       autoComplete="name"
+                      error={nameError}
                     />
-                    {/* Email is locked — changing it is a security concern */}
                     <ReadOnlyField
                       label="Email Address"
                       value={userInfo.email}
@@ -458,12 +621,28 @@ export default function Profile() {
 
                   {generalError && <ErrorBanner message={generalError} />}
 
-                  <ActionButton
-                    onClick={handleGeneralSave}
-                    loading={generalLoading}
-                  >
-                    Save Changes
-                  </ActionButton>
+                  <div className="flex items-center gap-4">
+                    <ActionButton
+                      onClick={handleGeneralSave}
+                      loading={generalLoading}
+                      disabled={!isGeneralDirty || !!nameError}
+                    >
+                      Save Changes
+                    </ActionButton>
+                    {isGeneralDirty && !generalLoading && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setName(userInfo.name);
+                          setNameError("");
+                          setGeneralError("");
+                        }}
+                        className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-150"
+                      >
+                        Discard
+                      </button>
+                    )}
+                  </div>
 
                   {/* ── Danger Zone ── */}
                   <div className="pt-8 mt-2 border-t border-borderLight dark:border-borderLight-dark flex flex-col gap-4">
@@ -501,37 +680,68 @@ export default function Profile() {
                       <PasswordInput
                         label="Current Password"
                         value={currentPassword}
-                        onChange={setCurrentPassword}
+                        onChange={(v) => {
+                          setCurrentPassword(v);
+                          if (pwErrors.current)
+                            setPwErrors((e) => ({ ...e, current: "" }));
+                        }}
                         autoComplete="current-password"
+                        error={pwErrors.current}
                       />
-                      {/* Visual separator before new password group */}
                       <div className="h-px w-8 bg-borderLight dark:bg-borderLight-dark" />
                       <PasswordInput
                         label="New Password"
                         value={newPassword}
-                        onChange={setNewPassword}
+                        onChange={(v) => {
+                          setNewPassword(v);
+                          if (pwErrors.new)
+                            setPwErrors((e) => ({ ...e, new: "" }));
+                        }}
                         placeholder="Min. 8 characters"
                         autoComplete="new-password"
+                        error={pwErrors.new}
                       />
                       <PasswordInput
                         label="Confirm New Password"
                         value={confirmPassword}
-                        onChange={setConfirmPassword}
+                        onChange={(v) => {
+                          setConfirmPassword(v);
+                          if (pwErrors.confirm)
+                            setPwErrors((e) => ({ ...e, confirm: "" }));
+                        }}
                         autoComplete="new-password"
+                        error={pwErrors.confirm}
                       />
                     </div>
                   </div>
 
                   {securityError && <ErrorBanner message={securityError} />}
 
-                  <ActionButton
-                    onClick={handlePasswordSave}
-                    loading={securityLoading}
-                  >
-                    Update Password
-                  </ActionButton>
+                  <div className="flex items-center gap-4">
+                    <ActionButton
+                      onClick={handlePasswordSave}
+                      loading={securityLoading}
+                      disabled={!isSecurityDirty}
+                    >
+                      Update Password
+                    </ActionButton>
+                    {isSecurityDirty && !securityLoading && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCurrentPassword("");
+                          setNewPassword("");
+                          setConfirmPassword("");
+                          setPwErrors({});
+                          setSecurityError("");
+                        }}
+                        className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors duration-150"
+                      >
+                        Discard
+                      </button>
+                    )}
+                  </div>
 
-                  {/* Note about email not being changeable here */}
                   <p className="font-sans text-[9px] tracking-wide text-textMuted/60 dark:text-textMuted-dark/60 leading-relaxed">
                     Your registered email address cannot be changed. If you need
                     to update it, please contact support.
@@ -559,16 +769,19 @@ export default function Profile() {
 
                   <div className="flex items-center justify-between px-5 py-5">
                     <div>
-                      <p className="font-sans text-[11px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark">
+                      <p className="font-sans text-[11px] tracking-widests uppercase text-textPrimary dark:text-textPrimary-dark">
                         Price Drop Alerts
                       </p>
                       <p className="font-sans text-[9px] tracking-wide text-textMuted dark:text-textMuted-dark mt-0.5">
                         Email notifications when watched items drop in price
                       </p>
                     </div>
+                    {/* BUG FIX #2 (cont.): `disabled` prop passed; no inline
+                        arrow function swallowing the click — Toggle handles it */}
                     <Toggle
                       enabled={priceAlertEnabled}
-                      onChange={prefLoading ? () => {} : handleAlertToggle}
+                      onChange={handleAlertToggle}
+                      disabled={prefLoading}
                     />
                   </div>
                 </div>
@@ -579,6 +792,8 @@ export default function Profile() {
       </div>
 
       {/* ── Delete account modal ── */}
+      {/* BUG FIX #3: onCancel now clears deletePassword + deleteError      */}
+      {/* BUG FIX #4: loading prop passed so confirm button is disabled     */}
       <ConfirmModal
         isOpen={deleteModalOpen}
         title="Delete Account"
@@ -586,17 +801,25 @@ export default function Profile() {
         confirmText="Delete Forever"
         cancelText="Cancel"
         isDestructive
+        loading={deleteLoading}
         onConfirm={handleDeleteAccount}
-        onCancel={() => setDeleteModalOpen(false)}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDeletePassword("");
+          setDeleteError("");
+        }}
       >
         <div className="flex flex-col gap-2 mt-4">
           <PasswordInput
             label="Password"
             value={deletePassword}
-            onChange={setDeletePassword}
+            onChange={(v) => {
+              setDeletePassword(v);
+              if (deleteError) setDeleteError("");
+            }}
             autoComplete="current-password"
+            error={deleteError}
           />
-          {deleteError && <ErrorBanner message={deleteError} />}
         </div>
       </ConfirmModal>
     </PageTransition>

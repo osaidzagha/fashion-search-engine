@@ -7,9 +7,10 @@ interface ConfirmModalProps {
   confirmText?: string;
   cancelText?: string;
   isDestructive?: boolean;
+  loading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-  children?: React.ReactNode; // ← NEW: allows Profile to inject the password field
+  children?: React.ReactNode;
 }
 
 export default function ConfirmModal({
@@ -19,9 +20,10 @@ export default function ConfirmModal({
   confirmText = "Confirm",
   cancelText = "Cancel",
   isDestructive = false,
+  loading = false,
   onConfirm,
   onCancel,
-  children, // ← NEW
+  children,
 }: ConfirmModalProps) {
   useEffect(() => {
     if (isOpen) {
@@ -49,25 +51,26 @@ export default function ConfirmModal({
           {message}
         </p>
 
-        {/* Slot for extra content (e.g. password confirmation field) */}
         {children && <div className="mb-6">{children}</div>}
 
         <div className={`flex gap-3 ${children ? "" : "mt-8"}`}>
           <button
             onClick={onCancel}
-            className="flex-1 py-3 font-sans text-[9px] tracking-widest uppercase border border-borderLight dark:border-borderLight-dark text-textPrimary dark:text-textPrimary-dark hover:bg-borderLight dark:hover:bg-borderLight-dark transition-colors duration-200"
+            disabled={loading}
+            className="flex-1 py-3 font-sans text-[9px] tracking-widest uppercase border border-borderLight dark:border-borderLight-dark text-textPrimary dark:text-textPrimary-dark hover:bg-borderLight dark:hover:bg-borderLight-dark transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 py-3 font-sans text-[9px] tracking-widest uppercase border transition-colors duration-200 ${
+            disabled={loading}
+            className={`flex-1 py-3 font-sans text-[9px] tracking-widest uppercase border transition-colors duration-200 disabled:cursor-wait disabled:opacity-70 ${
               isDestructive
                 ? "border-accentRed bg-accentRed text-white hover:bg-red-700 hover:border-red-700"
                 : "border-textPrimary dark:border-textPrimary-dark bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark hover:opacity-80"
             }`}
           >
-            {confirmText}
+            {loading ? "Deleting…" : confirmText}
           </button>
         </div>
       </div>
