@@ -1,5 +1,9 @@
 import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import {
+  Strategy as GoogleStrategy,
+  Profile,
+  VerifyCallback,
+} from "passport-google-oauth20";
 import jwt from "jsonwebtoken";
 import { UserModel as User } from "../models/User";
 
@@ -10,7 +14,12 @@ passport.use(
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       callbackURL: `${process.env.API_URL}/api/auth/google/callback`,
     },
-    async (_accessToken, _refreshToken, profile, done) => {
+    async (
+      _accessToken: string,
+      _refreshToken: string,
+      profile: Profile,
+      done: VerifyCallback,
+    ) => {
       try {
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error("No email from Google"), undefined);
