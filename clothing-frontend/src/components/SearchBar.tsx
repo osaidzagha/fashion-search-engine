@@ -1,12 +1,14 @@
-// src/components/SearchBar.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { setSearchTerm } from "../store/productSlice";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const HISTORY_KEY = "dope_search_history";
+const MAX_HISTORY = 8;
 
+// ─── Icons ────────────────────────────────────────────────────────────────────
 const SearchIcon = ({ className = "" }: { className?: string }) => (
   <svg
     width="14"
@@ -29,6 +31,57 @@ const SearchIcon = ({ className = "" }: { className?: string }) => (
   </svg>
 );
 
+const ClockIcon = ({ className = "" }: { className?: string }) => (
+  <svg
+    width="12"
+    height="12"
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+    <path
+      d="M12 7v5l3 3"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+// ─── History helpers ──────────────────────────────────────────────────────────
+function readHistory(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writeHistory(terms: string[]) {
+  try {
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify(terms.slice(0, MAX_HISTORY)),
+    );
+  } catch {}
+}
+
+function pushToHistory(term: string) {
+  const trimmed = term.trim();
+  if (!trimmed) return;
+  const prev = readHistory().filter(
+    (t) => t.toLowerCase() !== trimmed.toLowerCase(),
+  );
+  writeHistory([trimmed, ...prev]);
+}
+
+function removeFromHistory(term: string) {
+  writeHistory(readHistory().filter((t) => t !== term));
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 interface SearchBarProps {
   initialValue?: string;
   variant?: "hero" | "compact";
@@ -41,6 +94,7 @@ export const SearchBar = ({
   const [inputValue, setInputValue] = useState(initialValue);
   const [focused, setFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
   const [highlightedIdx, setHighlightedIdx] = useState(-1);
   const [showDropdown, setShowDropdown] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -51,16 +105,23 @@ export const SearchBar = ({
     (state: RootState) => state.products,
   );
 
+  // ── Sync initialValue when it changes (e.g. navigating between pages) ──
   useEffect(() => {
     setInputValue(initialValue);
   }, [initialValue]);
 
+  // ── Fetch autocomplete suggestions ──
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
     if (inputValue.length < 2) {
       setSuggestions([]);
-      setShowDropdown(false);
+      // Show history when input is short/empty and focused
+      if (focused) {
+        const h = readHistory();
+        setHistory(h);
+        setShowDropdown(h.length > 0);
+      }
       return;
     }
 
@@ -71,9 +132,7 @@ export const SearchBar = ({
           ? `&departments=${encodeURIComponent(dept)}`
           : "";
         const res = await fetch(
-          `${BASE_URL}/api/products/suggestions?q=${encodeURIComponent(
-            inputValue,
-          )}${deptQuery}`,
+          `${BASE_URL}/api/products/suggestions?q=${encodeURIComponent(inputValue)}${deptQuery}`,
         );
         if (!res.ok) throw new Error("Failed");
         const data: string[] = await res.json();
@@ -85,31 +144,74 @@ export const SearchBar = ({
         setShowDropdown(false);
       }
     }, 250);
-  }, [inputValue, selectDepartments]);
+  }, [inputValue, selectDepartments, focused]);
 
-  const doSearch = (term: string) => {
-    if (!term.trim()) return;
-    setSuggestions([]);
+  const doSearch = useCallback(
+    (term: string) => {
+      if (!term.trim()) return;
+      pushToHistory(term.trim());
+      setSuggestions([]);
+      setShowDropdown(false);
+      setHighlightedIdx(-1);
+      dispatch(setSearchTerm(term.trim()));
+      navigate(`/search?q=${encodeURIComponent(term.trim())}`);
+    },
+    [dispatch, navigate],
+  );
+
+  const handleDeleteHistory = useCallback(
+    (e: React.MouseEvent, term: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      removeFromHistory(term);
+      const updated = readHistory();
+      setHistory(updated);
+      if (updated.length === 0 && inputValue.length < 2) setShowDropdown(false);
+    },
+    [inputValue],
+  );
+
+  const handleClearHistory = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    writeHistory([]);
+    setHistory([]);
     setShowDropdown(false);
-    dispatch(setSearchTerm(term.trim()));
-    navigate(`/search?q=${encodeURIComponent(term.trim())}`);
+  }, []);
+
+  const handleFocus = () => {
+    setFocused(true);
+    if (inputValue.length < 2) {
+      const h = readHistory();
+      setHistory(h);
+      if (h.length > 0) setShowDropdown(true);
+    } else if (suggestions.length > 0) {
+      setShowDropdown(true);
+    }
+  };
+
+  const handleBlur = () => {
+    setFocused(false);
+    setTimeout(() => setShowDropdown(false), 200);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showDropdown) {
+    const activeList = inputValue.length >= 2 ? suggestions : history;
+
+    if (!showDropdown || activeList.length === 0) {
       if (e.key === "Enter") doSearch(inputValue);
       return;
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlightedIdx((i) => Math.min(i + 1, suggestions.length - 1));
+      setHighlightedIdx((i) => Math.min(i + 1, activeList.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightedIdx((i) => Math.max(i - 1, -1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (highlightedIdx >= 0 && suggestions[highlightedIdx]) {
-        doSearch(suggestions[highlightedIdx]);
+      if (highlightedIdx >= 0 && activeList[highlightedIdx]) {
+        doSearch(activeList[highlightedIdx]);
       } else {
         doSearch(inputValue);
       }
@@ -119,26 +221,22 @@ export const SearchBar = ({
     }
   };
 
+  // Which mode is the dropdown showing
+  const isShowingHistory = inputValue.length < 2 && history.length > 0;
+  const isShowingSuggestions = inputValue.length >= 2 && suggestions.length > 0;
   const isHero = variant === "hero";
 
   return (
     <div
-      className={`
-        w-full relative z-[9999] mx-auto
-        ${isHero ? "max-w-[680px]" : "max-w-[560px]"}
-      `}
+      className={`w-full relative z-40 mx-auto ${isHero ? "max-w-[680px]" : "max-w-[560px]"}`}
     >
       <div className="relative flex items-center">
         <SearchIcon
-          className={`
-            absolute left-0 flex-shrink-0
-            transition-colors duration-200 ease-smooth
-            ${
-              focused
-                ? "text-textPrimary dark:text-textPrimary-dark"
-                : "text-textMuted dark:text-textMuted-dark"
-            }
-          `}
+          className={`absolute left-0 flex-shrink-0 transition-colors duration-200 ease-smooth ${
+            focused
+              ? "text-textPrimary dark:text-textPrimary-dark"
+              : "text-textMuted dark:text-textMuted-dark"
+          }`}
         />
 
         <input
@@ -151,18 +249,11 @@ export const SearchBar = ({
           placeholder="Search linen shirts, navy blazers, trousers…"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          onFocus={() => {
-            setFocused(true);
-            if (suggestions.length > 0) setShowDropdown(true);
-          }}
-          onBlur={() => {
-            setFocused(false);
-            setTimeout(() => setShowDropdown(false), 200);
-          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           className={`
-            w-full bg-transparent outline-none
-            border-b
+            w-full bg-transparent outline-none border-b
             font-heading font-light
             text-textPrimary dark:text-textPrimary-dark
             caret-textPrimary dark:caret-textPrimary-dark
@@ -178,36 +269,80 @@ export const SearchBar = ({
             }
           `}
         />
+
+        {/* Clear input button */}
+        {inputValue && (
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              setInputValue("");
+              const h = readHistory();
+              setHistory(h);
+              setShowDropdown(h.length > 0);
+            }}
+            className="absolute right-0 p-1 text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark transition-colors bg-transparent border-none cursor-pointer"
+            aria-label="Clear search"
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {showDropdown && suggestions.length > 0 && (
+      {/* ── Dropdown ── */}
+      {showDropdown && (isShowingHistory || isShowingSuggestions) && (
         <ul
           role="listbox"
-          aria-label="Search suggestions"
+          aria-label={
+            isShowingHistory ? "Recent searches" : "Search suggestions"
+          }
           className="
             absolute top-[calc(100%+2px)] left-0 right-0
             m-0 p-0 list-none
             bg-bgPrimary dark:bg-bgPrimary-dark
             border border-borderLight dark:border-borderLight-dark
             shadow-premium dark:shadow-premium-dark
-            py-2 z-[99999]
+            py-1 z-50
             transition-colors duration-300 ease-smooth
           "
         >
-          {suggestions.map((suggestion, idx) => (
+          {/* History header */}
+          {isShowingHistory && (
+            <li className="px-5 pt-2 pb-1.5 flex items-center justify-between">
+              <span className="font-sans text-[8px] tracking-[0.24em] uppercase text-textMuted dark:text-textMuted-dark">
+                Recent searches
+              </span>
+              <button
+                onMouseDown={handleClearHistory}
+                className="font-sans text-[8px] tracking-[0.18em] uppercase text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer transition-colors"
+              >
+                Clear all
+              </button>
+            </li>
+          )}
+
+          {/* Items */}
+          {(isShowingHistory ? history : suggestions).map((item, idx) => (
             <li
               key={idx}
               role="option"
               aria-selected={highlightedIdx === idx}
               onMouseDown={(e) => {
                 e.preventDefault();
-                doSearch(suggestion);
+                doSearch(item);
               }}
               onMouseEnter={() => setHighlightedIdx(idx)}
               className={`
-                px-6 py-2.5 cursor-pointer
-                flex items-center gap-3.5
-                transition-colors duration-100 ease-smooth
+                px-5 py-2.5 cursor-pointer flex items-center gap-3.5
+                transition-colors duration-100 ease-smooth group
                 ${
                   highlightedIdx === idx
                     ? "bg-bgHover dark:bg-bgHover-dark"
@@ -215,15 +350,35 @@ export const SearchBar = ({
                 }
               `}
             >
-              <SearchIcon className="w-3 h-3 flex-shrink-0 text-textMuted dark:text-textMuted-dark" />
-              <span
-                className="
-                  font-sans text-[12px] uppercase tracking-[0.08em]
-                  text-textPrimary dark:text-textPrimary-dark
-                "
-              >
-                {suggestion}
+              {isShowingHistory ? (
+                <ClockIcon className="flex-shrink-0 text-textMuted dark:text-textMuted-dark" />
+              ) : (
+                <SearchIcon className="flex-shrink-0 text-textMuted dark:text-textMuted-dark" />
+              )}
+
+              <span className="font-sans text-[11px] uppercase tracking-[0.08em] text-textPrimary dark:text-textPrimary-dark flex-1 text-left">
+                {item}
               </span>
+
+              {/* Per-item delete for history */}
+              {isShowingHistory && (
+                <button
+                  onMouseDown={(e) => handleDeleteHistory(e, item)}
+                  className="opacity-0 group-hover:opacity-100 p-1 text-textMuted dark:text-textMuted-dark hover:text-textPrimary dark:hover:text-textPrimary-dark bg-transparent border-none cursor-pointer transition-all duration-150 flex-shrink-0"
+                  aria-label={`Remove "${item}" from history`}
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                  >
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </li>
           ))}
         </ul>
