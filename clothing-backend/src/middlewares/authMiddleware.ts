@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { UserModel, IUser } from "../models/User";
 
-export interface AuthRequest extends Request {
+export interface AuthRequest extends Omit<Request, "user"> {
   user?: IUser;
   headers: Request["headers"];
   params: Request["params"];
