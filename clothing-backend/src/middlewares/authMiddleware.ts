@@ -1,13 +1,16 @@
-// src/middlewares/authMiddleware.ts
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 import { UserModel, IUser } from "../models/User";
 
-export interface AuthRequest extends Omit<Request, "user"> {
-  user?: IUser;
-  headers: Request["headers"];
-  params: Request["params"];
+// 1. Force Express to globally recognize your exact database user model
+declare global {
+  namespace Express {
+    interface User extends IUser {}
+  }
 }
+
+// 2. Keep the AuthRequest name, but make it a perfect clone of standard Request
+export interface AuthRequest extends Request {}
 
 interface JwtPayload {
   id: string;
