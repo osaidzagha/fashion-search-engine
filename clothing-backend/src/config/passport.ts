@@ -49,7 +49,11 @@ passport.use(
           expiresIn: "7d",
         });
 
-        return done(null, { ...user.toObject(), token });
+        // Use 'as unknown' first to bypass the Mongoose method strictness
+        return done(null, {
+          ...user.toObject(),
+          token,
+        } as unknown as Express.User);
       } catch (err) {
         return done(err as Error, undefined);
       }
