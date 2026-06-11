@@ -278,6 +278,25 @@ export const removeFromWatchlist = async (
   }
 };
 
+/** Update the target price on an already-tracked item.
+ *  Internally uses the same POST endpoint — the backend updates in-place
+ *  when the item already exists and a targetPrice is provided. */
+export const updateWatchlistTarget = async (
+  productId: string,
+  targetPrice: number,
+): Promise<boolean> => {
+  try {
+    await globalFetch(`${BASE_URL}/api/watchlist/${productId}`, {
+      method: "POST",
+      body: JSON.stringify({ targetPrice }),
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to update target price:", error);
+    return false;
+  }
+};
+
 export const checkIsTracked = async (productId: string): Promise<boolean> => {
   try {
     const watchlist = await fetchWatchlist();
