@@ -61,15 +61,29 @@ export const addToWatchlist = async (
     const product = await ProductModel.findOne({ id: productId });
     if (!product) return res.status(404).json({ message: "Product not found" });
 
-    // 1. Check if the user is already tracking this product
+    // 2. Validate targetPrice: must be a positive number strictly below current price
+    if (targetPrice !== undefined) {
+      if (targetPrice <= 0) {
+        return res
+          .status(400)
+          .json({ message: "Target price must be a positive number." });
+      }
+      if (targetPrice >= product.price) {
+        return res.status(400).json({
+          message: `Target price must be lower than the current price (${product.price.toLocaleString("tr-TR")} ${product.currency}).`,
+        });
+      }
+    }
+
+    // 3. Check if the user is already tracking this product
     const user = await UserModel.findOne({
       _id: userId,
       "watchlist.productId": productId,
     });
 
     if (user) {
-      // 2. If it exists AND a new target price is provided, update it
-      if (targetPrice) {
+      // If it exists AND a new target price is provided, update it
+      if (targetPrice !== undefined) {
         await UserModel.findOneAndUpdate(
           { _id: userId, "watchlist.productId": productId },
           { $set: { "watchlist.$.targetPrice": targetPrice } },
@@ -79,17 +93,17 @@ export const addToWatchlist = async (
           .json({ message: "Target price updated", productId, targetPrice });
       }
 
-      // If it exists but no new target price was provided
+      // Exists but no new target — already tracking
       return res.status(200).json({ message: "Already tracking this product" });
     }
 
-    // 3. If it does not exist, add it as a new entry
+    // 4. New entry
     const watchlistEntry: any = {
       productId,
       trackedPrice: product.price,
       addedAt: new Date(),
     };
-    if (targetPrice) watchlistEntry.targetPrice = targetPrice;
+    if (targetPrice !== undefined) watchlistEntry.targetPrice = targetPrice;
 
     await UserModel.findByIdAndUpdate(userId, {
       $push: { watchlist: watchlistEntry },

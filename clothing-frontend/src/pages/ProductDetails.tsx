@@ -132,14 +132,13 @@ export default function ProductDetails() {
     if (targetPrice) {
       const raw = targetPrice.trim();
       const tp = parseFloat(raw);
-      // ✅ FIX: Cleaned up NaN logic
       if (!raw || isNaN(tp) || tp <= 0) {
-        toast.error("Enter a valid price");
+        toast.error("Enter a valid price greater than zero.");
         return;
       }
       if (tp >= product.price) {
         toast.error(
-          `Target must be below current price (${product.price.toLocaleString("tr-TR")} ${product.currency})`,
+          `Target must be below the current price — ${product.price.toLocaleString("tr-TR")} ${product.currency}.`,
         );
         return;
       }
@@ -678,10 +677,11 @@ export default function ProductDetails() {
                               setTargetPrice(val);
                             }
                           }}
-                          placeholder={Math.round(
-                            product.price * 0.8,
-                          ).toString()}
-                          className="flex-1 bg-transparent font-heading text-[15px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted dark:placeholder:text-textMuted-dark min-w-0"
+                          placeholder={String(
+                            // Suggest a 10% drop, rounded to nearest 10
+                            Math.round((product.price * 0.9) / 10) * 10,
+                          )}
+                          className="flex-1 bg-transparent font-heading text-[15px] text-textPrimary dark:text-textPrimary-dark outline-none border-none placeholder:text-textMuted/40 dark:placeholder:text-textMuted-dark/40 min-w-0"
                         />
                         <span className="font-sans text-[9px] text-textMuted dark:text-textMuted-dark">
                           {product.currency}
@@ -696,12 +696,21 @@ export default function ProductDetails() {
                           ✕
                         </button>
                       </div>
+                      {targetPrice && parseFloat(targetPrice) <= 0 && (
+                        <p className="px-4 pb-3 font-sans text-[9px] text-accentRed leading-relaxed">
+                          Enter a price greater than zero.
+                        </p>
+                      )}
                       {targetPrice &&
+                        parseFloat(targetPrice) > 0 &&
                         parseFloat(targetPrice) >= product.price && (
-                          <p className="px-4 pb-2 font-sans text-[9px] text-accentRed">
-                            Must be lower than current price (
-                            {product.price.toLocaleString("tr-TR")}{" "}
-                            {product.currency})
+                          <p className="px-4 pb-3 font-sans text-[9px] text-accentRed leading-relaxed">
+                            Target price must be lower than the current price —{" "}
+                            <span className="font-heading">
+                              {product.price.toLocaleString("tr-TR")}{" "}
+                              {product.currency}
+                            </span>
+                            .
                           </p>
                         )}
                     </div>
@@ -713,12 +722,15 @@ export default function ProductDetails() {
                 onClick={handleTrackPrice}
                 disabled={
                   trackLoading ||
+                  (!!targetPrice && parseFloat(targetPrice) <= 0) ||
                   (!!targetPrice && parseFloat(targetPrice) >= product.price)
                 }
                 className={[
                   "w-full py-4 border font-sans text-[11px] tracking-[0.2em] uppercase flex items-center justify-center gap-3 cursor-pointer transition-all duration-200 ease-smooth",
                   trackLoading ? "opacity-50 cursor-wait" : "",
-                  !!targetPrice && parseFloat(targetPrice) >= product.price
+                  !!targetPrice &&
+                  (parseFloat(targetPrice) <= 0 ||
+                    parseFloat(targetPrice) >= product.price)
                     ? "opacity-30 cursor-not-allowed"
                     : "",
                   isTracked
