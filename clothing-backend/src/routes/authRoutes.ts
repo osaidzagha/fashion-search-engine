@@ -42,6 +42,14 @@ router.get(
   (req: express.Request, res: express.Response) => {
     // req.user is set by Passport's GoogleStrategy — it should be your DB user
     const user = req.user as any;
+
+    // Passport strategy signals a soft error via __error sentinel
+    if (user?.__error) {
+      return res.redirect(
+        `${process.env.CLIENT_URL}/oauth/callback?error=${user.__error}`,
+      );
+    }
+
     res.redirect(
       `${process.env.CLIENT_URL}/oauth/callback?token=${user.token}`,
     );

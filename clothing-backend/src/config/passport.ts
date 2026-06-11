@@ -28,6 +28,7 @@ passport.use(
         let user = await User.findOne({ email });
 
         if (!user) {
+          // Brand-new user — create a Google account
           user = await User.create({
             name: profile.displayName,
             email,
@@ -36,18 +37,22 @@ passport.use(
             authProvider: "google",
             googleId: profile.id,
           });
+        } else if (user.authProvider === "local") {
+          // Existing email/password account — do NOT silently hijack it.
+          // Redirect to the frontend with a clear error so the user is informed.
+          return done(null, { __error: "account_exists" } as any);
         } else if (!user.googleId) {
-          // Existing email/password account — link the Google ID
+          // Google user without a googleId stored yet — backfill it
           user.googleId = profile.id;
-          user.authProvider = "google";
-          user.isVerified = true;
           await user.save();
         }
 
-        // Attach a signed JWT so the callback route can forward it to the frontend
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET!, {
-          expiresIn: "7d",
-        });
+        // Attach a signed JWT — include role so auth middleware works correctly
+        const token = jwt.sign(
+          { id: user._id, role: user.role },
+          process.env.JWT_SECRET!,
+          { expiresIn: "7d" },
+        );
 
         // Use 'as unknown' first to bypass the Mongoose method strictness
         return done(null, {

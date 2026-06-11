@@ -57,7 +57,17 @@ export const getUserProfile = async (
   res: Response,
 ): Promise<void> => {
   if (req.user) {
-    res.json(req.user);
+    const u = req.user as any;
+    // Return all fields that the frontend Profile page needs
+    res.json({
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      authProvider: u.authProvider,
+      priceAlertEnabled: u.preferences?.priceAlertEnabled ?? true,
+      createdAt: u.createdAt,
+    });
   } else {
     res.status(404).json({ message: "User not found" });
   }
@@ -159,14 +169,23 @@ export const deleteAccount = async (
     const userId = req.user!._id;
     const { password } = req.body;
 
-    if (!password) {
-      res.status(400).json({ message: "Password confirmation required." });
-      return;
-    }
-
     const user = await UserModel.findById(userId).select("+password");
     if (!user) {
       res.status(404).json({ message: "User not found." });
+      return;
+    }
+
+    // Google users have no password — block the flow clearly
+    if (user.authProvider === "google") {
+      res.status(400).json({
+        message:
+          "Accounts signed in with Google cannot be deleted with a password. Please contact support.",
+      });
+      return;
+    }
+
+    if (!password) {
+      res.status(400).json({ message: "Password confirmation required." });
       return;
     }
 

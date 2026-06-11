@@ -167,7 +167,7 @@ const Login = () => {
           </form>
 
           {/* Footer */}
-          <p className="mt-8 font-sans text-[10px] tracking-widests uppercase text-textMuted dark:text-textMuted-dark text-center">
+          <p className="mt-8 font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark text-center">
             Don't have an account?{" "}
             <Link
               to="/register"

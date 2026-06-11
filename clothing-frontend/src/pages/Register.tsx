@@ -307,7 +307,7 @@ const Register = () => {
             </button>
           </form>
 
-          <p className="mt-6 sm:mt-8 font-sans text-[10px] tracking-widests uppercase text-textMuted dark:text-textMuted-dark text-center">
+          <p className="mt-6 sm:mt-8 font-sans text-[10px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark text-center">
             Already have an account?{" "}
             <Link
               to="/login"
