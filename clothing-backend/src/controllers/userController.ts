@@ -1,8 +1,7 @@
-import { Response } from "express";
 import bcrypt from "bcryptjs";
 import { UserModel } from "../models/User";
 import { AuthRequest } from "../middlewares/authMiddleware";
-
+import { Request, Response } from "express";
 // ─── PUT /api/users/profile ───────────────────────────────────────────────────
 export const updateProfile = async (
   req: AuthRequest,
@@ -53,7 +52,16 @@ export const updateProfile = async (
     res.status(500).json({ message: "Failed to update profile." });
   }
 };
-
+export const getUserProfile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
+  if (req.user) {
+    res.json(req.user);
+  } else {
+    res.status(404).json({ message: "User not found" });
+  }
+};
 // ─── PUT /api/users/password ──────────────────────────────────────────────────
 export const updatePassword = async (
   req: AuthRequest,
