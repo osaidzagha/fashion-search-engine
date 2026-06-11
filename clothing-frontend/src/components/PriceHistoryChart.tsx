@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   LineChart,
   Line,
@@ -97,6 +97,31 @@ export default function PriceHistoryChart({
   theme = "light",
 }: PriceHistoryChartProps) {
   const t = TOKENS[theme] ?? TOKENS.light;
+  const chartRef = useRef<HTMLDivElement>(null);
+
+  // Only animate the line draw when the chart enters the viewport.
+  // Respects prefers-reduced-motion by enabling animation immediately instead.
+  const prefersReduced =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const [shouldAnimate, setShouldAnimate] = useState(prefersReduced);
+
+  useEffect(() => {
+    if (prefersReduced) return; // already set to true above
+    const el = chartRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldAnimate(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.2 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [prefersReduced]);
 
   // 1. Map existing database history and enforce English locale to fix "nis/may" bug
   const formattedHistory = history.map((p) => ({
@@ -142,7 +167,7 @@ export default function PriceHistoryChart({
           <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
             Price History
           </p>
-          <div style={{ width: "100%", height: 140 }}>
+        <div style={{ width: "100%", height: 140 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={syntheticData}
@@ -174,7 +199,9 @@ export default function PriceHistoryChart({
                   stroke={t.line}
                   strokeWidth={1.5}
                   dot={{ r: 3, fill: t.line, strokeWidth: 0 }}
-                  isAnimationActive={false}
+                  isAnimationActive={shouldAnimate}
+                  animationDuration={1200}
+                  animationEasing="ease-out"
                 />
                 <Tooltip
                   content={<PriceTooltip currency={currency} theme={theme} />}
@@ -213,7 +240,7 @@ export default function PriceHistoryChart({
     : dataMax;
 
   return (
-    <div>
+    <div ref={chartRef}>
       <p className="font-sans text-[8px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark mb-4">
         Price History
       </p>
@@ -268,7 +295,9 @@ export default function PriceHistoryChart({
               strokeWidth={1.5}
               dot={false}
               activeDot={{ r: 4, fill: t.line, strokeWidth: 0 }}
-              isAnimationActive={false}
+              isAnimationActive={shouldAnimate}
+              animationDuration={1400}
+              animationEasing="ease-out"
             />
 
             <Tooltip

@@ -11,6 +11,7 @@ import { ProductSkeleton } from "../components/ProductSkeleton";
 import { setSearchTerm, clearFilters } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 import DopeLogo from "../components/DopeLogo";
+import { RevealOnScroll } from "../components/RevealOnScroll";
 import {
   fetchFeatured,
   fetchBrandCounts,
@@ -269,8 +270,12 @@ function FeatureStrip() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 border-b border-borderLight dark:border-borderLight-dark">
       {FEATURES.map((f, i) => (
-        <div
+        <RevealOnScroll
           key={f.label}
+          delay={i * 90}
+          distance={20}
+          threshold={0.1}
+          as="div"
           className={`px-8 md:px-12 lg:px-20 py-10 lg:py-14 flex flex-col gap-4 border-b border-borderLight dark:border-borderLight-dark ${
             i < 2 ? "md:border-r" : ""
           }`}
@@ -288,7 +293,7 @@ function FeatureStrip() {
           <p className="font-sans text-[12px] leading-relaxed text-textSecondary dark:text-textSecondary-dark">
             {f.desc}
           </p>
-        </div>
+        </RevealOnScroll>
       ))}
     </div>
   );
@@ -854,65 +859,73 @@ export default function Home() {
         </section>
 
         {/* ══ FEATURE STRIP ════════════════════════════════════════════════ */}
-        <FeatureStrip />
+        <RevealOnScroll distance={20} threshold={0.05}>
+          <FeatureStrip />
+        </RevealOnScroll>
 
         {/* ══ EDITOR'S CHOICE ══════════════════════════════════════════════ */}
-        <Section
-          title="Editor's Choice"
-          subtitle={
-            !loading && editorChoiceProducts.length > 0
-              ? "Hover to play"
-              : "Curated picks"
-          }
-          loading={loading}
-          action={
-            !loading && editorChoiceProducts.length > 0 ? (
-              <SeeAllButton
-                onClick={() => {
-                  dispatch(clearFilters());
-                  const params = new URLSearchParams({ hasVideo: "true" });
-                  if (selectDepartments?.length)
-                    params.set("departments", selectDepartments.join(","));
-                  navigate(`/collection?${params.toString()}`);
-                }}
-              />
-            ) : undefined
-          }
-        >
-          <ScrollCarousel
-            products={editorChoiceProducts}
-            onLoadMore={loadMoreEditorChoice}
-            hasMore={editorChoiceHasMore}
-            loadingMore={editorChoiceLoading}
-          />
-        </Section>
+        <RevealOnScroll distance={24} threshold={0.05}>
+          <Section
+            title="Editor's Choice"
+            subtitle={
+              !loading && editorChoiceProducts.length > 0
+                ? "Hover to play"
+                : "Curated picks"
+            }
+            loading={loading}
+            action={
+              !loading && editorChoiceProducts.length > 0 ? (
+                <SeeAllButton
+                  onClick={() => {
+                    dispatch(clearFilters());
+                    const params = new URLSearchParams({ hasVideo: "true" });
+                    if (selectDepartments?.length)
+                      params.set("departments", selectDepartments.join(","));
+                    navigate(`/collection?${params.toString()}`);
+                  }}
+                />
+              ) : undefined
+            }
+          >
+            <ScrollCarousel
+              products={editorChoiceProducts}
+              onLoadMore={loadMoreEditorChoice}
+              hasMore={editorChoiceHasMore}
+              loadingMore={editorChoiceLoading}
+            />
+          </Section>
+        </RevealOnScroll>
 
         {/* ══ THE DROP ════════════════════════════════════════════════════ */}
-        <TheDropSection
-          products={topDrops}
-          loading={loading}
-          onSeeAll={() => navigate("/collection/sale")}
-        />
+        <RevealOnScroll distance={32} threshold={0.04}>
+          <TheDropSection
+            products={topDrops}
+            loading={loading}
+            onSeeAll={() => navigate("/collection/sale")}
+          />
+        </RevealOnScroll>
 
         {/* ══ BROWSE BY CATEGORY ══════════════════════════════════════════ */}
         <section className="py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark overflow-hidden">
-          <div className="flex justify-between items-baseline mb-6 px-4 md:px-8 lg:px-16 border-b border-borderLight dark:border-borderLight-dark pb-4">
-            <div>
-              <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
-                {visibleCatCount != null
-                  ? `${visibleCatCount} ${visibleCatCount === 1 ? "category" : "categories"}`
-                  : loading
-                    ? "Categories"
-                    : `${CATEGORIES.length} categories`}
-              </p>
-              <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
-                Browse by{" "}
-                <em className="italic text-textSecondary dark:text-textSecondary-dark">
-                  category.
-                </em>
-              </h2>
+          <RevealOnScroll distance={20} threshold={0.05}>
+            <div className="flex justify-between items-baseline mb-6 px-4 md:px-8 lg:px-16 border-b border-borderLight dark:border-borderLight-dark pb-4">
+              <div>
+                <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-1">
+                  {visibleCatCount != null
+                    ? `${visibleCatCount} ${visibleCatCount === 1 ? "category" : "categories"}`
+                    : loading
+                      ? "Categories"
+                      : `${CATEGORIES.length} categories`}
+                </p>
+                <h2 className="font-heading font-light text-xl lg:text-[28px] text-textPrimary dark:text-textPrimary-dark">
+                  Browse by{" "}
+                  <em className="italic text-textSecondary dark:text-textSecondary-dark">
+                    category.
+                  </em>
+                </h2>
+              </div>
             </div>
-          </div>
+          </RevealOnScroll>
           <CategoryRail
             tiles={featured?.categoryTiles ?? null}
             loading={loading}
@@ -932,7 +945,9 @@ export default function Home() {
         </section>
 
         {/* ══ BRAND SPLIT ════════════════════════════════════════════════ */}
-        <BrandSplit loading={loading} brandCounts={brandCounts} />
+        <RevealOnScroll distance={20} threshold={0.05}>
+          <BrandSplit loading={loading} brandCounts={brandCounts} />
+        </RevealOnScroll>
 
         {/* ══ FOOTER ════════════════════════════════════════════════════ */}
         <footer className="px-6 lg:px-16 py-6 flex flex-col sm:flex-row justify-between items-center gap-3 border-t border-borderLight dark:border-borderLight-dark">
@@ -943,6 +958,7 @@ export default function Home() {
             Price tracking · Zara · Mango · Massimo Dutti · Turkey
           </span>
         </footer>
+
       </div>
     </PageTransition>
   );

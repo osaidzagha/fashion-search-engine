@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useScrollBehavior } from "../hooks/useScrollBehavior";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
@@ -23,6 +24,7 @@ const Navbar = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const { isScrolled, isHidden } = useScrollBehavior(12);
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -121,9 +123,29 @@ const Navbar = () => {
 
   return (
     <>
-      <nav className="sticky top-0 z-[100] bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md border-b border-borderLight dark:border-borderLight-dark transition-colors duration-500 w-full">
+        <nav
+          className={[
+            // ── Base layout ──────────────────────────────────────────────────
+            "sticky top-0 z-[100] w-full",
+            "border-b border-borderLight dark:border-borderLight-dark",
+            // ── Colour / blur — transition on opacity + backdrop only ────────
+            isScrolled
+              ? "bg-bgPrimary/70 dark:bg-bgPrimary-dark/70 backdrop-blur-xl"
+              : "bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md",
+            "transition-[transform,background-color,backdrop-filter,border-color] duration-300 ease-elegant",
+            // ── Hide on scroll-down (transform only — no layout repaint) ─────
+            isHidden ? "-translate-y-full" : "translate-y-0",
+          ].join(" ")}
+        >
         {/* ── Main bar ── */}
-        <div className="flex justify-between items-center px-6 md:px-12 py-4 relative">
+        <div
+          className={[
+            "flex justify-between items-center px-6 md:px-12 relative",
+            // Compact vertical padding when scrolled — transform-safe (padding doesn't reflow siblings)
+            isScrolled ? "py-2.5" : "py-4",
+            "transition-[padding] duration-300 ease-elegant",
+          ].join(" ")}
+        >
           {/* LEFT */}
           <div className="flex items-center">
             <div className="hidden md:flex gap-6">
