@@ -34,6 +34,7 @@ import ScrollToTop from "./components/ScrollToTop";
 import Collection from "./pages/Collection";
 import StoreLayout from "./components/StoreLayout";
 import AnimatedRoutes from "./components/AnimatedRoutes";
+import { SearchOverlay } from "./components/SearchOverlay";
 
 // ─── THE CATCHER'S MITT ───────────────────────────────────────────────────────
 function GlobalAuthListener() {
@@ -117,6 +118,7 @@ export default function App() {
 
           <AnimatedRoutes />
 
+          <SearchOverlay />
           <CompareBar />
           <CompareOverlay />
         </Router>

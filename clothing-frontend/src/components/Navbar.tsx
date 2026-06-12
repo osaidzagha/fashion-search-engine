@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useScrollBehavior } from "../hooks/useScrollBehavior";
+import { useSearchOverlay } from "../hooks/useSearchOverlay";
 import { useSelector, useDispatch } from "react-redux";
 import { RootState } from "../store/store";
 import { logout } from "../store/authSlice";
@@ -25,6 +26,7 @@ const Navbar = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { isScrolled, isHidden } = useScrollBehavior(12);
+  const { open: openSearch } = useSearchOverlay();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -199,6 +201,18 @@ const Navbar = () => {
           {/* RIGHT */}
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-6">
+              {/* Search trigger */}
+              <button
+                onClick={openSearch}
+                aria-label="Search (⌘K)"
+                className={`${navLinkBase} ${navLinkInactive} flex items-center gap-2`}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.2" />
+                  <line x1="10.5" y1="10.5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+                <span className="hidden lg:inline text-[8px] tracking-widest opacity-40">⌘K</span>
+              </button>
               <button
                 onClick={toggleTheme}
                 className={`${navLinkBase} ${navLinkInactive}`}
@@ -304,14 +318,26 @@ const Navbar = () => {
               )}
             </div>
 
-            {/* Mobile-only: theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className={`md:hidden ${navLinkBase} ${navLinkInactive}`}
-              aria-label="Toggle dark mode"
-            >
-              {isDarkMode ? "○" : "●"}
-            </button>
+            {/* Mobile-only: search + theme toggle */}
+            <div className="md:hidden flex items-center gap-4">
+              <button
+                onClick={openSearch}
+                aria-label="Search"
+                className={`${navLinkBase} ${navLinkInactive}`}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.2" />
+                  <line x1="10.5" y1="10.5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                </svg>
+              </button>
+              <button
+                onClick={toggleTheme}
+                className={`${navLinkBase} ${navLinkInactive}`}
+                aria-label="Toggle dark mode"
+              >
+                {isDarkMode ? "○" : "●"}
+              </button>
+            </div>
           </div>
         </div>
 
