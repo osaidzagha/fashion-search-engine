@@ -33,6 +33,14 @@
   }
 }
 
+/* Custom cursor — suppress all system cursors when active.
+   The class is toggled by CustomCursor.tsx on document.documentElement.
+   !important is required to beat browser UA styles on button/a/input. */
+.custom-cursor-active,
+.custom-cursor-active * {
+  cursor: none !important;
+}
+
 /* --- UTILITIES LAYER --- */
 @layer utilities {
   /* Noise texture for editorial depth */

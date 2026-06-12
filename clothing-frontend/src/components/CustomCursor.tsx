@@ -67,8 +67,8 @@ function CursorInner() {
     // cursor shows through
     if (prefersReduced) return;
 
-    // Hide system cursor on the document
-    document.documentElement.style.cursor = "none";
+    // Hide system cursor on ALL elements via the CSS class
+    document.documentElement.classList.add("custom-cursor-active");
 
     const LERP = 0.35; // tight spring — almost imperceptible lag
 
@@ -105,7 +105,7 @@ function CursorInner() {
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      document.documentElement.style.cursor = "";
+      document.documentElement.classList.remove("custom-cursor-active");
       window.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("mouseenter", onEnter);
