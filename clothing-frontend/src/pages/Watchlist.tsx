@@ -453,17 +453,11 @@ export default function Watchlist() {
 
                       {/* ── Sparkline ── */}
                       <div className="hidden md:flex items-center">
-                        {sparkData ? (
-                          <PriceSparkline
-                            data={sparkData}
-                            width={100}
-                            height={26}
-                          />
-                        ) : (
-                          <span className="font-sans text-[8px] tracking-widest uppercase text-textMuted/40 dark:text-textMuted-dark/40">
-                            Tracking…
-                          </span>
-                        )}
+                        <PriceSparkline
+                          data={item.priceHistory ?? []}
+                          width={100}
+                          height={26}
+                        />
                       </div>
 
                       {/* ── Actions ── */}
