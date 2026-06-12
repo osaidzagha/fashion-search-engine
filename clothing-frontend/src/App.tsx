@@ -35,6 +35,7 @@ import Collection from "./pages/Collection";
 import StoreLayout from "./components/StoreLayout";
 import AnimatedRoutes from "./components/AnimatedRoutes";
 import { SearchOverlay } from "./components/SearchOverlay";
+import { CustomCursor } from "./components/CustomCursor";
 
 // ─── THE CATCHER'S MITT ───────────────────────────────────────────────────────
 function GlobalAuthListener() {
@@ -118,6 +119,7 @@ export default function App() {
 
           <AnimatedRoutes />
 
+          <CustomCursor />
           <SearchOverlay />
           <CompareBar />
           <CompareOverlay />

@@ -413,6 +413,7 @@ export default function ProductDetails() {
         )}
 
         <div
+          data-cursor="view"
           className={[
             "relative w-full h-screen overflow-hidden",
             heroMedia?.type === "image" ? "cursor-zoom-in" : "cursor-default",

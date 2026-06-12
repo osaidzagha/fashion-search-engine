@@ -206,7 +206,10 @@ export const ProductCard = ({ product }: ProductCardProps) => {
       onMouseLeave={handleMouseLeave}
     >
       {/* ── Image / Video ── */}
-      <div className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase dark:bg-bgHover-dark rounded-md">
+      <div
+        data-cursor="view"
+        className="relative aspect-[3/4] w-full overflow-hidden bg-skeletonBase dark:bg-bgHover-dark rounded-md"
+      >
         {!isImageLoaded && <ProductSkeleton isCardMode={true} />}
 
         {product.images && product.images.length > 0 && (
@@ -215,10 +218,14 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             alt={product.name}
             onLoad={() => setIsImageLoaded(true)}
             className={[
-              "absolute inset-0 w-full h-full object-cover transition-all duration-700 ease-elegant",
+              // Scale the IMAGE inside its container — container never moves
+              "absolute inset-0 w-full h-full object-cover",
+              "transition-[opacity,transform,filter] duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]",
               isImageLoaded
                 ? "opacity-100 scale-100 blur-0"
                 : "opacity-0 scale-[1.06] blur-md",
+              // On hover: scale within the fixed container
+              "group-hover:scale-[1.03]",
               (videoSrc && videoReady && isPlaying) ||
               (showHoverImage && isPlaying)
                 ? "opacity-0"
@@ -254,7 +261,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           />
         )}
 
-        {/* Compare button */}
+        {/* Compare button — hover-only on desktop, always tappable on mobile */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -264,14 +271,17 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           }}
           disabled={isQueueFull && !isComparing}
           className={[
-            "absolute top-2 right-2 z-20 w-7 h-7 rounded-full border-none flex items-center justify-center shadow-md transition-all duration-300",
+            "absolute top-2 right-2 z-20 w-7 h-7 rounded-full border-none flex items-center justify-center shadow-md",
+            "transition-all duration-200",
+            // Desktop: hidden until hover (or when actively comparing)
             isComparing
-              ? "bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark cursor-pointer"
-              : "bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 text-textPrimary dark:text-textPrimary-dark",
+              ? "opacity-100 bg-textPrimary dark:bg-textPrimary-dark text-bgPrimary dark:text-bgPrimary-dark cursor-pointer"
+              : "md:opacity-0 md:group-hover:opacity-100 bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 text-textPrimary dark:text-textPrimary-dark",
             isQueueFull && !isComparing
               ? "opacity-40 cursor-not-allowed"
               : "cursor-pointer",
           ].join(" ")}
+          aria-label={isComparing ? "Remove from compare" : "Add to compare"}
         >
           <svg
             width="12"
@@ -409,7 +419,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         </div>
       </div>
 
-      {/* ── Info ── */}
+      {/* ── Info — price reveals upward on hover ── */}
       <div className="pt-2.5 pb-1">
         <p className="font-sans text-[9px] tracking-widest uppercase text-textSecondary dark:text-textSecondary-dark mb-0.5">
           {product.brand}
@@ -422,8 +432,16 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             .join(" ")}
         </p>
 
-        {/* Sparkline + price row */}
-        <div className="flex items-end justify-between gap-2">
+        {/* Sparkline + price row — subtle upward reveal on hover */}
+        <div
+          className={[
+            "flex items-end justify-between gap-2",
+            "transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]",
+            "translate-y-0 opacity-100",
+            // On desktop: start slightly lower, drift up on hover
+            "md:translate-y-1 md:opacity-70 md:group-hover:translate-y-0 md:group-hover:opacity-100",
+          ].join(" ")}
+        >
           <div className="flex items-baseline gap-1.5">
             <p
               className={[
