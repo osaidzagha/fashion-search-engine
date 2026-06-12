@@ -330,24 +330,39 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </button>
         )}
 
-        {/* ── Target price input ── */}
         {showPriceInput && (
           <div
-            className="absolute bottom-12 right-2 z-30 flex animate-slide-up flex-col gap-2 bg-bgPrimary/98 dark:bg-bgPrimary-dark/98 backdrop-blur-md p-3 shadow-xl border border-black/8 dark:border-white/12 w-48"
+            className="absolute bottom-12 right-2 z-30 flex animate-slide-up flex-col gap-2 bg-black/80 dark:bg-black/85 backdrop-blur-md p-3 shadow-xl border border-white/15 w-48"
             onClick={(e) => {
               e.stopPropagation();
               e.preventDefault();
             }}
           >
+            {/* Header row with cancel ✕ */}
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[9px] uppercase tracking-widest font-sans text-textPrimary dark:text-textPrimary-dark font-medium">
+                <p className="text-[9px] uppercase tracking-widest font-sans text-white/90 font-medium">
                   Set price alert
                 </p>
-                <p className="text-[9px] font-sans text-textMuted dark:text-textMuted-dark mt-0.5">
-                  Must be below {formatPrice(product.price)} {product.currency}
+                <p className="text-[9px] font-sans text-white/50 mt-0.5">
+                  Below {formatPrice(product.price)} {product.currency}
                 </p>
               </div>
+              {/* True cancel — dismisses without adding to watchlist */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setShowPriceInput(false);
+                  setTargetPrice("");
+                }}
+                className="ml-2 mt-0.5 flex-shrink-0 text-white/40 hover:text-white/90 bg-transparent border-none cursor-pointer leading-none transition-colors duration-150"
+                aria-label="Cancel"
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
             </div>
 
             <div className="flex items-center gap-1.5">
@@ -357,13 +372,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
                 value={targetPrice}
                 onChange={(e) => setTargetPrice(e.target.value)}
                 placeholder={String(Math.round(product.price * 0.9))}
-                className="w-full border border-black/12 dark:border-white/20 bg-transparent py-1.5 px-2 text-xs text-textPrimary dark:text-textPrimary-dark focus:border-textPrimary dark:focus:border-textPrimary-dark focus:outline-none"
+                className="w-full border border-white/20 bg-white/10 py-1.5 px-2 text-xs text-white placeholder:text-white/30 focus:border-white/60 focus:outline-none"
                 onKeyDown={(e) => e.key === "Enter" && handleSetTargetPrice(e)}
               />
               <button
                 onClick={handleSetTargetPrice}
                 disabled={isSubmittingPrice}
-                className="bg-textPrimary dark:bg-textPrimary-dark px-3 py-1.5 text-xs font-medium text-bgPrimary dark:text-bgPrimary-dark disabled:opacity-50 transition-opacity hover:opacity-80 whitespace-nowrap"
+                className="bg-white px-3 py-1.5 text-xs font-medium text-black disabled:opacity-50 transition-opacity hover:opacity-80 whitespace-nowrap"
               >
                 {isSubmittingPrice ? "…" : "Set"}
               </button>
@@ -371,7 +386,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
 
             <button
               onClick={handleSkipTargetPrice}
-              className="font-sans text-[9px] tracking-widest uppercase text-textMuted dark:text-textMuted-dark bg-transparent border-none cursor-pointer text-left hover:text-textSecondary dark:hover:text-textSecondary-dark transition-colors"
+              className="font-sans text-[9px] tracking-widest uppercase text-white/40 bg-transparent border-none cursor-pointer text-left hover:text-white/80 transition-colors"
             >
               Skip, just watch →
             </button>
@@ -381,11 +396,15 @@ export const ProductCard = ({ product }: ProductCardProps) => {
         {/* ── Heart / watchlist button ── */}
         <button
           onClick={handleHeartClick}
-          className={`absolute bottom-2 right-2 z-20 flex h-7 w-7 items-center justify-center shadow-md transition-all duration-300 md:opacity-0 md:group-hover:opacity-100 ${
+          className={[
+            "absolute bottom-2 right-2 z-20 flex h-7 w-7 items-center justify-center",
+            "transition-all duration-200 md:opacity-0 md:group-hover:opacity-100",
             isTracked
-              ? "bg-textPrimary dark:bg-textPrimary-dark"
-              : "bg-bgPrimary/95 dark:bg-bgPrimary-dark/90 hover:bg-black/10 dark:hover:bg-white/10"
-          } ${showPriceInput ? "md:opacity-100" : ""}`}
+              ? "bg-textPrimary dark:bg-textPrimary-dark shadow-md"
+              // Solid dark pill with border — stays legible on any product background (white, cream, dark)
+              : "bg-black/50 dark:bg-black/60 border border-white/25 backdrop-blur-sm shadow-lg",
+            showPriceInput ? "md:opacity-100" : "",
+          ].join(" ")}
           aria-label={isTracked ? "Remove from watchlist" : "Add to watchlist"}
         >
           <svg
@@ -395,11 +414,7 @@ export const ProductCard = ({ product }: ProductCardProps) => {
             fill={isTracked ? "currentColor" : "none"}
             stroke={isTracked ? "none" : "currentColor"}
             strokeWidth="2"
-            className={
-              isTracked
-                ? "text-bgPrimary dark:text-bgPrimary-dark"
-                : "text-textPrimary dark:text-textPrimary-dark"
-            }
+            className={isTracked ? "text-bgPrimary dark:text-bgPrimary-dark" : "text-white"}
           >
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
           </svg>
