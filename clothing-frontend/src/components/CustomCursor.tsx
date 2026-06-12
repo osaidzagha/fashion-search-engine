@@ -25,6 +25,11 @@ function isTouchDevice(): boolean {
   );
 }
 
+// ─── Dark mode helper ─────────────────────────────────────────────────────────
+function getIsDark(): boolean {
+  return document.documentElement.classList.contains("dark");
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export function CustomCursor() {
   // Hard bail-out for touch devices — nothing runs
@@ -44,10 +49,18 @@ function CursorInner() {
 
   const [mode, setMode] = useState<"default" | "view">("default");
   const [visible, setVisible] = useState(false);
+  const [isDark, setIsDark] = useState(getIsDark);
 
   const prefersReduced =
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  useEffect(() => {
+    // Track dark mode changes
+    const mo = new MutationObserver(() => setIsDark(getIsDark()));
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
+  }, []);
 
   useEffect(() => {
     // If reduced motion: skip rAF loop entirely, hide this element so the system
@@ -102,8 +115,9 @@ function CursorInner() {
   // Reduced motion: render nothing, system cursor takes over
   if (prefersReduced) return null;
 
-  const isView = mode === "view";
+  const cursorColor = isDark ? "#f0f0f0" : "#111111";
 
+  const isView = mode === "view";
   return createPortal(
     <div
       ref={cursorRef}
@@ -129,8 +143,8 @@ function CursorInner() {
           width: isView ? "22px" : "8px",
           height: isView ? "22px" : "8px",
           borderRadius: "50%",
-          border: isView ? "1px solid currentColor" : "none",
-          background: isView ? "transparent" : "currentColor",
+          border: isView ? `1px solid ${cursorColor}` : "none",
+          background: isView ? "transparent" : cursorColor,
           opacity: visible ? (isView ? 0.7 : 0.85) : 0,
           // Only size change via transition — no layout properties
           transition: [
@@ -141,7 +155,7 @@ function CursorInner() {
             "opacity 0.15s ease",
             "border-radius 0.2s ease",
           ].join(", "),
-          color: "var(--color-text-primary, #111)",
+          color: cursorColor,
         }}
       />
 
@@ -155,7 +169,7 @@ function CursorInner() {
           fontSize: "7px",
           letterSpacing: "0.18em",
           textTransform: "uppercase",
-          color: "var(--color-text-primary, #111)",
+          color: cursorColor,
           whiteSpace: "nowrap",
           opacity: visible && isView ? 0.6 : 0,
           transform: isView ? "translateY(0)" : "translateY(3px)",
