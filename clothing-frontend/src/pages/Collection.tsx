@@ -13,7 +13,7 @@ import {
   setAvailableSizes,
   setAvailableColors,
   setSearchTerm,
-  clearFilters, // ✅ added
+  clearFilters,
 } from "../store/productSlice";
 import PageTransition from "../components/PageTransition";
 
@@ -69,10 +69,6 @@ export default function Collection() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const location = useLocation();
 
-  // ✅ Clear drawer filters every time the user navigates to a new collection
-  // route. location.key changes on every navigation (including same-path
-  // navigations), so this fires on mount AND whenever the user arrives here
-  // from a different page — but NOT on sort/filter changes within the same page.
   useEffect(() => {
     dispatch(clearFilters());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,8 +76,8 @@ export default function Collection() {
 
   // ── URL primitives ────────────────────────────────────────────────────────
   const displayTerm = searchParams.get("search") || "";
-  const apiQuery =
-    searchParams.get("q") || searchParams.get("category") || displayTerm;
+  const categoryFromUrl = searchParams.get("category") || "";
+  const apiQuery = searchParams.get("q") || categoryFromUrl || displayTerm;
 
   const currentSort = searchParams.get("sort") || "";
   const displayTitle = searchParams.get("title");
@@ -174,7 +170,6 @@ export default function Collection() {
 
   const header = getHeaderInfo();
 
-  // ── Dynamic page title ────────────────────────────────────────────────────
   useEffect(() => {
     document.title = `${header.title} — Dope`;
     return () => {
@@ -182,12 +177,10 @@ export default function Collection() {
     };
   }, [header.title]);
 
-  // ── Sync search term from URL ─────────────────────────────────────────────
   useEffect(() => {
     dispatch(setSearchTerm(apiQuery));
   }, [apiQuery, dispatch]);
 
-  // ── Reset page + accumulated list when filters or mode changes ────────────
   useEffect(() => {
     setCurrentPage(1);
     setDisplayProducts([]);
@@ -218,8 +211,10 @@ export default function Collection() {
         const effectiveDepts =
           urlDepts.length > 0 ? urlDepts : selectDepartments || [];
 
+        // 🔥 FIX: Prioritize apiQuery from the URL over Redux's searchTerm.
+        // Also strictly force mode: "category" if a category param exists.
         const filters: any = {
-          searchTerm,
+          searchTerm: apiQuery || searchTerm,
           page: currentPage,
           brands: brandsFromUrl ? [brandsFromUrl] : selectBrands,
           departments: effectiveDepts,
@@ -227,7 +222,7 @@ export default function Collection() {
           colors: selectColors,
           maxPrice,
           sort: currentSort,
-          mode: modeFromUrl,
+          mode: categoryFromUrl ? "category" : modeFromUrl,
           hasVideo: hasVideoFromUrl || undefined,
         };
 
@@ -282,6 +277,8 @@ export default function Collection() {
     brandsFromUrl,
     onSaleFromUrl,
     deptsFromUrl,
+    apiQuery, // 🔥 FIX: Added URL dependency
+    categoryFromUrl, // 🔥 FIX: Added URL dependency
     dispatch,
   ]);
 
