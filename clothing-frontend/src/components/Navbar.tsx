@@ -130,20 +130,27 @@ const Navbar = () => {
           // ── Base layout ──────────────────────────────────────────────────
           "sticky top-0 z-[100] w-full",
           "border-b border-borderLight dark:border-borderLight-dark",
-          // ── Colour / blur — transition on opacity + backdrop only ────────
-          isScrolled
-            ? "bg-bgPrimary/70 dark:bg-bgPrimary-dark/70 backdrop-blur-xl"
-            : "bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md",
-          "transition-[transform,background-color,backdrop-filter,border-color] duration-300 ease-elegant",
-          // ── Hide on scroll-down (transform only — no layout repaint) ─────
+          // ── Hide on scroll-down (transform only) ─────────────────────────
+          "transition-[transform,border-color] duration-300 ease-elegant",
           isHidden ? "-translate-y-full" : "translate-y-0",
         ].join(" ")}
       >
+        {/* ── THE FIX: Isolated background blur layer ── */}
+        <div
+          className={[
+            "absolute inset-0 w-full h-full -z-10",
+            "transition-[background-color,backdrop-filter] duration-300 ease-elegant",
+            isScrolled
+              ? "bg-bgPrimary/70 dark:bg-bgPrimary-dark/70 backdrop-blur-xl"
+              : "bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md",
+          ].join(" ")}
+        />
+
         {/* ── Main bar ── */}
         <div
           className={[
             "flex justify-between items-center px-6 md:px-12 relative",
-            // Compact vertical padding when scrolled — transform-safe (padding doesn't reflow siblings)
+            // Compact vertical padding when scrolled
             isScrolled ? "py-2.5" : "py-4",
             "transition-[padding] duration-300 ease-elegant",
           ].join(" ")}
