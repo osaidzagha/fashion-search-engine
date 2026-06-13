@@ -125,20 +125,20 @@ const Navbar = () => {
 
   return (
     <>
-        <nav
-          className={[
-            // ── Base layout ──────────────────────────────────────────────────
-            "sticky top-0 z-[100] w-full",
-            "border-b border-borderLight dark:border-borderLight-dark",
-            // ── Colour / blur — transition on opacity + backdrop only ────────
-            isScrolled
-              ? "bg-bgPrimary/70 dark:bg-bgPrimary-dark/70 backdrop-blur-xl"
-              : "bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md",
-            "transition-[transform,background-color,backdrop-filter,border-color] duration-300 ease-elegant",
-            // ── Hide on scroll-down (transform only — no layout repaint) ─────
-            isHidden ? "-translate-y-full" : "translate-y-0",
-          ].join(" ")}
-        >
+      <nav
+        className={[
+          // ── Base layout ──────────────────────────────────────────────────
+          "sticky top-0 z-[100] w-full",
+          "border-b border-borderLight dark:border-borderLight-dark",
+          // ── Colour / blur — transition on opacity + backdrop only ────────
+          isScrolled
+            ? "bg-bgPrimary/70 dark:bg-bgPrimary-dark/70 backdrop-blur-xl"
+            : "bg-bgPrimary/80 dark:bg-bgPrimary-dark/80 backdrop-blur-md",
+          "transition-[transform,background-color,backdrop-filter,border-color] duration-300 ease-elegant",
+          // ── Hide on scroll-down (transform only — no layout repaint) ─────
+          isHidden ? "-translate-y-full" : "translate-y-0",
+        ].join(" ")}
+      >
         {/* ── Main bar ── */}
         <div
           className={[
@@ -207,11 +207,33 @@ const Navbar = () => {
                 aria-label="Search (⌘K)"
                 className={`${navLinkBase} ${navLinkInactive} flex items-center gap-2`}
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.2" />
-                  <line x1="10.5" y1="10.5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="6.5"
+                    cy="6.5"
+                    r="5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                  <line
+                    x1="10.5"
+                    y1="10.5"
+                    x2="15"
+                    y2="15"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
                 </svg>
-                <span className="hidden lg:inline text-[8px] tracking-widest opacity-40">⌘K</span>
+                <span className="hidden lg:inline text-[8px] tracking-widest opacity-40">
+                  ⌘K
+                </span>
               </button>
               <button
                 onClick={toggleTheme}
@@ -260,10 +282,10 @@ const Navbar = () => {
 
                     {/* Dropdown — minimal: Profile + Log Out only */}
                     <div
-                      className={`absolute right-0 top-full mt-2 w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-sm transition-all duration-200 origin-top-right ${
+                      className={`absolute right-0 top-full mt-2 w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-xl transition-all duration-200 origin-top z-50 ${
                         isUserMenuOpen
-                          ? "opacity-100 scale-100 pointer-events-auto"
-                          : "opacity-0 scale-95 pointer-events-none"
+                          ? "opacity-100 translate-y-0 pointer-events-auto"
+                          : "opacity-0 -translate-y-2 pointer-events-none"
                       }`}
                     >
                       {/* Greeting */}
@@ -325,9 +347,29 @@ const Navbar = () => {
                 aria-label="Search"
                 className={`${navLinkBase} ${navLinkInactive}`}
               >
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                  <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.2" />
-                  <line x1="10.5" y1="10.5" x2="15" y2="15" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <circle
+                    cx="6.5"
+                    cy="6.5"
+                    r="5"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                  />
+                  <line
+                    x1="10.5"
+                    y1="10.5"
+                    x2="15"
+                    y2="15"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
               <button
