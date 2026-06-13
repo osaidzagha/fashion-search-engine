@@ -282,10 +282,10 @@ const Navbar = () => {
 
                     {/* Dropdown — minimal: Profile + Log Out only */}
                     <div
-                      className={`absolute right-0 top-full mt-2 w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-xl transition-all duration-200 origin-top z-50 ${
+                      className={`absolute right-0 top-[calc(100%+0.5rem)] w-44 bg-bgPrimary dark:bg-bgPrimary-dark border border-borderLight dark:border-borderLight-dark shadow-2xl transform-gpu transition-[opacity,transform,visibility] duration-200 ease-out z-[9999] ${
                         isUserMenuOpen
-                          ? "opacity-100 translate-y-0 pointer-events-auto"
-                          : "opacity-0 -translate-y-2 pointer-events-none"
+                          ? "opacity-100 translate-y-0 visible"
+                          : "opacity-0 -translate-y-2 invisible"
                       }`}
                     >
                       {/* Greeting */}
