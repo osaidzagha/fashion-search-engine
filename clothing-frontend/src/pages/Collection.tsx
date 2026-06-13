@@ -77,11 +77,25 @@ export default function Collection() {
   // ── URL primitives ────────────────────────────────────────────────────────
   const displayTerm = searchParams.get("search") || "";
   const categoryFromUrl = searchParams.get("category") || "";
-  const apiQuery = searchParams.get("q") || categoryFromUrl || displayTerm;
+  const displayTitle = searchParams.get("title") || "";
+  const modeFromUrl = searchParams.get("mode") || "";
+
+  // 🔥 SMART FALLBACK: If the link forgot the category param, extract it from the title
+  let derivedQuery = searchParams.get("q") || categoryFromUrl || displayTerm;
+
+  if (!derivedQuery && displayTitle.toLowerCase().includes("on sale")) {
+    derivedQuery = displayTitle.replace(/ on sale/i, "").trim();
+  }
+
+  const apiQuery = derivedQuery;
+
+  // Force category mode if we derived a query from the title
+  const effectiveMode =
+    categoryFromUrl || (!categoryFromUrl && apiQuery)
+      ? "category"
+      : modeFromUrl;
 
   const currentSort = searchParams.get("sort") || "";
-  const displayTitle = searchParams.get("title");
-  const modeFromUrl = searchParams.get("mode") || "";
   const brandsFromUrl = searchParams.get("brands") || "";
   const onSaleFromUrl = searchParams.get("onSale") || "";
   const deptsFromUrl = searchParams.get("departments") || "";
@@ -188,7 +202,7 @@ export default function Collection() {
   }, [
     type,
     currentSort,
-    modeFromUrl,
+    effectiveMode,
     hasVideoFromUrl,
     onSaleFromUrl,
     brandsFromUrl,
@@ -211,8 +225,6 @@ export default function Collection() {
         const effectiveDepts =
           urlDepts.length > 0 ? urlDepts : selectDepartments || [];
 
-        // 🔥 FIX: Prioritize apiQuery from the URL over Redux's searchTerm.
-        // Also strictly force mode: "category" if a category param exists.
         const filters: any = {
           searchTerm: apiQuery || searchTerm,
           page: currentPage,
@@ -222,7 +234,7 @@ export default function Collection() {
           colors: selectColors,
           maxPrice,
           sort: currentSort,
-          mode: categoryFromUrl ? "category" : modeFromUrl,
+          mode: effectiveMode,
           hasVideo: hasVideoFromUrl || undefined,
         };
 
@@ -272,13 +284,13 @@ export default function Collection() {
     maxPrice,
     type,
     currentSort,
-    modeFromUrl,
+    effectiveMode,
     hasVideoFromUrl,
     brandsFromUrl,
     onSaleFromUrl,
     deptsFromUrl,
-    apiQuery, // 🔥 FIX: Added URL dependency
-    categoryFromUrl, // 🔥 FIX: Added URL dependency
+    apiQuery,
+    categoryFromUrl,
     dispatch,
   ]);
 
