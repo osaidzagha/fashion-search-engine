@@ -736,9 +736,10 @@ function EditorialTicker({ items }: { items: Product[] }) {
               ↓ {disc}%
             </span>
 
-            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e] flex-shrink-0" />
+            {/* Price — hidden on mobile to prevent overflow on 375px screens */}
+            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e] flex-shrink-0 hidden sm:block" />
 
-            <span className="font-heading text-[12px] text-textSecondary dark:text-textSecondary-dark flex-shrink-0">
+            <span className="font-heading text-[12px] text-textSecondary dark:text-textSecondary-dark flex-shrink-0 hidden sm:block">
               {item.price.toLocaleString("tr-TR")} {item.currency}
             </span>
           </button>
@@ -866,7 +867,7 @@ export default function Home() {
       <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark overflow-x-hidden">
         {/* ══ HERO ══════════════════════════════════════════════════════════ */}
         <section ref={heroRef} className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)] relative">
-          <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-28 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
+          <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-10 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
 
             <h1 className="font-heading font-light text-[clamp(42px,12vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-3 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
               Fashion,
@@ -886,6 +887,7 @@ export default function Home() {
               <SearchBar variant="hero" />
             </div>
 
+            {/* Scroll CTA — desktop only; mobile layout is linear, no need for this */}
             <div
               onClick={() => {
                 const heroEl = heroRef.current;
@@ -895,7 +897,7 @@ export default function Home() {
                   window.scrollTo({ top: window.innerHeight, behavior: "smooth" });
                 }
               }}
-              className="absolute bottom-8 left-6 md:left-12 lg:left-20 flex flex-col items-start gap-3 animate-slide-up [animation-delay:600ms] [animation-fill-mode:both] cursor-pointer group"
+              className="hidden lg:flex absolute bottom-8 left-20 flex-col items-start gap-3 animate-slide-up [animation-delay:600ms] [animation-fill-mode:both] cursor-pointer group"
             >
               <span className="font-sans text-[11px] tracking-[0.2em] uppercase text-textSecondary dark:text-textSecondary-dark group-hover:text-[#c8a97e] transition-colors duration-300">
                 S E E &nbsp; T H E &nbsp; D R O P
