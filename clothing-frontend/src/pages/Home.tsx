@@ -56,9 +56,6 @@ const CARD_WRAPPER =
 const SKELETON_COUNT = 6;
 
 // ─── Category definitions — mirrors the full TAXONOMY ───────────────────────
-// All 16 main browseable categories. Keys match FeaturedData["categoryTiles"].
-// `display` = clean label shown in the Collection page heading ("Results for Tops")
-// `search`  = multi-word query fed to the backend category search (never shown to user)
 const CATEGORIES: {
   label: string;
   display: string;
@@ -250,7 +247,7 @@ function CarouselSkeleton() {
   );
 }
 
-// ─── SeeAllButton — larger touch target ──────────────────────────────────────
+// ─── SeeAllButton ────────────────────────────────────────────────────────────
 
 function SeeAllButton({ onClick }: { onClick: () => void }) {
   return (
@@ -394,7 +391,6 @@ function TheDropSection({
 
   return (
     <section className="px-4 md:px-8 lg:px-16 py-10 lg:py-16 border-b border-borderLight dark:border-borderLight-dark">
-      {/* Header */}
       <div className="flex justify-between items-baseline mb-6 border-b border-borderLight dark:border-borderLight-dark pb-4">
         <div className="flex flex-col gap-1">
           <p className="font-sans text-[9px] tracking-editorial uppercase text-accentRed">
@@ -407,14 +403,7 @@ function TheDropSection({
         <SeeAllButton onClick={onSeeAll} />
       </div>
 
-      {/*
-        Grid:
-        - Mobile: single column (hero full-width, side items stacked)
-        - sm+:    hero spans both columns as a banner, side items in a row below
-        - lg+:    classic 50/50 split — hero left, 3 stacked right
-      */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-[3px]">
-        {/* ── Hero card ── */}
         {hero &&
           (() => {
             const heroDiscount = calcDiscount(hero);
@@ -460,7 +449,6 @@ function TheDropSection({
             );
           })()}
 
-        {/* ── 3 portrait cards — stacked vertically on lg, row on sm ── */}
         {sideItems.length > 0 && (
           <div className="grid sm:grid-cols-3 lg:grid-cols-1 sm:grid-rows-1 lg:grid-rows-3 gap-[3px] min-h-[200px] sm:min-h-[260px] lg:min-h-[600px]">
             {sideItems.map((product) => {
@@ -685,6 +673,65 @@ function BrandSplit({
   );
 }
 
+// ─── Editorial Ticker ────────────────────────────────────────────────────────
+
+function EditorialTicker({ items }: { items: Product[] }) {
+  // Only show products that actually have a measurable discount
+  const tickerItems = useMemo(
+    () => items.filter((p) => calcDiscount(p) > 0),
+    [items],
+  );
+  const [index, setIndex] = useState(0);
+  const prefersReduced =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Reset index when the items list changes (e.g. dept toggle)
+  useEffect(() => {
+    setIndex(0);
+  }, [tickerItems]);
+
+  useEffect(() => {
+    if (!tickerItems.length || prefersReduced) return;
+    const timer = setInterval(() => {
+      setIndex((prev) => (prev + 1) % tickerItems.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [tickerItems, prefersReduced]);
+
+  if (!tickerItems.length) return null;
+
+  return (
+    <div className="h-5 relative overflow-hidden mt-6 animate-slide-up [animation-delay:350ms] [animation-fill-mode:both]">
+      {tickerItems.map((item, i) => {
+        const disc = calcDiscount(item);
+        return (
+          <div
+            key={item.id}
+            className={`absolute inset-0 flex items-center gap-3 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              i === index
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 translate-y-4 pointer-events-none"
+            }`}
+          >
+            <span className="font-sans text-[10px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark truncate max-w-[160px] lg:max-w-[220px]">
+              {item.name}
+            </span>
+            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e]" />
+            <span className="font-sans text-[10px] tracking-widest uppercase text-[#c8a97e]">
+              ↓ {disc}%
+            </span>
+            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e]" />
+            <span className="font-heading text-[12px] text-textSecondary dark:text-textSecondary-dark">
+              {item.price.toLocaleString("tr-TR")} {item.currency}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -698,7 +745,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [brandCounts, setBrandCounts] = useState<BrandCounts | null>(null);
 
-  // Editor's Choice paginated carousel
   const [editorChoiceProducts, setEditorChoiceProducts] = useState<Product[]>(
     [],
   );
@@ -706,14 +752,12 @@ export default function Home() {
   const [editorChoiceHasMore, setEditorChoiceHasMore] = useState(false);
   const [editorChoiceLoading, setEditorChoiceLoading] = useState(false);
 
-  // ── Fetch featured data + brand counts ────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
 
     const fetchAll = async () => {
       setLoading(true);
       try {
-        // Kick off featured + brand counts in parallel
         const [data, counts] = await Promise.all([
           fetchFeatured(selectDepartments),
           fetchBrandCounts(selectDepartments),
@@ -749,7 +793,6 @@ export default function Home() {
     };
   }, [selectDepartments]);
 
-  // ── Load more Editor's Choice ─────────────────────────────────────────────
   const loadMoreEditorChoice = useCallback(async () => {
     if (editorChoiceLoading || !editorChoiceHasMore) return;
     setEditorChoiceLoading(true);
@@ -778,7 +821,6 @@ export default function Home() {
     selectDepartments,
   ]);
 
-  // ── Derived data ──────────────────────────────────────────────────────────
   const topDrops = useMemo(() => {
     if (!featured?.onSale) return [];
     return [...featured.onSale]
@@ -796,42 +838,58 @@ export default function Home() {
     featured?.campaignHeroes && featured.campaignHeroes.length > 0;
   const hasMosaic = mosaicProducts.length >= 4;
 
-  const deptLabel =
-    selectDepartments?.[0] === "Men" || selectDepartments?.[0] === "MAN"
-      ? "Men's Collection"
-      : selectDepartments?.[0] === "Women" || selectDepartments?.[0] === "WOMAN"
-        ? "Women's Collection"
-        : "Zara · Massimo Dutti · Mango";
-
-  // ── Visible category count for subtitle ──────────────────────────────────
   const visibleCatCount = featured?.categoryTiles
     ? CATEGORIES.filter((c) => featured.categoryTiles[c.key]?.images?.[0])
         .length
     : null;
 
+  const heroRef = useRef<HTMLElement>(null);
+
   return (
     <PageTransition>
       <div className="min-h-screen bg-bgPrimary dark:bg-bgPrimary-dark overflow-x-hidden">
         {/* ══ HERO ══════════════════════════════════════════════════════════ */}
-        <section className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)]">
-          <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-8 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
+        <section ref={heroRef} className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)] relative">
+          <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-28 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
             <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4 lg:mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
-              {deptLabel}
+              Curating 6,200+ Pieces · 184 Price Drops Today
             </p>
+
             <h1 className="font-heading font-light text-[clamp(42px,12vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-3 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
               Fashion,
               <br />
-              <em className="italic text-textSecondary dark:text-textSecondary-dark">
-                tracked.
-              </em>
+              <em className="italic text-[#c8a97e]">tracked.</em>
             </h1>
-            <p className="font-sans text-[12px] leading-[1.9] text-textSecondary dark:text-textSecondary-dark mb-6 lg:mb-11 max-w-[280px] animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+
+            <p className="font-sans text-[12px] leading-[1.9] text-textSecondary dark:text-textSecondary-dark max-w-[280px] animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
               Daily price tracking across Zara, Mango & Massimo Dutti.
               <br />
               Set a target — get alerted the moment it hits.
             </p>
-            <div className="relative z-20 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
+
+            <EditorialTicker items={topDrops} />
+
+            <div className="relative z-20 mt-8 lg:mt-11 animate-slide-up [animation-delay:400ms] [animation-fill-mode:both] w-full">
               <SearchBar variant="hero" />
+            </div>
+
+            <div
+              onClick={() => {
+                const heroEl = heroRef.current;
+                if (heroEl) {
+                  window.scrollTo({ top: heroEl.offsetTop + heroEl.offsetHeight, behavior: "smooth" });
+                } else {
+                  window.scrollTo({ top: window.innerHeight, behavior: "smooth" });
+                }
+              }}
+              className="absolute bottom-8 left-6 md:left-12 lg:left-20 flex flex-col items-start gap-3 animate-slide-up [animation-delay:600ms] [animation-fill-mode:both] cursor-pointer group"
+            >
+              <span className="font-sans text-[9px] tracking-[0.2em] uppercase text-textSecondary dark:text-textSecondary-dark group-hover:text-[#c8a97e] transition-colors duration-300">
+                S E E &nbsp; T H E &nbsp; D R O P
+              </span>
+              <div className="w-[1px] h-10 bg-borderLight dark:bg-borderLight-dark relative overflow-hidden ml-[2px]">
+                <div className="absolute top-0 left-0 w-full h-[50%] bg-[#c8a97e] animate-pulse" />
+              </div>
             </div>
           </div>
 
@@ -958,7 +1016,6 @@ export default function Home() {
             Price tracking · Zara · Mango · Massimo Dutti · Turkey
           </span>
         </footer>
-
       </div>
     </PageTransition>
   );

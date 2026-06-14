@@ -166,25 +166,47 @@ export default function CampaignHeroSlider({ heroes }: { heroes: Product[] }) {
               />
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent pointer-events-none" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent pointer-events-none" />
 
-            <div className="absolute bottom-0 left-0 w-full p-6 md:p-12 flex flex-col gap-2 z-20 pointer-events-none">
-              <span className="font-sans text-[8px] md:text-[10px] tracking-[0.3em] uppercase text-white/70">
-                {hero.brand}
-              </span>
-              <h3 className="font-heading font-light text-2xl md:text-5xl text-white leading-tight pr-16 md:pr-24">
-                {hero.name}
-              </h3>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="font-sans text-[9px] tracking-widest uppercase text-white/80">
+            {/* Frosted glass price badge — bottom left */}
+            <div
+              className={`absolute bottom-6 left-6 md:bottom-10 md:left-10 z-20 pointer-events-none transition-all duration-700 ${
+                isActive ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+              }`}
+            >
+              <div className="bg-black/30 dark:bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-3 flex flex-col gap-1 max-w-[260px] md:max-w-sm">
+                <span className="font-sans text-[8px] md:text-[9px] tracking-[0.28em] uppercase text-white/60">
+                  {hero.brand}
+                </span>
+                <h3 className="font-heading font-light text-lg md:text-2xl leading-tight text-white line-clamp-2">
+                  {hero.name}
+                </h3>
+                <div className="flex items-baseline gap-2.5 mt-0.5">
+                  {hero.price > 0 && (
+                    <span
+                      className={`font-heading text-[14px] md:text-base ${
+                        hero.originalPrice && hero.originalPrice > hero.price
+                          ? "text-[#c8a97e]"
+                          : "text-white"
+                      }`}
+                    >
+                      {hero.price.toLocaleString("tr-TR")} {hero.currency}
+                    </span>
+                  )}
+                  {hero.originalPrice && hero.originalPrice > hero.price && (
+                    <>
+                      <span className="font-heading text-[12px] text-white/35 line-through">
+                        {hero.originalPrice.toLocaleString("tr-TR")}
+                      </span>
+                      <span className="font-sans text-[8px] tracking-widest uppercase text-[#c8a97e]">
+                        ↓{Math.round(((hero.originalPrice - hero.price) / hero.originalPrice) * 100)}%
+                      </span>
+                    </>
+                  )}
+                </div>
+                <span className="font-sans text-[8px] tracking-widest uppercase text-white/50 mt-0.5">
                   Discover →
                 </span>
-                {!isTouchDevice && heroVideo && (
-                  <span className="font-sans text-[8px] tracking-widest uppercase text-white/40 flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-white/40" />
-                    Video
-                  </span>
-                )}
               </div>
             </div>
           </div>
