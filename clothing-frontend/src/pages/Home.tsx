@@ -273,14 +273,14 @@ function FeatureStrip() {
           distance={20}
           threshold={0.1}
           as="div"
-          className={`px-8 md:px-12 lg:px-20 py-10 lg:py-14 flex flex-col gap-4 border-b border-borderLight dark:border-borderLight-dark ${
+          className={`px-8 md:px-12 lg:px-20 py-6 lg:py-8 flex flex-col gap-2 border-b border-borderLight dark:border-borderLight-dark ${
             i < 2 ? "md:border-r" : ""
           }`}
         >
           <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark">
             {f.label}
           </p>
-          <h3 className="font-heading font-light text-[clamp(26px,4vw,40px)] leading-[1.1] text-textPrimary dark:text-textPrimary-dark">
+          <h3 className="font-heading font-light text-xl lg:text-2xl leading-tight text-textPrimary dark:text-textPrimary-dark">
             {f.statement[0]}
             <br />
             <em className="italic text-textSecondary dark:text-textSecondary-dark">
@@ -676,7 +676,7 @@ function BrandSplit({
 // ─── Editorial Ticker ────────────────────────────────────────────────────────
 
 function EditorialTicker({ items }: { items: Product[] }) {
-  // Only show products that actually have a measurable discount
+  const navigate = useNavigate();
   const tickerItems = useMemo(
     () => items.filter((p) => calcDiscount(p) > 0),
     [items],
@@ -686,7 +686,6 @@ function EditorialTicker({ items }: { items: Product[] }) {
     typeof window !== "undefined" &&
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Reset index when the items list changes (e.g. dept toggle)
   useEffect(() => {
     setIndex(0);
   }, [tickerItems]);
@@ -702,30 +701,47 @@ function EditorialTicker({ items }: { items: Product[] }) {
   if (!tickerItems.length) return null;
 
   return (
-    <div className="h-5 relative overflow-hidden mt-6 animate-slide-up [animation-delay:350ms] [animation-fill-mode:both]">
+    // Taller container to fit the thumbnail
+    <div className="h-12 relative overflow-hidden mt-5 animate-slide-up [animation-delay:350ms] [animation-fill-mode:both]">
       {tickerItems.map((item, i) => {
         const disc = calcDiscount(item);
         return (
-          <div
+          <button
             key={item.id}
-            className={`absolute inset-0 flex items-center gap-3 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-              i === index
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-4 pointer-events-none"
-            }`}
+            onClick={() => navigate(`/product/${item.id}`)}
+            className={`absolute inset-0 flex items-center gap-3 w-full text-left transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group
+              ${
+                i === index
+                  ? "opacity-100 translate-y-0"
+                  : "opacity-0 translate-y-4 pointer-events-none"
+              } hover:opacity-80`}
           >
-            <span className="font-sans text-[10px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark truncate max-w-[160px] lg:max-w-[220px]">
+            {/* Thumbnail */}
+            {item.images?.[0] && (
+              <img
+                src={item.images[0]}
+                alt={item.name}
+                className="w-10 h-10 rounded-sm object-cover object-top flex-shrink-0"
+              />
+            )}
+
+            {/* Name — truncated */}
+            <span className="font-sans text-[10px] tracking-widest uppercase text-textPrimary dark:text-textPrimary-dark truncate max-w-[140px] lg:max-w-[200px]">
               {item.name}
             </span>
-            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e]" />
-            <span className="font-sans text-[10px] tracking-widest uppercase text-[#c8a97e]">
+
+            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e] flex-shrink-0" />
+
+            <span className="font-sans text-[10px] tracking-widest uppercase text-[#c8a97e] flex-shrink-0">
               ↓ {disc}%
             </span>
-            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e]" />
-            <span className="font-heading text-[12px] text-textSecondary dark:text-textSecondary-dark">
+
+            <span className="w-[3px] h-[3px] rounded-full bg-[#c8a97e] flex-shrink-0" />
+
+            <span className="font-heading text-[12px] text-textSecondary dark:text-textSecondary-dark flex-shrink-0">
               {item.price.toLocaleString("tr-TR")} {item.currency}
             </span>
-          </div>
+          </button>
         );
       })}
     </div>
@@ -851,9 +867,6 @@ export default function Home() {
         {/* ══ HERO ══════════════════════════════════════════════════════════ */}
         <section ref={heroRef} className="flex flex-col lg:grid lg:grid-cols-[40%_60%] lg:min-h-[calc(100vh-57px)] relative">
           <div className="relative flex flex-col justify-center px-6 md:px-12 lg:px-20 pt-10 pb-28 lg:py-16 bg-bgPrimary dark:bg-bgPrimary-dark z-10 lg:shadow-[20px_0_30px_rgba(0,0,0,0.5)]">
-            <p className="font-sans text-[9px] tracking-editorial uppercase text-textMuted dark:text-textMuted-dark mb-4 lg:mb-8 animate-slide-up [animation-delay:100ms] [animation-fill-mode:both]">
-              Curating 6,200+ Pieces · 184 Price Drops Today
-            </p>
 
             <h1 className="font-heading font-light text-[clamp(42px,12vw,80px)] leading-none tracking-tight text-textPrimary dark:text-textPrimary-dark mb-3 lg:mb-6 animate-slide-up [animation-delay:200ms] [animation-fill-mode:both]">
               Fashion,
@@ -861,7 +874,7 @@ export default function Home() {
               <em className="italic text-[#c8a97e]">tracked.</em>
             </h1>
 
-            <p className="font-sans text-[12px] leading-[1.9] text-textSecondary dark:text-textSecondary-dark max-w-[280px] animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
+            <p className="font-sans text-[14px] leading-[1.9] text-textSecondary dark:text-textSecondary-dark max-w-[300px] animate-slide-up [animation-delay:300ms] [animation-fill-mode:both]">
               Daily price tracking across Zara, Mango & Massimo Dutti.
               <br />
               Set a target — get alerted the moment it hits.
@@ -884,7 +897,7 @@ export default function Home() {
               }}
               className="absolute bottom-8 left-6 md:left-12 lg:left-20 flex flex-col items-start gap-3 animate-slide-up [animation-delay:600ms] [animation-fill-mode:both] cursor-pointer group"
             >
-              <span className="font-sans text-[9px] tracking-[0.2em] uppercase text-textSecondary dark:text-textSecondary-dark group-hover:text-[#c8a97e] transition-colors duration-300">
+              <span className="font-sans text-[11px] tracking-[0.2em] uppercase text-textSecondary dark:text-textSecondary-dark group-hover:text-[#c8a97e] transition-colors duration-300">
                 S E E &nbsp; T H E &nbsp; D R O P
               </span>
               <div className="w-[1px] h-10 bg-borderLight dark:bg-borderLight-dark relative overflow-hidden ml-[2px]">
