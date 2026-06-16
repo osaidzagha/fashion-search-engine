@@ -73,7 +73,7 @@ export const runScraperPipeline = async (
 
   // ─── 2. DELTA SKIP MEMORY ─────────────────────────────────────────────────
   // FIX #3: Filter by department so mango-man doesn't load WOMAN products into memory
-  const staleThresholdDays = 7;
+  const staleThresholdDays = 1; // Only skip products updated TODAY — price changes must always be caught
   const staleDate = new Date(Date.now() - staleThresholdDays * 86400000);
 
   console.log(
@@ -387,7 +387,7 @@ export const runScraperPipeline = async (
     // ─── CATEGORY DIET ──────────────────────────────────────────────────────
     let targetCategories = categories;
     if (scrapeMode === "daily" && !testMode) {
-      const MIN_CATEGORIES = 4;
+      const MIN_CATEGORIES = 8;
       const filtered = categories.filter((cat) =>
         VOLATILE_KEYWORDS.some((k) => cat.toLowerCase().includes(k)),
       );

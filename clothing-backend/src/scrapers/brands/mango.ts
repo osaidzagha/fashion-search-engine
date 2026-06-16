@@ -71,23 +71,24 @@ export async function getMangoProductLinks(
   page: Page,
   categoryUrl: string,
 ): Promise<string[]> {
-  // PRIMARY: Intercept the Mango catalog API — fires on every category page load
-  // This is far more reliable than waiting for React to hydrate anchor hrefs.
   let apiProductLinks: string[] = [];
   let apiResolved = false;
+  // FIX: page.on('response') does NOT await async handlers — collect promises synchronously.
+  const pendingApiPromises: Promise<void>[] = [];
 
-  const apiHandler = async (response: any) => {
+  const apiHandler = (response: any) => {
     if (apiResolved) return;
     const reqUrl = response.url();
-    // Mango fires /v1/catalog/products?... or /v2/products?... for category grids
     if (
-      reqUrl.includes("/v1/catalog/products") ||
-      reqUrl.includes("/v2/products") ||
-      reqUrl.includes("/v1/products")
-    ) {
+      !reqUrl.includes("/v1/catalog/products") &&
+      !reqUrl.includes("/v2/products") &&
+      !reqUrl.includes("/v1/products")
+    ) return;
+
+    const p = (async () => {
+      if (apiResolved) return;
       try {
         const json = await response.json();
-        // The response has either json.results[] or json.products[] each with a .slug
         const items: any[] =
           json?.results || json?.products || json?.items || [];
         const links: string[] = [];
@@ -95,13 +96,12 @@ export async function getMangoProductLinks(
           const slug = item?.slug || item?.seo?.slug || "";
           const id = item?.id || "";
           if (slug && id) {
-            // Reconstruct the Turkish product URL: /tr/tr/p/slug_ID
             links.push(
               `https://shop.mango.com/tr/tr/p/${slug}_${String(id).padStart(8, "0")}`,
             );
           }
         }
-        if (links.length > 0) {
+        if (links.length > 0 && !apiResolved) {
           apiProductLinks = links;
           apiResolved = true;
           console.log(
@@ -111,7 +111,9 @@ export async function getMangoProductLinks(
       } catch {
         // Non-JSON or parse error — ignore
       }
-    }
+    })();
+
+    pendingApiPromises.push(p);
   };
 
   try {
@@ -122,13 +124,19 @@ export async function getMangoProductLinks(
       timeout: 120000,
     });
 
-    // Wait up to 10s for the API response to arrive
+    // Flush all pending API response promises (fix async race)
+    await Promise.allSettled(pendingApiPromises);
+
+    // Also poll up to 12s in case the API response fires slightly after navigation
     const apiWaitStart = Date.now();
-    while (!apiResolved && Date.now() - apiWaitStart < 10000) {
+    while (!apiResolved && Date.now() - apiWaitStart < 12000) {
+      await Promise.allSettled(pendingApiPromises);
       await new Promise((r) => setTimeout(r, 500));
     }
 
     page.off("response", apiHandler);
+    // Final flush
+    await Promise.allSettled(pendingApiPromises);
 
     // If API path succeeded, return those links immediately
     if (apiProductLinks.length > 0) {
