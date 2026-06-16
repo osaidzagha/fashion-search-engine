@@ -66,26 +66,87 @@ export async function getMangoCategories(
   }
 }
 
-// ── 2. PRODUCT LINK EXTRACTION ───────────────────────────────────────────────
+// ── 2. PRODUCT LINK EXTRACTION ────────────────────────────────────────────────
 export async function getMangoProductLinks(
   page: Page,
   categoryUrl: string,
 ): Promise<string[]> {
+  // PRIMARY: Intercept the Mango catalog API — fires on every category page load
+  // This is far more reliable than waiting for React to hydrate anchor hrefs.
+  let apiProductLinks: string[] = [];
+  let apiResolved = false;
+
+  const apiHandler = async (response: any) => {
+    if (apiResolved) return;
+    const reqUrl = response.url();
+    // Mango fires /v1/catalog/products?... or /v2/products?... for category grids
+    if (
+      reqUrl.includes("/v1/catalog/products") ||
+      reqUrl.includes("/v2/products") ||
+      reqUrl.includes("/v1/products")
+    ) {
+      try {
+        const json = await response.json();
+        // The response has either json.results[] or json.products[] each with a .slug
+        const items: any[] =
+          json?.results || json?.products || json?.items || [];
+        const links: string[] = [];
+        for (const item of items) {
+          const slug = item?.slug || item?.seo?.slug || "";
+          const id = item?.id || "";
+          if (slug && id) {
+            // Reconstruct the Turkish product URL: /tr/tr/p/slug_ID
+            links.push(
+              `https://shop.mango.com/tr/tr/p/${slug}_${String(id).padStart(8, "0")}`,
+            );
+          }
+        }
+        if (links.length > 0) {
+          apiProductLinks = links;
+          apiResolved = true;
+          console.log(
+            `   --> 📡 API intercept: found ${links.length} product links.`,
+          );
+        }
+      } catch {
+        // Non-JSON or parse error — ignore
+      }
+    }
+  };
+
   try {
+    page.on("response", apiHandler);
+
     await page.goto(categoryUrl, {
       waitUntil: "domcontentloaded",
-      timeout: 120000, // 👈 INCREASED TIMEOUT
+      timeout: 120000,
     });
 
-    try {
-      await page.waitForSelector('a[href*="/p/"]', { timeout: 15000 }); // Bumped slightly
-    } catch {
-      console.log(
-        `   --> ⚠️  No products loaded in time on ${categoryUrl}. Moving on.`,
-      );
-      return [];
+    // Wait up to 10s for the API response to arrive
+    const apiWaitStart = Date.now();
+    while (!apiResolved && Date.now() - apiWaitStart < 10000) {
+      await new Promise((r) => setTimeout(r, 500));
     }
 
+    page.off("response", apiHandler);
+
+    // If API path succeeded, return those links immediately
+    if (apiProductLinks.length > 0) {
+      console.log(
+        `   --> 🕵️‍♂️  Found ${apiProductLinks.length} product links in category.`,
+      );
+      return apiProductLinks;
+    }
+
+    // FALLBACK: DOM extraction (SPA may have hydrated by now with extra wait)
+    console.log(
+      `   --> ⚠️  API intercept got 0 links — falling back to DOM extraction...`,
+    );
+
+    // Extra wait for React hydration
+    await new Promise((r) => setTimeout(r, 5000));
+
+    // Scroll to trigger lazy load
     let stableCount = 0;
     while (stableCount < 3) {
       const before = await page.evaluate(function () {
@@ -114,6 +175,7 @@ export async function getMangoProductLinks(
     );
     return productLinks;
   } catch (error: any) {
+    page.off("response", apiHandler);
     console.error(
       `   --> ❌ Error fetching Mango links from ${categoryUrl}:`,
       error.message,
