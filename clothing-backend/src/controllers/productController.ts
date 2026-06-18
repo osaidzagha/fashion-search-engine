@@ -168,6 +168,11 @@ function buildBaseFilter(query: any): any {
     filter.images = { $exists: true, $not: { $size: 0 } };
   }
 
+  // OOS filter: by default include all products; pass hideOOS=true to exclude OOS
+  if (query.hideOOS === "true") {
+    filter.available = { $ne: false };
+  }
+
   return filter;
 }
 

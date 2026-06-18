@@ -10,11 +10,12 @@ interface ProductState {
   selectColors?: string[];
   isLoading: boolean;
   compareQueue: Product[];
-  trackedProductIds: string[]; // ✅ Watchlist IDs go here
+  trackedProductIds: string[];
   searchTerm: string;
   selectBrands?: string[];
   selectDepartments?: string[];
   maxPrice?: number;
+  hideOOS: boolean;             // when true: exclude available:false products from the feed
 }
 
 // 2. Set the starting values
@@ -28,9 +29,10 @@ const initialState: ProductState = {
   selectDepartments: [],
   selectSizes: [],
   compareQueue: [],
-  trackedProductIds: [], // ✅ Starts empty
+  trackedProductIds: [],
   selectColors: [],
   maxPrice: undefined,
+  hideOOS: false,
 };
 
 // 3. Create the Slice
@@ -91,6 +93,10 @@ const productSlice = createSlice({
       state.selectSizes = [];
       state.selectColors = [];
       state.maxPrice = undefined;
+      state.hideOOS = false;
+    },
+    toggleHideOOS(state) {
+      state.hideOOS = !state.hideOOS;
     },
 
     // ─── Compare Feature ───
@@ -145,9 +151,10 @@ export const {
   toggleCompare,
   clearCompare,
   clearFilters,
-  setTrackedProductIds, // ✅ Exported
-  toggleTrackedProductId, // ✅ Exported
-  clearTrackedProductIds, // ✅ Exported
+  toggleHideOOS,
+  setTrackedProductIds,
+  toggleTrackedProductId,
+  clearTrackedProductIds,
 } = productSlice.actions;
 
 export default productSlice.reducer;

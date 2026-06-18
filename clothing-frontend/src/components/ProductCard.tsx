@@ -81,6 +81,13 @@ export const ProductCard = ({ product }: ProductCardProps) => {
     product.histMin > 0 &&
     product.price <= product.histMin * 1.02;
 
+  // OOS: explicit flag from scraper, OR sizes array exists but is empty
+  const isOOS =
+    product.available === false ||
+    (product.available === undefined &&
+      Array.isArray(product.sizes) &&
+      product.sizes.length === 0);
+
   const handleMouseEnter = useCallback(() => {
     setIsPlaying(true);
     if (videoRef.current) videoRef.current.play().catch(() => {});
@@ -295,11 +302,23 @@ export const ProductCard = ({ product }: ProductCardProps) => {
           </svg>
         </button>
 
-        {/* Sale badge */}
-        {isOnSale && (
+        {/* Sale badge — hidden when OOS (showing discount on unavailable item is misleading) */}
+        {isOnSale && !isOOS && (
           <div className="absolute top-2 left-2 z-10 bg-accentRed text-white font-sans text-[8px] tracking-widest px-1.5 py-0.5 rounded-[2px]">
             −{discount}%
           </div>
+        )}
+
+        {/* Out of Stock overlay */}
+        {isOOS && (
+          <>
+            {/* Dark desaturate layer over the image */}
+            <div className="absolute inset-0 z-10 bg-black/40 backdrop-grayscale pointer-events-none" />
+            {/* OOS badge */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 whitespace-nowrap bg-black/70 backdrop-blur-sm text-white/90 font-sans text-[8px] tracking-[0.22em] uppercase px-3 py-1.5 border border-white/20">
+              Out of Stock
+            </div>
+          </>
         )}
 
         {/* All-time low badge */}

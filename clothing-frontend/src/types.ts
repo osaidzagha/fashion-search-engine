@@ -27,6 +27,8 @@ export interface Product {
   composition?: string;
   sizes?: string[];
   timestamp?: string;
+  lastSeenAt?: string;
+  available?: boolean;          // false = OOS or delisted
   priceHistory?: { price: number; date: string }[];
   historyPreview?: { price: number; date: string }[];
   histMin?: number;
@@ -53,4 +55,5 @@ export interface FetchProductParams {
   sort?: string;
   mode?: string;
   hasVideo?: boolean;
+  hideOOS?: boolean;            // when true, exclude available:false products
 }
