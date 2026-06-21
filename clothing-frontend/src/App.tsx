@@ -77,11 +77,12 @@ function GlobalWatchlistHydrator() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      // Fetch user's tracked items and load them into Redux
-      fetchWatchlist().then((products) => {
-        const ids = products.map((p) => p.id);
+      fetchWatchlist().then((data: any) => {
+        // API may return a plain array OR { items: [...] } — handle both shapes
+        const products = Array.isArray(data) ? data : data?.items || [];
+        const ids = products.map((p: any) => p.id).filter(Boolean);
         dispatch(setTrackedProductIds(ids));
-      });
+      }).catch(() => {/* non-fatal — watchlist hearts just show as untracked */});
     } else {
       // Clear the store if they log out
       dispatch(clearTrackedProductIds());

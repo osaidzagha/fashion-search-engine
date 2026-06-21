@@ -55,10 +55,11 @@ const productSlice = createSlice({
     },
     toggleBrand(state, action: PayloadAction<string>) {
       const brand = action.payload;
-      if (state.selectBrands?.includes(brand)) {
+      if (!state.selectBrands) state.selectBrands = [];
+      if (state.selectBrands.includes(brand)) {
         state.selectBrands = state.selectBrands.filter((b) => b !== brand);
       } else {
-        state.selectBrands?.push(brand);
+        state.selectBrands.push(brand);
       }
     },
     setBrands(state, action: PayloadAction<string[]>) {
@@ -66,18 +67,20 @@ const productSlice = createSlice({
     },
     toggleSize(state, action: PayloadAction<string>) {
       const size = action.payload;
-      if (state.selectSizes?.includes(size)) {
+      if (!state.selectSizes) state.selectSizes = [];
+      if (state.selectSizes.includes(size)) {
         state.selectSizes = state.selectSizes.filter((s) => s !== size);
       } else {
-        state.selectSizes?.push(size);
+        state.selectSizes.push(size);
       }
     },
     toggleColor(state, action: PayloadAction<string>) {
       const color = action.payload;
-      if (state.selectColors?.includes(color)) {
+      if (!state.selectColors) state.selectColors = [];
+      if (state.selectColors.includes(color)) {
         state.selectColors = state.selectColors.filter((c) => c !== color);
       } else {
-        state.selectColors?.push(color);
+        state.selectColors.push(color);
       }
     },
     setDepartments(state, action: PayloadAction<string[]>) {
@@ -90,7 +93,9 @@ const productSlice = createSlice({
       state.selectBrands = [];
       state.selectSizes = [];
       state.selectColors = [];
+      state.selectDepartments = [];  // also clear department filter
       state.maxPrice = undefined;
+      state.hideOOS = false;
     },
 
     // ─── Compare Feature ───

@@ -81,26 +81,30 @@ const Navbar = () => {
   };
 
   const isMen = Boolean(
-    selectDepartments?.includes("Men") || selectDepartments?.includes("MEN"),
+    selectDepartments?.some((d) =>
+      ["men", "man", "MEN", "MAN", "Men"].includes(d),
+    ),
   );
   const isWomen = Boolean(
-    selectDepartments?.includes("Women") ||
-    selectDepartments?.includes("WOMEN"),
+    selectDepartments?.some((d) =>
+      ["women", "woman", "WOMEN", "WOMAN", "Women"].includes(d),
+    ),
   );
 
   const handleDepartmentToggle = (dept: string) => {
     const isActive =
-      selectDepartments?.includes(dept) ||
-      selectDepartments?.includes(dept.toUpperCase());
+      selectDepartments?.some(
+        (d) => d.toLowerCase() === dept.toLowerCase(),
+      );
 
     const currentParams = new URLSearchParams(location.search);
 
     if (isActive) {
       dispatch(setDepartments([]));
-      currentParams.delete("department");
+      currentParams.delete("departments"); // ← matches Collection.tsx key
     } else {
       dispatch(setDepartments([dept]));
-      currentParams.set("department", dept);
+      currentParams.set("departments", dept); // ← matches Collection.tsx key
     }
 
     const newSearchString = currentParams.toString();

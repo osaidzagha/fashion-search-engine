@@ -28,6 +28,7 @@ function toTitleCase(str: string) {
 }
 
 function discountPercent(original: number, current: number) {
+  if (!original || original <= 0) return 0;
   return Math.round(((original - current) / original) * 100);
 }
 
@@ -106,19 +107,24 @@ export default function ProductDetails() {
 
   useEffect(() => {
     if (!id) return;
+    let ignore = false;
     setIsLoading(true);
     setSelectedSize(null);
     setHeroLoaded(false);
     fetchProductById(id)
-      .then((data) => setProduct(data))
+      .then((data) => { if (!ignore) setProduct(data); })
       .catch(console.error)
-      .finally(() => setIsLoading(false));
+      .finally(() => { if (!ignore) setIsLoading(false); });
+    return () => { ignore = true; };
   }, [id]);
 
-  // ✅ FIX: Replaced raw fetch bypass with clean api service
   useEffect(() => {
     if (!id) return;
-    fetchRelatedProducts(id).then(setRelatedProducts).catch(console.error);
+    let ignore = false;
+    fetchRelatedProducts(id)
+      .then((data) => { if (!ignore) setRelatedProducts(data); })
+      .catch(console.error);
+    return () => { ignore = true; };
   }, [id]);
 
   const handleTrackPrice = async () => {
