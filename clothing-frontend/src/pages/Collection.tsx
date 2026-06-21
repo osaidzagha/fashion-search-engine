@@ -213,6 +213,7 @@ export default function Collection() {
     selectSizesStr,
     selectColorsStr,
     maxPrice,
+    hideOOS,
   ]);
 
   // ── Fetch data ────────────────────────────────────────────────────────────
@@ -251,9 +252,11 @@ export default function Collection() {
             setNewItemsStart(0);
             setDisplayProducts(data.products);
           } else {
-            const prevCount = displayProducts.length;
-            setNewItemsStart(prevCount);
-            setDisplayProducts((prev) => [...prev, ...data.products]);
+            // Functional updater to avoid stale closure on displayProducts.length
+            setDisplayProducts((prev) => {
+              setNewItemsStart(prev.length);
+              return [...prev, ...data.products];
+            });
           }
           dispatch(setProducts(data.products));
           dispatch(setAvailableSizes(data.availableSizes || []));
@@ -319,7 +322,9 @@ export default function Collection() {
   const hasActiveFilters =
     (selectBrands?.length || 0) > 0 ||
     (selectColors?.length || 0) > 0 ||
-    (selectSizes?.length || 0) > 0;
+    (selectSizes?.length || 0) > 0 ||
+    !!maxPrice ||
+    hideOOS;
 
   const handleSortChange = (value: string) => {
     const newParams = new URLSearchParams(searchParams);

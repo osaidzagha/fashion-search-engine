@@ -5,6 +5,7 @@ import { fetchWatchlist, removeFromWatchlist } from "../services/api";
 import PageTransition from "../components/PageTransition";
 import { PriceSparkline } from "../components/PriceSparkline";
 import { RevealOnScroll } from "../components/RevealOnScroll";
+import toast from "react-hot-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -148,10 +149,12 @@ export default function Watchlist() {
     setIsLoading(true);
     fetchWatchlist()
       .then((data: any) => {
-        const raw = Array.isArray(data) ? data : data.items || [];
+        const raw = Array.isArray(data) ? data : data?.items || [];
         setItems(raw as WatchlistItem[]);
       })
-      .catch(console.error)
+      .catch(() => {
+        toast.error("Could not load your watchlist. Please try again.");
+      })
       .finally(() => setIsLoading(false));
   };
 

@@ -31,7 +31,6 @@ export default function AnimatedRoutes() {
           <Route path="/search" element={<Collection />} />
           <Route path="/collection" element={<Collection />} />
           <Route path="/collection/:type" element={<Collection />} />
-          <Route path="/watchlist" element={<Watchlist />} />
         </Route>
 
         {/* 🔓 Auth / focus routes (no layout) */}
@@ -44,6 +43,7 @@ export default function AnimatedRoutes() {
         {/* 🔐 Any logged-in user */}
         <Route element={<ProtectedRoute />}>
           <Route path="/profile" element={<Profile />} />
+          <Route path="/watchlist" element={<Watchlist />} />
         </Route>
 
         {/* 🔐 Admin only */}

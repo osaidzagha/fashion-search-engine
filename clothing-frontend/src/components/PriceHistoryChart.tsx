@@ -124,13 +124,14 @@ export default function PriceHistoryChart({
   }, [prefersReduced]);
 
   // 1. Map existing database history and enforce English locale to fix "nis/may" bug
-  const formattedHistory = history.map((p) => ({
-    price: p.price,
-    date: new Date(p.date).toLocaleDateString("en-US", {
-      day: "numeric",
-      month: "short",
-    }),
-  }));
+  const formattedHistory = history.map((p) => {
+    const d = new Date(p.date);
+    const dateStr =
+      p.date && !isNaN(d.getTime())
+        ? d.toLocaleDateString("en-US", { day: "numeric", month: "short" })
+        : "—";
+    return { price: p.price, date: dateStr };
+  });
 
   // 2. Smart Deduplication: Keep first, last, and the edges of price changes
   const chartData = formattedHistory.filter((entry, i, arr) => {
@@ -233,8 +234,9 @@ export default function PriceHistoryChart({
   }
 
   // 5. Scaling — only reached when real movement exists
-  const dataMax = Math.max(...chartData.map((d) => d.price));
-  const dataMin = Math.min(...chartData.map((d) => d.price));
+  // Use reduce instead of spread to avoid call stack overflow on large histories
+  const dataMax = chartData.reduce((m, d) => Math.max(m, d.price), -Infinity);
+  const dataMin = chartData.reduce((m, d) => Math.min(m, d.price), Infinity);
   const absoluteMax = originalPrice
     ? Math.max(dataMax, originalPrice)
     : dataMax;
