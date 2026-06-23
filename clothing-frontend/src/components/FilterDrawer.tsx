@@ -7,6 +7,7 @@ import {
   toggleSize,
   toggleColor,
   setMaxPrice,
+  toggleHideOOS,
 } from "../store/productSlice";
 import { X } from "lucide-react";
 
@@ -248,6 +249,7 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
     maxPrice,
     availableSizes,
     availableColors,
+    hideOOS,
   } = useSelector((state: RootState) => state.products);
 
   // ✅ FIX: "View More" state
@@ -414,10 +416,45 @@ export const FilterDrawer = ({ isOpen, onClose }: FilterDrawerProps) => {
             </div>
           </div>
 
-          {/* 04 — Size */}
+          {/* 05 — Availability */}
+          <div>
+            <SectionHeader index="05" title="Availability" />
+            <div className="pl-6 md:pl-10">
+              <button
+                onClick={() => dispatch(toggleHideOOS())}
+                className="flex items-center gap-4 w-full text-left group py-2 md:py-1 bg-transparent border-none cursor-pointer"
+              >
+                {/* Pill toggle */}
+                <div
+                  className={`relative w-8 h-4 rounded-full flex-shrink-0 transition-colors duration-300 ${
+                    hideOOS
+                      ? "bg-textPrimary dark:bg-textPrimary-dark"
+                      : "bg-borderLight dark:bg-borderLight-dark"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-bgPrimary dark:bg-bgPrimary-dark shadow transition-transform duration-300 ${
+                      hideOOS ? "translate-x-4" : "translate-x-0.5"
+                    }`}
+                  />
+                </div>
+                <span
+                  className={`font-sans text-[11px] md:text-[10px] tracking-widest uppercase transition-colors duration-300 ${
+                    hideOOS
+                      ? "text-textPrimary dark:text-textPrimary-dark font-medium"
+                      : "text-textSecondary dark:text-textSecondary-dark group-hover:text-textPrimary dark:group-hover:text-textPrimary-dark"
+                  }`}
+                >
+                  Hide out of stock
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* 06 — Size */}
           {availableSizes.length > 0 && (
             <div className="animate-fade-in">
-              <SectionHeader index="04" title="Size" />
+              <SectionHeader index="06" title="Size" />
               <div className="flex flex-col gap-2 pl-6 md:pl-10">
                 {[...letterSizes, ...numericSizes, ...otherSizes].map(
                   (size) => (
