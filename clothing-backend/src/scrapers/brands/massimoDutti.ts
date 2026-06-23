@@ -130,6 +130,9 @@ export async function getMassimoProductLinks(
 ): Promise<string[]> {
   console.log(`📂 Visiting Massimo Dutti category: ${url}`);
 
+  // Lookbook / concepts pages use a horizontal carousel, not a scrollable grid
+  const isLookbook = /lookbook|concepts|editorial|shop-by-look/i.test(url);
+
   try {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120000 });
 
@@ -142,25 +145,50 @@ export async function getMassimoProductLinks(
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       console.log(`  --> 🔄 Attempt ${attempt} to extract links...`);
 
-      console.log("   --> 📜 Auto-scrolling to force lazy load...");
-      await page.evaluate(`
-        (function() {
-          return new Promise(function(resolve) {
-            var scrolls = 0;
-            var maxScrolls = 12; // Force 12 deep scrolls regardless of page height
-            
-            var timer = setInterval(function() {
-              window.scrollBy(0, 800);
-              scrolls++;
-
-              if (scrolls >= maxScrolls) {
-                clearInterval(timer);
-                resolve(undefined);
-              }
-            }, 800); 
-          });
-        })()
-      `);
+      if (isLookbook) {
+        // Lookbook pages: scroll the carousel container horizontally
+        console.log("   --> 📜 Horizontal scroll for lookbook page...");
+        await page.evaluate(`
+          (function() {
+            return new Promise(function(resolve) {
+              // Try scrolling the carousel / scroll-container
+              var containers = Array.from(document.querySelectorAll(
+                '[class*="scroll"], [class*="Scroll"], [class*="carousel"], [class*="Carousel"], [class*="lookbook"], [class*="Lookbook"]'
+              ));
+              // Also try the window itself
+              containers.push(document.documentElement);
+              var scrolled = 0;
+              var timer = setInterval(function() {
+                containers.forEach(function(el) {
+                  el.scrollLeft += 400;
+                });
+                window.scrollBy(400, 200);
+                scrolled++;
+                if (scrolled >= 10) { clearInterval(timer); resolve(undefined); }
+              }, 400);
+            });
+          })()
+        `);
+      } else {
+        // Standard product grid pages: vertical scroll
+        console.log("   --> 📜 Auto-scrolling to force lazy load...");
+        await page.evaluate(`
+          (function() {
+            return new Promise(function(resolve) {
+              var scrolls = 0;
+              var maxScrolls = 12;
+              var timer = setInterval(function() {
+                window.scrollBy(0, 800);
+                scrolls++;
+                if (scrolls >= maxScrolls) {
+                  clearInterval(timer);
+                  resolve(undefined);
+                }
+              }, 800);
+            });
+          })()
+        `);
+      }
 
       await new Promise((r) => setTimeout(r, 2000));
 
@@ -178,15 +206,10 @@ export async function getMassimoProductLinks(
             .map(function(a) { return a.href; })
             .filter(function(href) {
               if (!href) return false;
-              
-              // 👇 STRICT REGEX: Must be -l followed by 6 to 12 DIGITS ONLY.
-              // This completely ignores "store-locator" and grabs real product IDs.
               var hasProductId = /-l\\d{6,12}(\\?|$)/.test(href);
-              
               var isNotCategory = !href.match(/-n[0-9]+(\\?|$)/);
               var isNotBanner = !href.includes('/sbl') && !href.includes('banner=true');
               var isNotEditorial = !href.includes('/editorial');
-              
               return hasProductId && isNotCategory && isNotBanner && isNotEditorial;
             })
             .map(function(href) { return href.split('?')[0]; })
@@ -199,6 +222,31 @@ export async function getMassimoProductLinks(
           `  --> ✅ Success! Found ${productLinks.length} product links.`,
         );
         break;
+      }
+
+      // On lookbook pages, also try a broader selector that includes data-href
+      if (isLookbook && attempt === 2) {
+        console.log("   --> 🔍 Trying broader selector for lookbook items...");
+        productLinks = (await page.evaluate(`
+          (function() {
+            var found = [];
+            var allAnchors = Array.from(document.querySelectorAll('a, [data-href]'));
+            allAnchors.forEach(function(el) {
+              var href = el.href || el.getAttribute('data-href') || '';
+              if (/-l\\d{6,12}/.test(href)) {
+                var clean = href.split('?')[0];
+                if (found.indexOf(clean) === -1) found.push(clean);
+              }
+            });
+            return found;
+          })()
+        `)) as string[];
+        if (productLinks.length > 0) {
+          console.log(
+            `  --> ✅ Broader selector found ${productLinks.length} lookbook product links.`,
+          );
+          break;
+        }
       }
 
       console.log(
@@ -242,10 +290,17 @@ export async function scrapeMassimoProductData(
   const baseId = rawId.substring(0, 4); // '0669'
 
   // ─── 1. THE STRICT WIRETAP (Network Interception) ─────────────────────────
-  const responseHandler = async (response: any) => {
-    const reqUrl = response.url();
+  // FIX: responseHandler must be synchronous — page.on('response') does NOT await
+  // async handlers. We collect settled JSON promises and await them in a batch
+  // AFTER navigation completes, before reading interceptedVideos.
+  const pendingVideoPromises: Promise<void>[] = [];
 
-    if (reqUrl.includes("itxrest") && reqUrl.includes(rawId)) {
+  const responseHandler = (response: any) => {
+    const reqUrl = response.url();
+    if (!reqUrl.includes("itxrest") || !reqUrl.includes(rawId)) return;
+
+    // Fire-and-collect: push the promise but don't await it here
+    const p = (async () => {
       try {
         const json = await response.json();
         let foundVideos: string[] = [];
@@ -313,7 +368,9 @@ export async function scrapeMassimoProductData(
       } catch (e) {
         // Silently ignore parsing errors
       }
-    }
+    })();
+
+    pendingVideoPromises.push(p);
   };
 
   page.on("response", responseHandler);
@@ -410,7 +467,11 @@ export async function scrapeMassimoProductData(
       return null;
     }
 
-    // ─── STEP 3: Deep Scroll ──────────────────────────────────────────────
+    // ─── STEP 3: Deep Scroll — await all pending video promises first ──────
+    // Give the network a brief window then flush all pending wiretap promises
+    // so interceptedVideos is fully populated before we assemble finalVideos.
+    await Promise.allSettled(pendingVideoPromises);
+
     try {
       await page.evaluate(`
         (function() {
