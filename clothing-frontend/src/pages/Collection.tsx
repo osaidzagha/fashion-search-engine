@@ -111,6 +111,7 @@ export default function Collection() {
     selectSizes,
     selectColors,
     maxPrice,
+    hideOOS,
   } = useSelector((state: RootState) => state.products);
 
   const selectBrandsStr = (selectBrands || []).join(",");
@@ -237,6 +238,7 @@ export default function Collection() {
           sort: currentSort,
           mode: effectiveMode,
           hasVideo: hasVideoFromUrl || undefined,
+          hideOOS: hideOOS || undefined,
         };
 
         if (type === "sale" || onSaleFromUrl === "true") filters.onSale = true;
@@ -294,6 +296,7 @@ export default function Collection() {
     deptsFromUrl,
     apiQuery,
     categoryFromUrl,
+    hideOOS,
     dispatch,
   ]);
 

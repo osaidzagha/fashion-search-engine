@@ -111,6 +111,7 @@ export const fetchProductsFromAPI = async (
     if (filters.sort) urlParams.set("sort", filters.sort);
     if (filters.mode) urlParams.set("mode", filters.mode);
     if (filters.hasVideo) urlParams.set("hasVideo", "true");
+    if (filters.hideOOS) urlParams.set("hideOOS", "true");
 
     const response = await globalFetch(
       `${BASE_URL}/api/products?${urlParams.toString()}`,

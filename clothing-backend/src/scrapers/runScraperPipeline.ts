@@ -570,7 +570,13 @@ export const runScraperPipeline = async (
               sizes: product.sizes,
               videos: product.videos,
               lastSeenAt: new Date(),
-              available: true,
+              // OOS DETECTION: a product is available only if it has at least one size in stock.
+              // Brands without sizes (accessories, jewellery) are treated as always available
+              // unless they have historically had sizes.
+              available:
+                !product.sizes || product.sizes.length === 0
+                  ? false    // scraped with empty sizes = sold out
+                  : true,
             },
             $setOnInsert: {
               timestamp: new Date(),
@@ -641,5 +647,32 @@ export const runScraperPipeline = async (
   }
 
   await page.close().catch(() => {});
+
+  // ─── STALE-DETECTION SWEEP ────────────────────────────────────────────────
+  // Products from this brand that haven't appeared in any category page for 14+
+  // days have almost certainly been delisted. Mark them available:false so they
+  // show with the OOS badge in the UI instead of looking like live products.
+  try {
+    const staleDate14 = new Date(Date.now() - 14 * 86400000);
+    const staleResult = await ProductModel.updateMany(
+      {
+        brand: brandName,
+        available: true,
+        $or: [
+          { lastSeenAt: { $lt: staleDate14 } },
+          { lastSeenAt: { $exists: false } },
+        ],
+      },
+      { $set: { available: false } },
+    );
+    if (staleResult.modifiedCount > 0) {
+      console.log(
+        `🗂️  Stale-detection: marked ${staleResult.modifiedCount} ${brandName} product(s) as unavailable (not seen in 14d).`,
+      );
+    }
+  } catch (err: any) {
+    console.log(`⚠️  Stale-detection sweep failed: ${err.message}`);
+  }
+
   return { newItems, updatedItems, errorCount };
 };
