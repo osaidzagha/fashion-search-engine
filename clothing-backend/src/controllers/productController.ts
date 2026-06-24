@@ -54,9 +54,9 @@ const excludeMap: Record<string, string> = {
   jeans: "short shorts skirt dress jacket shirt",
   short: "sleeve dress jacket coat boot boots skirt",
   shorts: "sleeve dress jacket coat boot boots skirt",
-  shirt: "jacket coat blazer dress skirt pant trousers",
-  top: "jacket coat bag handle stitched shoe sneakers skirt pants",
-  tops: "jacket coat bag handle stitched shoe sneakers skirt pants",
+  shirt: "jacket coat blazer dress skirt pant trousers overshirt leather suede nappa",
+  top: "jacket coat bag handle stitched shoe sneakers skirt pants overshirt leather suede nappa",
+  tops: "jacket coat bag handle stitched shoe sneakers skirt pants overshirt leather suede nappa",
   jacket:
     "shirt dress skirt pants blazer suit tuxedo waistcoat sportcoat tailored",
   blazer: "bomber puffer windbreaker anorak padded quilted gilet tracksuit",

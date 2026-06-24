@@ -92,10 +92,22 @@ const productSlice = createSlice({
       state.maxPrice = action.payload;
     },
     clearFilters(state) {
+      // Clears product-level filters only.
+      // Departments are a navbar-level session choice and must NOT be wiped
+      // here — Collection.tsx fires this on every navigation.
       state.selectBrands = [];
       state.selectSizes = [];
       state.selectColors = [];
-      state.selectDepartments = [];  // also clear department filter
+      state.maxPrice = undefined;
+      state.hideOOS = false;
+    },
+    // Full reset including department — call this only from an explicit
+    // "Reset everything" action, not on general navigation.
+    clearAllFilters(state) {
+      state.selectBrands = [];
+      state.selectSizes = [];
+      state.selectColors = [];
+      state.selectDepartments = [];
       state.maxPrice = undefined;
       state.hideOOS = false;
     },
@@ -155,6 +167,7 @@ export const {
   toggleCompare,
   clearCompare,
   clearFilters,
+  clearAllFilters,
   toggleHideOOS,
   setTrackedProductIds,
   toggleTrackedProductId,
