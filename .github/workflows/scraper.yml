@@ -30,7 +30,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 180 # Increase to 3 hours to accommodate Akamai evasion delays
+    timeout-minutes: 300 # 5 hours — Zara jobs were hitting the 3hr limit and being hard-canceled mid-category
     strategy:
       fail-fast: false
       matrix:
