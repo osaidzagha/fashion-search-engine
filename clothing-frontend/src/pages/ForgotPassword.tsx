@@ -13,8 +13,8 @@ type Step = "email" | "otp" | "reset";
 const RULES = [
   {
     id: "length",
-    label: "At least 8 characters",
-    test: (p: string) => p.length >= 8,
+    label: "At least 6 characters",
+    test: (p: string) => p.length >= 6,
   },
   {
     id: "upper",

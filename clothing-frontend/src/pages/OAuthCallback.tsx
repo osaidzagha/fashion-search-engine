@@ -61,7 +61,7 @@ export default function OAuthCallback() {
     };
 
     fetchProfile();
-  }, []);
+  }, [searchParams, navigate, dispatch]);
 
   return (
     <PageTransition>

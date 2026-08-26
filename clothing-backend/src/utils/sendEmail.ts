@@ -24,7 +24,7 @@ export const sendVerificationEmail = async (
         </h1>
         <p style="color: #aaa; margin: 0 0 16px;">
           Use the code below to verify your account. It expires in
-          <strong style="color:#f5f5f5;">15 minutes</strong>.
+          <strong style="color:#f5f5f5;">30 minutes</strong>.
         </p>
         <div style="
           background: #1a1a1a;

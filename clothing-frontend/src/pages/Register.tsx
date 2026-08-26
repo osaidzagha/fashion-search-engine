@@ -113,7 +113,7 @@ const Register = () => {
           );
           navigate("/verify-otp", { state: { email } });
           return;
-        } else if (resendData.message === "Account already verified.") {
+        } else if (resendData.message?.includes("Account already verified")) {
           toast.error("This email is already registered. Please sign in.");
           navigate("/login");
           return;

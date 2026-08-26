@@ -957,7 +957,9 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
         const upper = d.trim().toUpperCase();
         if (upper === "MAN" || upper === "MEN")
           return "\\b(man|men|mens|men's)\\b";
-        return "\\b(woman|women|womens|women's)\\b";
+        if (upper === "WOMAN" || upper === "WOMEN")
+          return "\\b(woman|women|womens|women's)\\b";
+        return `^${d.trim()}$`;
       });
       deptFilter.department = {
         $regex: regexParts.join("|"),

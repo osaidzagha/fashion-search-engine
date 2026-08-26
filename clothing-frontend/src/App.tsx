@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import {
   BrowserRouter as Router,
-  Routes,
-  Route,
   useNavigate,
 } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -15,24 +13,10 @@ import {
 } from "./store/productSlice";
 import toast, { Toaster } from "react-hot-toast";
 
-// Existing imports...
-import Home from "./pages/Home";
-import ProductDetails from "./pages/ProductDetails";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Profile from "./pages/Profile";
-
-import Watchlist from "./pages/Watchlist";
 import { CompareProvider } from "./context/CompareContext";
 import { CompareBar } from "./components/CompareBar";
 import { CompareOverlay } from "./components/CompareOverlay";
-import ProtectedRoute from "./utils/ProtectedRoute";
-import VerifyOTP from "./pages/VerifyOTP";
-import AdminDashboard from "./pages/AdminDashboard";
-import VerifyEmail from "./pages/VerifyEmail";
 import ScrollToTop from "./components/ScrollToTop";
-import Collection from "./pages/Collection";
-import StoreLayout from "./components/StoreLayout";
 import AnimatedRoutes from "./components/AnimatedRoutes";
 import { SearchOverlay } from "./components/SearchOverlay";
 import { CustomCursor } from "./components/CustomCursor";

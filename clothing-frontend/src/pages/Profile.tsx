@@ -424,8 +424,8 @@ export default function Profile() {
     if (!currentPassword) errors.current = "Required.";
     if (!newPassword) {
       errors.new = "Required.";
-    } else if (newPassword.length < 8) {
-      errors.new = "Must be at least 8 characters.";
+    } else if (newPassword.length < 6) {
+      errors.new = "Must be at least 6 characters.";
     } else if (currentPassword === newPassword) {
       errors.new = "Must differ from your current password.";
     }

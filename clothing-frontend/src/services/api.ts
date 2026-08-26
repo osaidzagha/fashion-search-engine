@@ -42,8 +42,12 @@ async function globalFetch(
     let errorsArray = [];
     try {
       const data = await response.json();
-      errorMessage = data.message || errorMessage;
       errorsArray = data.errors || [];
+      // Prefer a specific field-level error message over the generic fallback
+      errorMessage =
+        errorsArray.length > 0
+          ? errorsArray[0].message
+          : data.message || errorMessage;
     } catch {
       errorMessage = `Server Error (${response.status})`;
     }
@@ -309,7 +313,7 @@ export const checkIsTracked = async (productId: string): Promise<boolean> => {
 
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const response = await globalFetch(`${BASE_URL}/api/categories`);
+    const response = await globalFetch(`${BASE_URL}/api/products/categories`);
     return await response.json();
   } catch (error) {
     console.error("Categories API error:", error);

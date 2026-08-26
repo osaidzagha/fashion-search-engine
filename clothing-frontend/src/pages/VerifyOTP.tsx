@@ -5,7 +5,8 @@ import { setCredentials } from "../store/authSlice";
 import toast from "react-hot-toast";
 import PageTransition from "../components/PageTransition";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:5000";
 
 export default function VerifyOTP() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
