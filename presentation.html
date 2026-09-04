@@ -1,0 +1,2952 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>AUTOMATED FASHION PRICE INTELLIGENCE - SE492</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --bg: #0a0a0a;
+        --bg2: #111;
+        --bg3: #1a1a1a;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #f0f0f0;
+        --muted: #888;
+        --accent: #e8c97e;
+        --accent2: #b5860d;
+        --red: #e85f5f;
+        --green: #5fe8a0;
+        --blue: #5fb8e8;
+        --purple: #a07ee8;
+        --r: 12px;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, sans-serif;
+        overflow: hidden;
+        user-select: none;
+      }
+      #pb {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 3px;
+        background: linear-gradient(
+          90deg,
+          var(--accent2),
+          var(--accent),
+          #fff8e0
+        );
+        transition: width 0.4s;
+        z-index: 1000;
+      }
+      #ctr {
+        position: fixed;
+        bottom: 28px;
+        right: 36px;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        z-index: 1000;
+      }
+      .nb {
+        position: fixed;
+        bottom: 24px;
+        z-index: 1000;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--border);
+        background: var(--bg2);
+        color: var(--text);
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+      }
+      .nb:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #bp {
+        left: 36px;
+      }
+      #bn {
+        left: 88px;
+      }
+      #dots {
+        position: fixed;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        z-index: 1000;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--muted);
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .dot.active {
+        background: var(--accent);
+        width: 18px;
+        border-radius: 3px;
+      }
+      #sw {
+        width: 100vw;
+        height: 100vh;
+        position: relative;
+        overflow: hidden;
+      }
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 80px 80px;
+        opacity: 0;
+        transform: translateX(60px);
+        transition:
+          opacity 0.5s,
+          transform 0.5s;
+        pointer-events: none;
+      }
+      .slide.active {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: all;
+      }
+      .slide.exit {
+        opacity: 0;
+        transform: translateX(-60px);
+      }
+      .gbg {
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+          linear-gradient(
+            90deg,
+            rgba(255, 255, 255, 0.025) 1px,
+            transparent 1px
+          );
+        background-size: 48px 48px;
+      }
+      .orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(120px);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .lbl {
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--accent);
+        font-weight: 600;
+        margin-bottom: 14px;
+      }
+      .ttl {
+        font-size: clamp(28px, 4vw, 52px);
+        font-weight: 800;
+        line-height: 1.1;
+        letter-spacing: -0.03em;
+        margin-bottom: 20px;
+        background: linear-gradient(135deg, #fff 30%, #bbb);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .sub {
+        font-size: clamp(13px, 1.8vw, 18px);
+        color: var(--muted);
+        line-height: 1.65;
+        max-width: 680px;
+        text-align: center;
+      }
+      .card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 20px 24px;
+        transition: border-color 0.3s;
+      }
+      .card:hover {
+        border-color: rgba(255, 255, 255, 0.18);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 12px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+      .pg {
+        background: rgba(232, 201, 126, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(232, 201, 126, 0.25);
+      }
+      .pr {
+        background: rgba(232, 95, 95, 0.12);
+        color: var(--red);
+        border: 1px solid rgba(232, 95, 95, 0.25);
+      }
+      .pG {
+        background: rgba(95, 232, 160, 0.12);
+        color: var(--green);
+        border: 1px solid rgba(95, 232, 160, 0.25);
+      }
+      .pb2 {
+        background: rgba(95, 184, 232, 0.12);
+        color: var(--blue);
+        border: 1px solid rgba(95, 184, 232, 0.25);
+      }
+      .pp {
+        background: rgba(160, 126, 232, 0.12);
+        color: var(--purple);
+        border: 1px solid rgba(160, 126, 232, 0.25);
+      }
+      .g2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        width: 100%;
+        max-width: 900px;
+      }
+      .g3 {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+        width: 100%;
+        max-width: 960px;
+      }
+      .ic {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        flex-shrink: 0;
+      }
+      .ci {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #ccc;
+      }
+      .cd {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        margin-top: 5px;
+        flex-shrink: 0;
+      }
+      .ab {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .aa {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--muted);
+        font-size: 18px;
+      }
+      .tb {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .ti {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .tl {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .td {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--accent);
+        flex-shrink: 0;
+        margin-top: 4px;
+      }
+      .tr2 {
+        width: 1px;
+        flex: 1;
+        background: var(--border);
+        margin-top: 6px;
+      }
+      .sb {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 20px 16px;
+      }
+      .sn {
+        font-size: 28px;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--accent), #fff8d0);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .sl2 {
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .fr {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+      }
+      .tc {
+        text-align: center;
+      }
+      .z1 {
+        position: relative;
+        z-index: 1;
+      }
+      .bc {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 22px 18px;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        transition:
+          border-color 0.3s,
+          transform 0.3s;
+      }
+      .bc:hover {
+        border-color: var(--accent);
+        transform: translateY(-3px);
+      }
+      .fi {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+      }
+      @keyframes wave {
+        0%,
+        100% {
+          transform: rotate(0);
+        }
+        25% {
+          transform: rotate(-15deg);
+        }
+        75% {
+          transform: rotate(15deg);
+        }
+      }
+      .wave {
+        display: inline-block;
+        animation: wave 1.4s ease-in-out infinite;
+      }
+      @keyframes fu {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .fu {
+        animation: fu 0.6s ease both;
+      }
+      .fu1 {
+        animation-delay: 0.1s;
+      }
+      .fu2 {
+        animation-delay: 0.22s;
+      }
+      .fu3 {
+        animation-delay: 0.34s;
+      }
+      .fu4 {
+        animation-delay: 0.46s;
+      }
+      .fu5 {
+        animation-delay: 0.58s;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pb"></div>
+    <div id="sw">
+      <!-- SLIDE 1: TITLE -->
+      <div class="slide active gbg" id="s0">
+        <div
+          class="orb"
+          style="
+            width: 500px;
+            height: 500px;
+            background: rgba(184, 134, 11, 0.12);
+            top: -100px;
+            right: -100px;
+          "
+        ></div>
+        <div
+          class="orb"
+          style="
+            width: 400px;
+            height: 400px;
+            background: rgba(95, 184, 232, 0.07);
+            bottom: -80px;
+            left: -80px;
+          "
+        ></div>
+        <div class="z1 tc">
+          <div class="pill pg fu" style="margin-bottom: 28px">
+            SE492 &mdash; Graduation Thesis
+          </div>
+          <div style="font-size: 90px; margin-bottom: 8px" class="fu fu1">
+            &#128248;
+          </div>
+          <h1
+            class="ttl fu fu2"
+            style="font-size: clamp(22px, 3.2vw, 42px); margin-bottom: 12px"
+          >
+            AUTOMATED FASHION PRICE INTELLIGENCE
+          </h1>
+          <div
+            style="
+              font-size: 14px;
+              letter-spacing: 0.3em;
+              text-transform: uppercase;
+              color: var(--muted);
+              margin-bottom: 32px;
+            "
+            class="fu fu3"
+          >
+            Multi-Brand Fashion Search Engine
+          </div>
+          <p class="sub fu fu4" style="font-size: 15px; margin-bottom: 40px">
+            A full-stack platform aggregating, searching &amp; tracking fashion
+            products<br />
+            from Zara, Mango &amp; Massimo Dutti &mdash; live at
+            <strong style="color: var(--accent)">dopewear.app</strong>
+          </p>
+          <div
+            style="
+              display: flex;
+              gap: 12px;
+              flex-wrap: wrap;
+              justify-content: center;
+            "
+            class="fu fu5"
+          >
+            <span class="pill pb2">React 19 + Vite</span>
+            <span class="pill pG">Node.js + Express</span>
+            <span class="pill pr">MongoDB + Redis</span>
+            <span class="pill pp">Puppeteer Stealth</span>
+            <span class="pill pg">Vercel + Render</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 2: PROBLEM -->
+      <div class="slide" id="s1">
+        <div
+          class="orb"
+          style="
+            width: 450px;
+            height: 450px;
+            background: rgba(232, 95, 95, 0.08);
+            top: -100px;
+            right: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 920px">
+          <div class="lbl fu">Problem</div>
+          <h2 class="ttl fu fu1">The Problem &amp; Motivation</h2>
+          <div class="g2 fu fu2" style="margin-top: 8px">
+            <div class="card" style="text-align: left">
+              <div style="font-size: 28px; margin-bottom: 10px">&#128552;</div>
+              <div
+                style="
+                  font-size: 13px;
+                  font-weight: 700;
+                  margin-bottom: 8px;
+                  color: var(--red);
+                "
+              >
+                The Pain
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <div class="ci">
+                  <div class="cd" style="background: var(--red)"></div>
+                  <span>Fragmented search across multiple brands</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--red)"></div>
+                  <span>No centralized price tracking</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--red)"></div>
+                  <span>Missing sales &mdash; no price history</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--red)"></div>
+                  <span>No cross-brand comparison tool</span>
+                </div>
+              </div>
+            </div>
+            <div class="card" style="text-align: left">
+              <div style="font-size: 28px; margin-bottom: 10px">&#128161;</div>
+              <div
+                style="
+                  font-size: 13px;
+                  font-weight: 700;
+                  margin-bottom: 8px;
+                  color: var(--green);
+                "
+              >
+                Our Solution
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <div class="ci">
+                  <div class="cd" style="background: var(--green)"></div>
+                  <span>Unified search across 3 brands</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--green)"></div>
+                  <span>Automated price tracking + history chart</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--green)"></div>
+                  <span>Email alerts on price drops</span>
+                </div>
+                <div class="ci">
+                  <div class="cd" style="background: var(--green)"></div>
+                  <span>Side-by-side product comparison</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div
+            class="card fu fu3"
+            style="
+              margin-top: 14px;
+              padding: 16px 24px;
+              border-color: rgba(232, 201, 126, 0.2);
+              background: rgba(232, 201, 126, 0.04);
+              max-width: 860px;
+              width: 100%;
+            "
+          >
+            <div
+              style="
+                font-size: 13px;
+                color: var(--accent);
+                font-weight: 600;
+                text-align: center;
+              "
+            >
+              &#127919; The Turkish fast-fashion market has millions of daily
+              shoppers &mdash; yet no single aggregator exists for premium
+              brands.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 3: OBJECTIVES -->
+      <div class="slide" id="s2">
+        <div
+          class="orb"
+          style="
+            width: 380px;
+            height: 380px;
+            background: rgba(95, 232, 160, 0.07);
+            bottom: -60px;
+            left: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 920px">
+          <div class="lbl fu">Objectives</div>
+          <h2 class="ttl fu fu1">Project Objectives &amp; Scope</h2>
+          <div class="g2 fu fu2">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(232, 201, 126, 0.1);
+                    color: var(--accent);
+                  "
+                >
+                  &#128269;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      margin-bottom: 2px;
+                    "
+                  >
+                    Smart Multi-Brand Search
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Full-text + synonym-aware search with filters (brand, size,
+                    color, price, dept)
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 184, 232, 0.1);
+                    color: var(--blue);
+                  "
+                >
+                  &#128375;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      margin-bottom: 2px;
+                    "
+                  >
+                    Automated Data Pipeline
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Puppeteer Stealth scrapers running daily via GitHub Actions
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 232, 160, 0.1);
+                    color: var(--green);
+                  "
+                >
+                  &#128200;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      margin-bottom: 2px;
+                    "
+                  >
+                    Price &amp; Stock History
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Track every price change and stock update over time with
+                    visual charts
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="background: rgba(232, 95, 95, 0.1); color: var(--red)"
+                >
+                  &#128276;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 600;
+                      margin-bottom: 2px;
+                    "
+                  >
+                    Real-Time Price Alerts
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Email notifications via BullMQ queue when tracked items drop
+                    in price
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div class="card" style="text-align: left; padding: 14px 16px">
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.16em;
+                    text-transform: uppercase;
+                    color: var(--accent);
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                  "
+                >
+                  In Scope
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 7px">
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>3 Brands: Zara, Mango, Massimo Dutti</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Men &amp; Women departments</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Full-stack web app (live deployment)</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>User auth (local + Google OAuth)</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Watchlist + price target system</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Product comparison (up to 4 items)</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Admin dashboard with scraper control</span>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="card"
+                style="
+                  text-align: left;
+                  padding: 14px 16px;
+                  border-color: rgba(232, 95, 95, 0.2);
+                "
+              >
+                <div
+                  style="
+                    font-size: 11px;
+                    letter-spacing: 0.14em;
+                    text-transform: uppercase;
+                    color: var(--red);
+                    font-weight: 600;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Out of Scope
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>Checkout / purchasing functionality</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>Native mobile apps</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 4: ARCHITECTURE -->
+      <div class="slide" id="s3">
+        <div
+          class="orb"
+          style="
+            width: 420px;
+            height: 420px;
+            background: rgba(95, 184, 232, 0.08);
+            top: -80px;
+            right: -80px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 960px">
+          <div class="lbl fu">Architecture</div>
+          <h2 class="ttl fu fu1">System Architecture</h2>
+          <div class="fu fu2" style="width: 100%; max-width: 900px">
+            <div
+              style="display: flex; justify-content: center; margin-bottom: 8px"
+            >
+              <div
+                class="ab"
+                style="
+                  width: 200px;
+                  border-color: rgba(95, 184, 232, 0.4);
+                  color: var(--blue);
+                "
+              >
+                &#127760; Browser / User
+              </div>
+            </div>
+            <div class="aa" style="margin-bottom: 8px">&#8597;</div>
+            <div
+              style="display: flex; justify-content: center; margin-bottom: 8px"
+            >
+              <div
+                class="ab"
+                style="width: 240px; border-color: rgba(95, 184, 232, 0.3)"
+              >
+                &#9889; React 19 + Vite<br /><span
+                  style="font-size: 10px; color: var(--muted)"
+                  >Vercel (Global CDN)</span
+                >
+              </div>
+            </div>
+            <div class="aa" style="margin-bottom: 8px">&#8597; REST API</div>
+            <div
+              style="display: flex; justify-content: center; margin-bottom: 8px"
+            >
+              <div
+                class="ab"
+                style="
+                  width: 290px;
+                  border-color: rgba(232, 201, 126, 0.35);
+                  color: var(--accent);
+                "
+              >
+                &#128640; Express.js API Server<br /><span
+                  style="font-size: 10px; color: var(--muted)"
+                  >Helmet &bull; Rate Limit &bull; JWT &bull; Passport</span
+                >
+              </div>
+            </div>
+            <div class="aa" style="margin-bottom: 8px">&#8597;</div>
+            <div
+              style="
+                display: flex;
+                justify-content: center;
+                gap: 14px;
+                margin-bottom: 8px;
+              "
+            >
+              <div
+                class="ab"
+                style="width: 185px; border-color: rgba(95, 232, 160, 0.3)"
+              >
+                &#127811; MongoDB Atlas<br /><span
+                  style="font-size: 10px; color: var(--muted)"
+                  >Products &bull; Users &bull; Runs</span
+                >
+              </div>
+              <div
+                class="ab"
+                style="width: 185px; border-color: rgba(232, 95, 95, 0.3)"
+              >
+                &#128308; Redis (BullMQ)<br /><span
+                  style="font-size: 10px; color: var(--muted)"
+                  >Price Alert Queue</span
+                >
+              </div>
+              <div
+                class="ab"
+                style="width: 185px; border-color: rgba(160, 126, 232, 0.3)"
+              >
+                &#128231; Email (Brevo)<br /><span
+                  style="font-size: 10px; color: var(--muted)"
+                  >Alerts &bull; Digest &bull; OTP</span
+                >
+              </div>
+            </div>
+            <div class="aa" style="margin-bottom: 8px">&#8597; Triggers</div>
+            <div style="display: flex; justify-content: center">
+              <div
+                class="ab"
+                style="width: 350px; border-color: rgba(232, 201, 126, 0.3)"
+              >
+                &#128375; Puppeteer Stealth Scrapers<br />
+                <span style="font-size: 10px; color: var(--muted)"
+                  >GitHub Actions (daily cron) &bull; 6 parallel matrix
+                  jobs</span
+                ><br />
+                <div
+                  style="
+                    display: flex;
+                    gap: 8px;
+                    justify-content: center;
+                    margin-top: 6px;
+                  "
+                >
+                  <span class="pill pb2" style="font-size: 9px">Zara M+W</span>
+                  <span class="pill pg" style="font-size: 9px">Mango M+W</span>
+                  <span class="pill pp" style="font-size: 9px"
+                    >Massimo M+W</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 5: TECH STACK (trimmed to 15 most impressive) -->
+      <div class="slide" id="s4">
+        <div
+          class="orb"
+          style="
+            width: 380px;
+            height: 380px;
+            background: rgba(160, 126, 232, 0.08);
+            bottom: -60px;
+            right: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 900px">
+          <div class="lbl fu">Stack</div>
+          <h2 class="ttl fu fu1">Technologies &amp; Tools</h2>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 24px;
+              width: 100%;
+              max-width: 860px;
+            "
+            class="fu fu2"
+          >
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div
+                style="
+                  font-size: 10px;
+                  letter-spacing: 0.18em;
+                  text-transform: uppercase;
+                  color: var(--blue);
+                  font-weight: 600;
+                  margin-bottom: 4px;
+                "
+              >
+                Frontend
+              </div>
+              <div class="tb">&#9883;&#65039; React 19 + Vite</div>
+              <div class="tb">&#127912; TailwindCSS 3</div>
+              <div class="tb">&#128371; Redux Toolkit</div>
+              <div class="tb">&#128202; Recharts</div>
+              <div class="tb">&#127902;&#65039; Framer Motion</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div
+                style="
+                  font-size: 10px;
+                  letter-spacing: 0.18em;
+                  text-transform: uppercase;
+                  color: var(--green);
+                  font-weight: 600;
+                  margin-bottom: 4px;
+                "
+              >
+                Backend
+              </div>
+              <div class="tb">&#128994; Node.js 20 + TypeScript</div>
+              <div class="tb">&#128642; Express.js 5</div>
+              <div class="tb">&#127807; MongoDB Atlas</div>
+              <div class="tb">&#128308; Redis + BullMQ</div>
+              <div class="tb">&#128273; JWT + Google OAuth</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div
+                style="
+                  font-size: 10px;
+                  letter-spacing: 0.18em;
+                  text-transform: uppercase;
+                  color: var(--purple);
+                  font-weight: 600;
+                  margin-bottom: 4px;
+                "
+              >
+                Scraping &amp; Infra
+              </div>
+              <div class="tb">&#128375; Puppeteer + Stealth</div>
+              <div class="tb">&#128260; GitHub Actions (CI)</div>
+              <div class="tb">&#9650; Vercel (Frontend)</div>
+              <div class="tb">&#9729;&#65039; Render (Backend)</div>
+              <div class="tb">&#128231; Brevo (Email)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 6: KEY TECHNICAL CHALLENGES (replaces Methodology) -->
+      <div class="slide" id="s5">
+        <div
+          class="orb"
+          style="
+            width: 400px;
+            height: 400px;
+            background: rgba(232, 201, 126, 0.07);
+            top: -80px;
+            left: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 940px">
+          <div class="lbl fu">Engineering</div>
+          <h2 class="ttl fu fu1">Key Technical Challenges</h2>
+          <div class="g2 fu fu2" style="max-width: 900px">
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div
+                class="card"
+                style="text-align: left; border-color: rgba(232, 95, 95, 0.2)"
+              >
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span style="font-size: 22px">&#128737;&#65039;</span>
+                  <span
+                    style="font-size: 13px; font-weight: 700; color: var(--red)"
+                    >Zara Akamai Bot Protection</span
+                  >
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    color: var(--muted);
+                    line-height: 1.65;
+                  "
+                >
+                  Zara's CDN detects headless browsers and geo-redirects Turkish
+                  visitors to a location-select page.<br /><br />
+                  <strong style="color: var(--text)">Solution:</strong>
+                  Geo-warmup helper visits homepage &rarr; category &rarr;
+                  harvests Akamai cookies &rarr; transplants into all scraper
+                  pages. Combined with Puppeteer Stealth Plugin to spoof browser
+                  fingerprint.
+                </div>
+              </div>
+              <div
+                class="card"
+                style="text-align: left; border-color: rgba(95, 184, 232, 0.2)"
+              >
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span style="font-size: 22px">&#9889;</span>
+                  <span
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      color: var(--blue);
+                    "
+                    >Request Interception Crash</span
+                  >
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    color: var(--muted);
+                    line-height: 1.65;
+                  "
+                >
+                  Puppeteer threw
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >Request Interception is not enabled</code
+                  >
+                  when pages shared an interceptor.<br /><br />
+                  <strong style="color: var(--text)">Solution:</strong> Clear
+                  page ownership rules &mdash;
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >attachRestrictiveListener</code
+                  >
+                  /
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >attachPermissiveListener</code
+                  >
+                  helpers with a
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >safeWipe</code
+                  >
+                  cleanup pattern.
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 12px">
+              <div
+                class="card"
+                style="text-align: left; border-color: rgba(95, 232, 160, 0.2)"
+              >
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span style="font-size: 22px">&#127758;</span>
+                  <span
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      color: var(--green);
+                    "
+                    >Render CPU Timing on Cold Start</span
+                  >
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    color: var(--muted);
+                    line-height: 1.65;
+                  "
+                >
+                  Render's free tier has slow CPU hydration &mdash; scrapers
+                  returned 0 product links because JS hadn't rendered the
+                  product grid yet.<br /><br />
+                  <strong style="color: var(--text)">Solution:</strong> Extended
+                  wait times + explicit
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >[class*="product-grid-product"]</code
+                  >
+                  container wait before extraction.
+                </div>
+              </div>
+              <div
+                class="card"
+                style="text-align: left; border-color: rgba(160, 126, 232, 0.2)"
+              >
+                <div
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-bottom: 8px;
+                  "
+                >
+                  <span style="font-size: 22px">&#128203;</span>
+                  <span
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      color: var(--purple);
+                    "
+                    >Obfuscated CSS Class Names</span
+                  >
+                </div>
+                <div
+                  style="
+                    font-size: 12px;
+                    color: var(--muted);
+                    line-height: 1.65;
+                  "
+                >
+                  Zara obfuscates its CSS class names on every deploy, breaking
+                  selector-based department navigation.<br /><br />
+                  <strong style="color: var(--text)">Solution:</strong> Switched
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >selectDepartment</code
+                  >
+                  to match by
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.08);
+                      padding: 1px 4px;
+                      border-radius: 3px;
+                    "
+                    >textContent</code
+                  >
+                  only &mdash; class-agnostic and deploy-proof.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 7: FEATURES UX -->
+      <div class="slide" id="s6">
+        <div
+          class="orb"
+          style="
+            width: 420px;
+            height: 420px;
+            background: rgba(95, 232, 160, 0.07);
+            bottom: -80px;
+            left: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 960px">
+          <div class="lbl fu">Features</div>
+          <h2 class="ttl fu fu1">Key Features &mdash; User Experience</h2>
+          <div class="g2 fu fu2" style="max-width: 940px">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 184, 232, 0.12);
+                    color: var(--blue);
+                  "
+                >
+                  &#128269;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Smart Search Engine
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    MongoDB full-text with synonym expansion, exclusion rules,
+                    relevance scoring. Supports free-text and category modes.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(232, 201, 126, 0.12);
+                    color: var(--accent);
+                  "
+                >
+                  &#127515;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Advanced Filter Drawer
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Filter by brand, gender, size, color, price range, on-sale,
+                    OOS toggle. Dynamic facets computed per query.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(160, 126, 232, 0.12);
+                    color: var(--purple);
+                  "
+                >
+                  &#9878;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Product Comparison
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Add up to 4 products from any brand. Side-by-side overlay
+                    with price history charts.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 232, 160, 0.12);
+                    color: var(--green);
+                  "
+                >
+                  &#128065;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Product Details Page
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Full image gallery, composition, size availability, price
+                    history chart (Recharts), related products.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="background: rgba(232, 95, 95, 0.12); color: var(--red)"
+                >
+                  &#10084;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Watchlist &amp; Price Targets
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Save items with a target price. Sparkline chart shows trend.
+                    Progress bar shows how close you are.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(232, 201, 126, 0.12);
+                    color: var(--accent);
+                  "
+                >
+                  &#127968;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Home &mdash; Curated Sections
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Campaign hero video slider, New In rail, On Sale deals,
+                    Trending items, 16-category tile grid.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 184, 232, 0.12);
+                    color: var(--blue);
+                  "
+                >
+                  &#127908;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Video &amp; Campaign Products
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Products with video shown in hover-play cards. Admin marks
+                    Campaign Heroes for featured placement.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(160, 126, 232, 0.12);
+                    color: var(--purple);
+                  "
+                >
+                  &#10024;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Premium UI / UX
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Custom cursor, page transitions, scroll-reveal animations
+                    (Framer Motion), dark/light mode, skeletons.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 8: FEATURES BACKEND -->
+      <div class="slide" id="s7">
+        <div
+          class="orb"
+          style="
+            width: 400px;
+            height: 400px;
+            background: rgba(95, 184, 232, 0.08);
+            top: -80px;
+            right: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 960px">
+          <div class="lbl fu">Features</div>
+          <h2 class="ttl fu fu1">Key Features &mdash; Backend &amp; Data</h2>
+          <div class="g2 fu fu2" style="max-width: 940px">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(232, 201, 126, 0.12);
+                    color: var(--accent);
+                  "
+                >
+                  &#128375;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Stealth Scraper Pipeline
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Puppeteer Extra + Stealth Plugin bypasses Akamai. Cookie
+                    harvesting (geo-warmup), request interception, randomized
+                    jitter delays.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 232, 160, 0.12);
+                    color: var(--green);
+                  "
+                >
+                  &#9889;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Delta Skip &amp; Smart Modes
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Full mode scrapes all. Daily mode skips recently-seen
+                    products, focuses on volatile categories (sale, new,
+                    trending).
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="background: rgba(232, 95, 95, 0.12); color: var(--red)"
+                >
+                  &#128737;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Circuit Breaker
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    5 consecutive failures trigger automatic circuit break.
+                    Smart retry with session recycling on bot-wall / timeout
+                    detection.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(160, 126, 232, 0.12);
+                    color: var(--purple);
+                  "
+                >
+                  &#128203;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    OOS &amp; Ghost Detection
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Products unseen for 14+ days automatically marked
+                    unavailable. Stale-detection sweep after every scrape.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 184, 232, 0.12);
+                    color: var(--blue);
+                  "
+                >
+                  &#128276;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Price Alert Queue (BullMQ)
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    After each scrape, BullMQ identifies price drops,
+                    cross-references watchlists, sends batched email alerts
+                    (50/batch).
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(232, 201, 126, 0.12);
+                    color: var(--accent);
+                  "
+                >
+                  &#128236;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Weekly Digest Emails
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Automated weekly email: top 5 discounted products of the
+                    week via Brevo in batches of 50.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="
+                    background: rgba(95, 232, 160, 0.12);
+                    color: var(--green);
+                  "
+                >
+                  &#128274;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Auth System
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Local register with OTP email (30min expiry, TTL index)
+                    &bull; Google OAuth via Passport &bull; 30-day JWT &bull;
+                    Forgot/reset flow.
+                  </div>
+                </div>
+              </div>
+              <div class="fr">
+                <div
+                  class="ic"
+                  style="background: rgba(232, 95, 95, 0.12); color: var(--red)"
+                >
+                  &#9881;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Admin Dashboard
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    KPI metrics, brand breakdown, scraper status tracker,
+                    start/stop controls, activity log, campaign hero manager.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 9: SCRAPER DEEP DIVE -->
+      <div class="slide" id="s8">
+        <div
+          class="orb"
+          style="
+            width: 380px;
+            height: 380px;
+            background: rgba(232, 201, 126, 0.07);
+            bottom: -60px;
+            right: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 960px">
+          <div class="lbl fu">Technical Deep Dive</div>
+          <h2 class="ttl fu fu1">The Scraper Engine</h2>
+          <div
+            class="fu fu2"
+            style="
+              width: 100%;
+              max-width: 920px;
+              display: flex;
+              gap: 16px;
+              flex-direction: column;
+            "
+          >
+            <div class="card" style="padding: 18px 22px">
+              <div
+                style="
+                  font-size: 12px;
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  text-transform: uppercase;
+                  color: var(--accent);
+                  margin-bottom: 14px;
+                "
+              >
+                Pipeline Flow (per brand/department job)
+              </div>
+              <div
+                style="
+                  display: flex;
+                  gap: 6px;
+                  align-items: center;
+                  justify-content: center;
+                  margin-bottom: 10px;
+                "
+              >
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 82px"
+                >
+                  1. Launch<br />Browser
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 98px"
+                >
+                  2. Geo Warmup<br />Cookie Harvest
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 82px"
+                >
+                  3. Fetch<br />Categories
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 98px"
+                >
+                  4. Category Diet<br />(volatile first)
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 90px"
+                >
+                  5. Extract<br />Product Links
+                </div>
+              </div>
+              <div
+                style="
+                  display: flex;
+                  gap: 6px;
+                  align-items: center;
+                  justify-content: center;
+                "
+              >
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 82px"
+                >
+                  6. Delta Skip<br />(skip fresh)
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 82px"
+                >
+                  7. Scrape<br />+ Retry
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 90px"
+                >
+                  8. Upsert DB<br />Price History
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="font-size: 10px; padding: 8px 12px; min-width: 82px"
+                >
+                  9. Stale<br />Sweep 14d
+                </div>
+                <div class="aa">&#8594;</div>
+                <div
+                  class="ab"
+                  style="
+                    font-size: 10px;
+                    padding: 8px 12px;
+                    min-width: 82px;
+                    border-color: rgba(232, 201, 126, 0.4);
+                  "
+                >
+                  10. Queue<br />Alerts
+                </div>
+              </div>
+            </div>
+            <div class="g3" style="max-width: 920px">
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--blue);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Brands Covered
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span><strong>Zara</strong> &mdash; zara.com/tr</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span><strong>Mango</strong> &mdash; shop.mango.com</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span
+                      ><strong>Massimo Dutti</strong> &mdash;
+                      massimodutti.com</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--blue)"></div>
+                    <span>6 parallel GitHub Actions jobs</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--green);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Anti-Bot Techniques
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span>Puppeteer Extra Stealth Plugin</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span>Akamai cookie harvest + transplant</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span>Randomized jitter delays (3&ndash;11s)</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span>Page memory recycling every 10 items</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--red);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Resilience
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>Circuit breaker (5 failures)</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>Smart retry with session recycle</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>Graceful crash recovery on restart</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--red)"></div>
+                    <span>ScraperRun model audit trail</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 10: SEARCH DEEP DIVE -->
+      <div class="slide" id="s9">
+        <div
+          class="orb"
+          style="
+            width: 380px;
+            height: 380px;
+            background: rgba(95, 184, 232, 0.08);
+            top: -80px;
+            left: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 940px">
+          <div class="lbl fu">Technical Deep Dive</div>
+          <h2 class="ttl fu fu1">Smart Search Engine</h2>
+          <div class="g2 fu fu2" style="max-width: 900px">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--accent);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 10px;
+                  "
+                >
+                  MongoDB Text Index
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span
+                      >Weighted: name (&times;10), brand (&times;5), color
+                      (&times;3), desc (&times;1)</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>TextScore-based relevance sorting</span>
+                  </div>
+                  <div class="ci">
+                    <div class="cd"></div>
+                    <span>Compound indexes for fast filter + sort</span>
+                  </div>
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--blue);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 10px;
+                  "
+                >
+                  Synonym Expansion
+                </div>
+                <div
+                  style="font-size: 12px; color: var(--muted); line-height: 1.7"
+                >
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"jeans"</code
+                  >
+                  &rarr;
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"denim, jean"</code
+                  ><br />
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"pants"</code
+                  >
+                  &rarr;
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"trousers, chino, cargo"</code
+                  ><br />
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"sweater"</code
+                  >
+                  &rarr;
+                  <code
+                    style="
+                      color: var(--accent);
+                      background: rgba(232, 201, 126, 0.1);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >"knitwear, pullover, jumper"</code
+                  >
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--red);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Exclusion Rules
+                </div>
+                <div style="font-size: 12px; color: var(--muted)">
+                  Search "shirt" excludes
+                  <code
+                    style="
+                      color: var(--red);
+                      background: rgba(232, 95, 95, 0.08);
+                      padding: 1px 5px;
+                      border-radius: 4px;
+                    "
+                    >jacket, coat, blazer, dress</code
+                  >
+                  &mdash; prevents cross-category noise.
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--green);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 10px;
+                  "
+                >
+                  Sort Modes
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px">
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span
+                      ><strong>Relevance</strong> &mdash; MongoDB text
+                      score</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span
+                      ><strong>Newest</strong> &mdash; by scrape timestamp</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span
+                      ><strong>Lowest / Highest</strong> &mdash; price
+                      ASC/DESC</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span
+                      ><strong>Discount</strong> &mdash; computed % via
+                      aggregation</span
+                    >
+                  </div>
+                  <div class="ci">
+                    <div class="cd" style="background: var(--green)"></div>
+                    <span
+                      ><strong>Trending</strong> &mdash; products with price
+                      movement</span
+                    >
+                  </div>
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--purple);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 8px;
+                  "
+                >
+                  Dynamic Facets
+                </div>
+                <div style="font-size: 12px; color: var(--muted)">
+                  Every search runs a parallel
+                  <strong style="color: var(--text)"
+                    >MongoDB $facet aggregation</strong
+                  >
+                  computing available sizes &amp; colors for the result set.
+                </div>
+              </div>
+              <div class="card" style="text-align: left">
+                <div
+                  style="
+                    font-size: 11px;
+                    color: var(--accent);
+                    font-weight: 700;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                    margin-bottom: 6px;
+                  "
+                >
+                  Autocomplete
+                </div>
+                <div style="font-size: 12px; color: var(--muted)">
+                  Real-time suggestions from text index &mdash; debounced,
+                  deduplicated, title-cased. 6 max.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 11: BRANDS -->
+      <div class="slide" id="s10">
+        <div
+          class="orb"
+          style="
+            width: 420px;
+            height: 420px;
+            background: rgba(232, 201, 126, 0.07);
+            top: -80px;
+            right: -80px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 860px">
+          <div class="lbl fu">Coverage</div>
+          <h2 class="ttl fu fu1">Brands &amp; Coverage</h2>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: 1fr 1fr 1fr;
+              gap: 20px;
+              width: 100%;
+              max-width: 780px;
+            "
+            class="fu fu2"
+          >
+            <div class="bc">
+              <div style="font-size: 44px">&#9724;</div>
+              <div
+                style="
+                  font-size: 13px;
+                  font-weight: 700;
+                  letter-spacing: 0.12em;
+                  text-transform: uppercase;
+                "
+              >
+                ZARA
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  line-height: 1.5;
+                "
+              >
+                zara.com/tr<br />MAN + WOMAN<br /><span
+                  class="pill pr"
+                  style="font-size: 9px; margin-top: 6px; display: inline-block"
+                  >Hardest to scrape</span
+                >
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  margin-top: 6px;
+                "
+              >
+                Akamai protection<br />Geo-wall bypass<br />Cookie transplanting
+              </div>
+            </div>
+            <div class="bc">
+              <div style="font-size: 44px">&#128993;</div>
+              <div
+                style="
+                  font-size: 13px;
+                  font-weight: 700;
+                  letter-spacing: 0.12em;
+                  text-transform: uppercase;
+                  color: var(--accent);
+                "
+              >
+                MANGO
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  line-height: 1.5;
+                "
+              >
+                shop.mango.com<br />MAN + WOMAN<br /><span
+                  class="pill pg"
+                  style="font-size: 9px; margin-top: 6px; display: inline-block"
+                  >API Intercept</span
+                >
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  margin-top: 6px;
+                "
+              >
+                XHR interception<br />JSON API extraction<br />Image + video
+                data
+              </div>
+            </div>
+            <div class="bc">
+              <div style="font-size: 44px">&#11035;</div>
+              <div
+                style="
+                  font-size: 13px;
+                  font-weight: 700;
+                  letter-spacing: 0.12em;
+                  text-transform: uppercase;
+                "
+              >
+                MASSIMO DUTTI
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  line-height: 1.5;
+                "
+              >
+                massimodutti.com<br />MAN + WOMAN<br /><span
+                  class="pill pp"
+                  style="font-size: 9px; margin-top: 6px; display: inline-block"
+                  >DOM Scraping</span
+                >
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  color: var(--muted);
+                  text-align: center;
+                  margin-top: 6px;
+                "
+              >
+                Structured data<br />Sizes + colors<br />Composition data
+              </div>
+            </div>
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 12px;
+              flex-wrap: wrap;
+              justify-content: center;
+              margin-top: 24px;
+            "
+            class="fu fu3"
+          >
+            <div class="sb" style="min-width: 130px">
+              <div class="sn">6</div>
+              <div class="sl2">Scraper Jobs</div>
+            </div>
+            <div class="sb" style="min-width: 130px">
+              <div class="sn">2</div>
+              <div class="sl2">Departments</div>
+            </div>
+            <div class="sb" style="min-width: 130px">
+              <div class="sn">30</div>
+              <div class="sl2">Price History Pts</div>
+            </div>
+            <div class="sb" style="min-width: 130px">
+              <div class="sn">Daily</div>
+              <div class="sl2">Update Schedule</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 12: RESULTS -->
+      <div class="slide" id="s11">
+        <div
+          class="orb"
+          style="
+            width: 400px;
+            height: 400px;
+            background: rgba(95, 232, 160, 0.08);
+            bottom: -60px;
+            left: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 940px">
+          <div class="lbl fu">Results</div>
+          <h2 class="ttl fu fu1">Results &amp; Achievements</h2>
+          <div
+            style="
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 12px;
+              width: 100%;
+              max-width: 840px;
+              margin-bottom: 16px;
+            "
+            class="fu fu2"
+          >
+            <div class="sb">
+              <div class="sn">3</div>
+              <div class="sl2">Brands</div>
+            </div>
+            <div class="sb">
+              <div class="sn">&#9989;</div>
+              <div class="sl2">Live &amp; Deployed</div>
+            </div>
+            <div class="sb">
+              <div class="sn">29</div>
+              <div class="sl2">UI Components</div>
+            </div>
+            <div class="sb">
+              <div class="sn">12</div>
+              <div class="sl2">Pages</div>
+            </div>
+          </div>
+          <div class="g2 fu fu3" style="max-width: 860px">
+            <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+                text-align: left;
+              "
+            >
+              <div
+                style="
+                  font-size: 11px;
+                  letter-spacing: 0.16em;
+                  text-transform: uppercase;
+                  color: var(--accent);
+                  font-weight: 600;
+                  margin-bottom: 4px;
+                "
+              >
+                Technical Achievements
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span
+                  >End-to-end scraper pipeline on GitHub Actions (daily
+                  cron)</span
+                >
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span
+                  >Bypassed Akamai protection on Zara via geo-cookie
+                  strategy</span
+                >
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span>Synonym + exclusion search engine with dual-mode</span>
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span>Async BullMQ price alert system with email batching</span>
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span>JWT + Google OAuth dual-auth with OTP + MongoDB TTL</span>
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span>Admin dashboard with real-time scraper control</span>
+              </div>
+              <div class="ci">
+                <div class="cd"></div>
+                <span
+                  >Optimized MongoDB compound indexes for fast operations</span
+                >
+              </div>
+            </div>
+            <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 7px;
+                text-align: left;
+              "
+            >
+              <div
+                style="
+                  font-size: 11px;
+                  letter-spacing: 0.16em;
+                  text-transform: uppercase;
+                  color: var(--green);
+                  font-weight: 600;
+                  margin-bottom: 4px;
+                "
+              >
+                Product Achievements
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span
+                  >Live production at
+                  <strong style="color: var(--accent)"
+                    >dopewear.app</strong
+                  ></span
+                >
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span>Price history tracking with Recharts timeline</span>
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span>Cross-brand product comparison (up to 4 products)</span>
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span>Watchlist with target price and progress tracking</span>
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span
+                  >Premium UI with custom cursor, transitions, animations</span
+                >
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span>Full mobile-responsive design with dark mode</span>
+              </div>
+              <div class="ci">
+                <div class="cd" style="background: var(--green)"></div>
+                <span>Automated weekly digest newsletters for all users</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 13: FUTURE -->
+      <div class="slide" id="s12">
+        <div
+          class="orb"
+          style="
+            width: 400px;
+            height: 400px;
+            background: rgba(160, 126, 232, 0.08);
+            top: -80px;
+            right: -60px;
+          "
+        ></div>
+        <div class="z1 tc" style="width: 100%; max-width: 940px">
+          <div class="lbl fu">Future</div>
+          <h2 class="ttl fu fu1">Future Improvements &amp; Extensions</h2>
+          <div class="g2 fu fu2" style="max-width: 880px">
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#129302;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    AI Outfit Recommendations
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Use LLMs/embeddings to suggest complete outfits based on
+                    watchlist and browsing behavior.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#128241;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Mobile App (React Native)
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Native iOS/Android with push notifications for instant price
+                    drop alerts.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">
+                  &#127987;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    More Brands
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Expand to H&amp;M, Pull&amp;Bear, Bershka &mdash; pipeline
+                    is brand-agnostic.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#128302;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Price Prediction ML
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Model trained on price history to predict when items will go
+                    on sale.
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">
+                  &#128444;&#65039;
+                </div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Visual Search
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Upload a photo to find similar items using image embedding
+                    similarity.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#128101;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Social Features
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Public wishlists, outfit sharing, community trending from
+                    watchlist data.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#127757;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Multi-Country Pricing
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Expand beyond Turkey &mdash; EU, UK, US versions for
+                    currency comparison.
+                  </div>
+                </div>
+              </div>
+              <div class="fi">
+                <div style="font-size: 24px; flex-shrink: 0">&#128202;</div>
+                <div style="text-align: left">
+                  <div
+                    style="
+                      font-size: 13px;
+                      font-weight: 700;
+                      margin-bottom: 3px;
+                    "
+                  >
+                    Public Analytics Dashboard
+                  </div>
+                  <div style="font-size: 12px; color: var(--muted)">
+                    Market insights: price trends, seasonal patterns,
+                    most-tracked categories.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SLIDE 14: THANK YOU -->
+      <div class="slide" id="s13">
+        <div
+          class="orb"
+          style="
+            width: 600px;
+            height: 600px;
+            background: rgba(184, 134, 11, 0.1);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+          "
+        ></div>
+        <div
+          class="orb"
+          style="
+            width: 350px;
+            height: 350px;
+            background: rgba(95, 184, 232, 0.08);
+            top: -80px;
+            right: -80px;
+          "
+        ></div>
+        <div
+          class="orb"
+          style="
+            width: 350px;
+            height: 350px;
+            background: rgba(95, 232, 160, 0.06);
+            bottom: -80px;
+            left: -80px;
+          "
+        ></div>
+        <div class="z1 tc">
+          <div style="font-size: 72px; margin-bottom: 16px" class="fu">
+            <span class="wave">&#128075;</span>
+          </div>
+          <div class="lbl fu fu1">SE492 &mdash; Graduation Thesis</div>
+          <h1 class="ttl fu fu2" style="font-size: clamp(42px, 6vw, 76px)">
+            Thank You!
+          </h1>
+          <p class="sub fu fu3" style="margin-bottom: 28px">
+            Ready for questions &amp; the live demo at<br />
+            <a
+              href="https://dopewear.app"
+              target="_blank"
+              style="
+                color: var(--accent);
+                font-weight: 700;
+                text-decoration: none;
+              "
+              >dopewear.app</a
+            >
+          </p>
+          <div style="margin-bottom: 28px" class="fu fu4">
+            <a
+              href="https://dopewear.app"
+              target="_blank"
+              style="
+                display: inline-flex;
+                align-items: center;
+                gap: 10px;
+                background: linear-gradient(
+                  135deg,
+                  var(--accent2),
+                  var(--accent)
+                );
+                color: #0a0a0a;
+                font-weight: 800;
+                font-size: 15px;
+                letter-spacing: 0.06em;
+                text-transform: uppercase;
+                text-decoration: none;
+                padding: 14px 32px;
+                border-radius: 100px;
+                transition: opacity 0.2s;
+              "
+              onmouseover="this.style.opacity = '.85'"
+              onmouseout="this.style.opacity = '1'"
+            >
+              &#127760; Open Live Demo
+            </a>
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 14px;
+              flex-wrap: wrap;
+              justify-content: center;
+              margin-bottom: 24px;
+            "
+            class="fu fu4"
+          >
+            <div class="card" style="padding: 16px 24px; min-width: 160px">
+              <div style="font-size: 20px; margin-bottom: 6px">&#127760;</div>
+              <div
+                style="
+                  font-size: 11px;
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  text-transform: uppercase;
+                  margin-bottom: 3px;
+                "
+              >
+                Live App
+              </div>
+              <div style="font-size: 12px; color: var(--accent)">
+                dopewear.app
+              </div>
+            </div>
+            <div class="card" style="padding: 16px 24px; min-width: 160px">
+              <div style="font-size: 20px; margin-bottom: 6px">&#128230;</div>
+              <div
+                style="
+                  font-size: 11px;
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  text-transform: uppercase;
+                  margin-bottom: 3px;
+                "
+              >
+                Repository
+              </div>
+              <div style="font-size: 12px; color: var(--muted)">
+                github.com/osaidzagha/<br />fashion-search-engine
+              </div>
+            </div>
+            <div class="card" style="padding: 16px 24px; min-width: 160px">
+              <div style="font-size: 20px; margin-bottom: 6px">
+                &#9881;&#65039;
+              </div>
+              <div
+                style="
+                  font-size: 11px;
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  text-transform: uppercase;
+                  margin-bottom: 3px;
+                "
+              >
+                Stack Summary
+              </div>
+              <div style="font-size: 12px; color: var(--muted)">
+                React &bull; Node &bull; MongoDB<br />Puppeteer &bull; Redis
+                &bull; BullMQ
+              </div>
+            </div>
+          </div>
+          <div
+            style="
+              display: flex;
+              gap: 10px;
+              flex-wrap: wrap;
+              justify-content: center;
+            "
+            class="fu fu5"
+          >
+            <span class="pill pb2">React 19</span
+            ><span class="pill pG">Express 5</span
+            ><span class="pill pr">MongoDB</span>
+            <span class="pill pp">Puppeteer Stealth</span
+            ><span class="pill pg">BullMQ</span>
+            <span class="pill pb2">Redis</span
+            ><span class="pill pG">GitHub Actions</span
+            ><span class="pill pg">Vercel + Render</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="nb" id="bp">&#8249;</button>
+    <button class="nb" id="bn">&#8250;</button>
+    <div id="dots"></div>
+    <div id="ctr">1 / 14</div>
+
+    <script>
+      const SL = document.querySelectorAll(".slide"),
+        T = SL.length;
+      let cur = 0,
+        tr = false;
+      const pb = document.getElementById("pb"),
+        ctr = document.getElementById("ctr"),
+        dw = document.getElementById("dots");
+      SL.forEach((_, i) => {
+        const d = document.createElement("div");
+        d.className = "dot" + (i === 0 ? " active" : "");
+        d.onclick = () => go(i);
+        dw.appendChild(d);
+      });
+      function upd() {
+        pb.style.width = ((cur + 1) / T) * 100 + "%";
+        ctr.textContent = cur + 1 + " / " + T;
+        document
+          .querySelectorAll(".dot")
+          .forEach((d, i) => d.classList.toggle("active", i === cur));
+      }
+      function go(n) {
+        if (tr || n === cur) return;
+        tr = true;
+        SL[cur].classList.add("exit");
+        SL[cur].classList.remove("active");
+        setTimeout(() => {
+          SL[cur].classList.remove("exit");
+          cur = ((n % T) + T) % T;
+          SL[cur].classList.add("active");
+          SL[cur].querySelectorAll(".fu").forEach((el) => {
+            el.style.animation = "none";
+            el.offsetHeight;
+            el.style.animation = "";
+          });
+          upd();
+          setTimeout(() => {
+            tr = false;
+          }, 520);
+        }, 260);
+      }
+      document.getElementById("bn").onclick = () => go(cur + 1);
+      document.getElementById("bp").onclick = () => go(cur - 1);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowRight" || e.key === " ") {
+          e.preventDefault();
+          go(cur + 1);
+        }
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          go(cur - 1);
+        }
+        if (e.key === "Home") go(0);
+        if (e.key === "End") go(T - 1);
+      });
+      let tx = 0;
+      document.addEventListener("touchstart", (e) => {
+        tx = e.touches[0].clientX;
+      });
+      document.addEventListener("touchend", (e) => {
+        const dx = e.changedTouches[0].clientX - tx;
+        if (Math.abs(dx) > 50) go(dx < 0 ? cur + 1 : cur - 1);
+      });
+      upd();
+    </script>
+  </body>
+</html>

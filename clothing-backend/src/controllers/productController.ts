@@ -1,5 +1,7 @@
 import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
+import { pool } from "../db";
+import { RowDataPacket } from "mysql2/typings/mysql/lib/protocol/packets/RowDataPacket";
 
 // ─── Synonym map (Strict Equivalence) ─────────────────────────────────────────
 const synonymMap: Record<string, string> = {
@@ -54,7 +56,8 @@ const excludeMap: Record<string, string> = {
   jeans: "short shorts skirt dress jacket shirt",
   short: "sleeve dress jacket coat boot boots skirt",
   shorts: "sleeve dress jacket coat boot boots skirt",
-  shirt: "jacket coat blazer dress skirt pant trousers overshirt leather suede nappa",
+  shirt:
+    "jacket coat blazer dress skirt pant trousers overshirt leather suede nappa",
   top: "jacket coat bag handle stitched shoe sneakers skirt pants overshirt leather suede nappa",
   tops: "jacket coat bag handle stitched shoe sneakers skirt pants overshirt leather suede nappa",
   jacket:
@@ -562,10 +565,40 @@ export const getProducts = async (req: Request, res: Response) => {
 // ─── GET /api/products/:id ────────────────────────────────────────────────────
 export const getProductById = async (req: Request, res: Response) => {
   try {
-    const product = await ProductModel.findOne({ id: req.params.id });
-    if (!product) return res.status(404).json({ message: "Product not found" });
+    const [productRows] = await pool.query<RowDataPacket[]>(
+      'SELECT * FROM products p LEFT JOIN brands b ON p.brand_id = b.brand_id WHERE p.product_id = ?',
+      [req.params.id],
+    );
+    const product = productRows[0];
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    const [imagesRows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM images i LEFT JOIN products p ON i.product_id = p.product_id WHERE i.product_id = ?",
+      [req.params.id],
+    );
+    product.images = imagesRows;
+    const [videosRows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM videos v LEFT JOIN products p ON v.product_id = p.product_id WHERE v.product_id = ?",
+      [req.params.id],
+    );
+    product.videos = videosRows;
+
+    const [priceHistoryRows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM price_history LEFT JOIN products p ON price_history.product_id = p.product_id WHERE price_history.product_id = ? ORDER BY price_history.timestamp ASC",
+      [req.params.id],
+    );
+    product.priceHistory = priceHistoryRows;
+
+    const [sizesRows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM sizes s LEFT JOIN products p ON s.product_id = p.product_id WHERE s.product_id = ?",
+      [req.params.id],
+    );
+    product.sizes = sizesRows;
+
     return res.status(200).json(product);
   } catch (error) {
+    console.error("Error fetching product:", error);
     res.status(500).json({ message: "Server Error" });
   }
 };
@@ -573,10 +606,12 @@ export const getProductById = async (req: Request, res: Response) => {
 // ─── DELETE /api/admin/products/:id ──────────────────────────────────────────
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
-    const deletedProduct = await ProductModel.findOneAndDelete({
-      id: req.params.id,
-    });
-    if (!deletedProduct) {
+    const productId = req.params.id;
+    const [result] = await pool.query<RowDataPacket[]>(
+      "DELETE FROM products WHERE product_id = ?",
+      [productId],
+    );
+    if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Product not found" });
     }
     return res.status(200).json({ message: "Product permanently deleted" });
@@ -795,65 +830,13 @@ export const getSearchSuggestions = async (req: Request, res: Response) => {
 // ─── GET /api/categories ──────────────────────────────────────────────────────
 export const getCategories = async (req: Request, res: Response) => {
   try {
-    const potentialCategories = [
-      "jacket",
-      "shirt",
-      "trouser",
-      "jean",
-      "short",
-      "hoodie",
-      "sweater",
-      "suit",
-      "blazer",
-      "shoe",
-      "bag",
-      "polo",
-    ];
-
-    const deptFilter: any = {};
-    if (req.query.departments) {
-      const depts = (req.query.departments as string).split(",");
-      const regexParts = depts.map((d) => {
-        const upper = d.trim().toUpperCase();
-        if (upper === "MAN" || upper === "MEN")
-          return "\\b(man|men|mens|men's)\\b";
-        if (upper === "WOMAN" || upper === "WOMEN")
-          return "\\b(woman|women|womens|women's)\\b";
-        return `^${d}$`;
-      });
-      deptFilter.department = { $regex: regexParts.join("|"), $options: "i" };
-    }
-
-    const facetStages: Record<string, any[]> = {};
-    potentialCategories.forEach((cat) => {
-      facetStages[cat] = [
-        {
-          $match: {
-            ...deptFilter,
-            $or: [
-              { name: { $regex: cat, $options: "i" } },
-              { category: { $regex: cat, $options: "i" } },
-            ],
-          },
-        },
-        { $limit: 1 },
-        { $count: "n" },
-      ];
-    });
-
-    const [facetResult] = await ProductModel.aggregate([
-      { $match: deptFilter },
-      { $facet: facetStages },
-    ]);
-
-    const active: string[] = potentialCategories
-      .filter((cat) => (facetResult?.[cat]?.[0]?.n ?? 0) > 0)
-      .map((cat) => cat.charAt(0).toUpperCase() + cat.slice(1) + "s");
-
-    return res.status(200).json(active.sort());
+    const [categoriesRows] = await pool.query<RowDataPacket[]>(
+      "SELECT DISTINCT category_name FROM categories",
+    );
+    return res.status(200).json(categoriesRows);
   } catch (error) {
     console.error("Error fetching categories:", error);
-    res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ message: "Server Error" });
   }
 };
 

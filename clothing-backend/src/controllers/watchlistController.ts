@@ -4,114 +4,63 @@ import { UserModel } from "../models/User";
 import { ProductModel } from "../models/Product";
 import { priceAlertQueue } from "../queues/queues";
 import { AuthRequest } from "../middlewares/authMiddleware";
-
+import { RowDataPacket } from "mysql2/typings/mysql/lib/protocol/packets/RowDataPacket";
+import { pool } from "../db";
 // GET /api/watchlist
 export const getWatchlist = async (
   req: AuthRequest,
   res: Response,
 ): Promise<Response> => {
   try {
-    const user = await UserModel.findById(req.user!._id).lean();
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT
+         w.tracked_price, w.target_price, w.added_at,
+         p.product_id, p.product_name, p.product_price,
+         p.currency, p.product_link, p.available
+       FROM watchlists w
+       JOIN products p ON w.product_id = p.product_id
+       WHERE w.user_id = ?`,
+      [req.user!.user_id], // fills the ? in WHERE w.user_id = ?
+    );
 
-    if (!user.watchlist || user.watchlist.length === 0) {
+    if (rows.length === 0) {
       return res.status(200).json([]);
     }
 
-    const productIds = user.watchlist.map((item) => item.productId);
-    const products = await ProductModel.find({
-      id: { $in: productIds },
-    }).lean();
-
-    const productsWithTrackedPrices = products.map((product) => {
-      const userTrackData = user.watchlist.find(
-        (item) => item.productId === product.id,
-      );
-      return {
-        ...product,
-        trackedPrice: userTrackData?.trackedPrice ?? product.price,
-        targetPrice: userTrackData?.targetPrice,
-      };
-    });
-
-    return res.status(200).json(productsWithTrackedPrices);
+    return res.status(200).json(rows);
   } catch (error) {
     console.error("Error fetching watchlist:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
-
 // POST /api/watchlist/:productId
 export const addToWatchlist = async (
   req: AuthRequest,
   res: Response,
 ): Promise<Response> => {
   try {
-    const productId = req.params["productId"] as string;
-
-    if (!productId) {
-      return res.status(400).json({ message: "Product ID is required." });
+    const userId = req.user!.user_id;
+    const productId = req.params["productId"];
+    const [productRows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM products WHERE product_id = ?",
+      [req.params["productId"]],
+    );
+    const product = productRows[0];
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
     }
-
-    const userId = req.user!._id;
-    const rawTarget = req.body?.targetPrice;
-    const targetPrice: number | undefined =
-      rawTarget && Number(rawTarget) > 0 ? Number(rawTarget) : undefined;
-
-    const product = await ProductModel.findOne({ id: productId });
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
-    // 2. Validate targetPrice: must be a positive number strictly below current price
-    if (targetPrice !== undefined) {
-      if (targetPrice <= 0) {
-        return res
-          .status(400)
-          .json({ message: "Target price must be a positive number." });
-      }
-      if (targetPrice >= product.price) {
-        return res.status(400).json({
-          message: `Target price must be lower than the current price (${product.price.toLocaleString("tr-TR")} ${product.currency}).`,
-        });
-      }
-    }
-
-    // 3. Check if the user is already tracking this product
-    const user = await UserModel.findOne({
-      _id: userId,
-      "watchlist.productId": productId,
-    });
-
-    if (user) {
-      // If it exists AND a new target price is provided, update it
-      if (targetPrice !== undefined) {
-        await UserModel.findOneAndUpdate(
-          { _id: userId, "watchlist.productId": productId },
-          { $set: { "watchlist.$.targetPrice": targetPrice } },
-        );
-        return res
-          .status(200)
-          .json({ message: "Target price updated", productId, targetPrice });
-      }
-
-      // Exists but no new target — already tracking
-      return res.status(200).json({ message: "Already tracking this product" });
-    }
-
-    // 4. New entry
-    const watchlistEntry: any = {
-      productId,
-      trackedPrice: product.price,
-      addedAt: new Date(),
-    };
-    if (targetPrice !== undefined) watchlistEntry.targetPrice = targetPrice;
-
-    await UserModel.findByIdAndUpdate(userId, {
-      $push: { watchlist: watchlistEntry },
-    });
-
-    return res.status(200).json({ message: "Added to watchlist", productId });
+    await pool.query(
+      "INSERT INTO watchlists (user_id, product_id, tracked_price, target_price) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE target_price = VALUES(target_price)",
+      [
+        req.user!.user_id,
+        req.params["productId"],
+        product.product_price,
+        req.body.targetPrice,
+      ],
+    );
+    return res.status(201).json({ message: "Added to watchlist" });
   } catch (error) {
-    console.error("Error adding to watchlist:", error);
+    console.error("Error fetching product:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
@@ -122,15 +71,12 @@ export const removeFromWatchlist = async (
 ): Promise<Response> => {
   try {
     const productId = req.params["productId"] as string;
-    const userId = req.user!._id;
-
-    await UserModel.findByIdAndUpdate(userId, {
-      $pull: { watchlist: { productId } },
-    });
-
-    return res
-      .status(200)
-      .json({ message: "Removed from watchlist", productId });
+    const userId = req.user!.user_id;
+    await pool.query(
+      "DELETE FROM watchlists WHERE user_id = ? AND product_id = ?",
+      [userId, productId],
+    );
+    return res.status(200).json({ message: "Removed from watchlist" });
   } catch (error) {
     console.error("Error removing from watchlist:", error);
     return res.status(500).json({ message: "Server error" });

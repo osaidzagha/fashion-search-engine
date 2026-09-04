@@ -1,11 +1,20 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
-import { UserModel, IUser } from "../models/User";
+import { pool } from "../db";
+import { RowDataPacket } from "mysql2";
 
 // 1. Force Express to globally recognize your exact database user model
 declare global {
   namespace Express {
-    interface User extends IUser {}
+    interface User {
+      user_id: number;
+      user_name: string;
+      user_email: string;
+      role: string;
+      auth_provider: string;
+      is_verified: boolean;
+      price_alert_enabled: boolean;
+    }
   }
 }
 
@@ -36,14 +45,18 @@ export const protect = async (
         process.env.JWT_SECRET as string,
       ) as JwtPayload;
 
-      const user = await UserModel.findById(decoded.id).select("-password");
+      const [userRows] = await pool.query<RowDataPacket[]>(
+        "SELECT user_id, user_name, user_email, role, auth_provider, is_verified, price_alert_enabled FROM users WHERE user_id = ?",
+        [decoded.id],
+      );
+      const user = userRows[0];
 
       if (!user) {
         res.status(401).json({ message: "User not found" });
         return;
       }
 
-      req.user = user;
+      req.user = user as Express.User;
       next();
     } catch (error) {
       console.error(error);

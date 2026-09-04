@@ -1,9 +1,12 @@
 import { Request, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { UserModel } from "../models/User";
+import { RowDataPacket, ResultSetHeader } from "mysql2"; // ← Types from mysql2
+import { pool } from "../db";                            // ← Our MySQL connection pool
 import { sendVerificationEmail } from "../utils/sendEmail";
 import { validationResult } from "express-validator";
+
+// ─── Helpers (unchanged) ──────────────────────────────────────────────────────
 
 const generateToken = (id: string, role: string): string => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET as string, {
@@ -15,10 +18,12 @@ const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
 const OTP_EXPIRY_MS = 30 * 60 * 1000;
+// Returns a JS Date 30 minutes from now — we store it in MySQL as a TIMESTAMP
 const otpExpiry = () => new Date(Date.now() + OTP_EXPIRY_MS);
 const RESEND_COOLDOWN_MS = 60 * 1000;
-
 const sanitizeEmail = (email: string) => email.toLowerCase().trim();
+
+// ─── registerUser ─────────────────────────────────────────────────────────────
 
 export const registerUser = async (
   req: Request,
@@ -32,69 +37,104 @@ export const registerUser = async (
     const safeEmail = sanitizeEmail(req.body.email);
     const { name, password } = req.body;
 
-    const existingUser = await UserModel.findOne({ email: safeEmail });
+    // ── STEP 1: Check if this email already exists ────────────────────────────
+    //
+    // OLD (Mongoose):  UserModel.findOne({ email: safeEmail })
+    //
+    // NEW (MySQL):
+    //   pool.query() always returns a tuple: [rows, fields]
+    //   We destructure and only take the first element: [rows]
+    //   rows is an array — even if there's one user, it comes back as [{ user_id: 1, ... }]
+    //   So we read the single user as rows[0]
+    //
+    //   The ? is a placeholder. MySQL will safely substitute safeEmail into it.
+    //   NEVER write: `WHERE user_email = '${safeEmail}'` — that's SQL injection.
+    //
+    const [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT user_id, user_name, user_email, auth_provider, is_verified FROM users WHERE user_email = ?",
+      [safeEmail],
+    );
+    const existingUser = rows[0]; // undefined if no match, object if found
 
     // ── Google account trying to register with email/password ──
-    if (existingUser && existingUser.authProvider === "google") {
+    if (existingUser && existingUser.auth_provider === "google") {
       return res.status(400).json({
         message:
           "This email is linked to a Google account. Please sign in with Google.",
       });
     }
 
-    // ── Already registered but NOT verified ──
-    if (existingUser && !existingUser.isVerified) {
+    // ── Already registered but NOT verified — resend a fresh OTP ──
+    if (existingUser && !existingUser.is_verified) {
       const otp = generateOTP();
-      existingUser.verificationToken = otp;
-      existingUser.verificationExpires = otpExpiry();
-      existingUser.name = name;
       const salt = await bcrypt.genSalt(10);
-      existingUser.password = await bcrypt.hash(password, salt);
-      await existingUser.save();
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // UPDATE: change multiple columns for this specific user
+      // SET col = ? means "set this column to the next ? value"
+      // The order of ? values in the array must match the order of ? in the SQL
+      await pool.query(
+        `UPDATE users
+         SET user_name            = ?,
+             user_password        = ?,
+             verification_token   = ?,
+             verification_expires = ?
+         WHERE user_email = ?`,
+        [name, hashedPassword, otp, otpExpiry(), safeEmail],
+      );
+
       try {
-        await sendVerificationEmail(existingUser.email, otp);
+        await sendVerificationEmail(safeEmail, otp);
       } catch (mailError) {
         console.error("⚠️ [registerUser] Email delivery failed:", mailError);
       }
       return res.status(200).json({
         message: "Account updated. Please check your email for the new code.",
-        email: existingUser.email,
+        email: safeEmail,
       });
     }
 
     // ── Already registered AND verified ──
-    if (existingUser && existingUser.isVerified) {
+    if (existingUser && existingUser.is_verified) {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    // ── New user ──
+    // ── New user: INSERT a fresh row ──────────────────────────────────────────
+    //
+    // OLD (Mongoose):  UserModel.create({ name, email, password, ... })
+    //
+    // NEW (MySQL):
+    //   INSERT INTO tableName (col1, col2, ...) VALUES (?, ?, ...)
+    //   We cast the result as ResultSetHeader — that's the MySQL2 type for INSERT/UPDATE results
+    //   result.insertId gives us the auto-incremented user_id MySQL assigned
+    //
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     const otp = generateOTP();
 
-    const user = await UserModel.create({
-      name,
-      email: safeEmail,
-      password: hashedPassword,
-      isVerified: false,
-      verificationToken: otp,
-      verificationExpires: otpExpiry(),
-      authProvider: "local",
-    });
+    const [result] = await pool.query<ResultSetHeader>(
+      `INSERT INTO users
+         (user_name, user_email, user_password, is_verified,
+          verification_token, verification_expires, auth_provider)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [name, safeEmail, hashedPassword, false, otp, otpExpiry(), "local"],
+    );
 
-    if (!user) {
+    // result.affectedRows tells us if the insert worked (should be 1)
+    if (result.affectedRows === 0) {
       return res.status(400).json({ message: "Invalid user data" });
     }
 
     try {
-      await sendVerificationEmail(user.email, otp);
+      await sendVerificationEmail(safeEmail, otp);
     } catch (mailError) {
       console.error("⚠️ [registerUser] Email delivery failed:", mailError);
     }
 
+    // Response shape is identical to before — frontend doesn't change
     return res.status(201).json({
       message: "Registration successful. Please check your email.",
-      email: user.email,
+      email: safeEmail,
     });
   } catch (error) {
     console.error("❌ [registerUser] Error:", error);
@@ -103,6 +143,8 @@ export const registerUser = async (
       .json({ message: "Server error during registration." });
   }
 };
+
+// ─── loginUser ────────────────────────────────────────────────────────────────
 
 export const loginUser = async (
   req: Request,
@@ -115,34 +157,49 @@ export const loginUser = async (
   try {
     const safeEmail = sanitizeEmail(req.body.email);
     const { password } = req.body;
-    const user = await UserModel.findOne({ email: safeEmail });
+
+    // ── Find user by email ────────────────────────────────────────────────────
+    //
+    // We SELECT user_password here because we need it for bcrypt.compare below.
+    // In Mongoose we had `select("+password")` — here we just include it in the SELECT.
+    //
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT user_id, user_name, user_email, user_password,
+              role, auth_provider, is_verified
+       FROM users
+       WHERE user_email = ?`,
+      [safeEmail],
+    );
+    const user = rows[0]; // undefined if not found
 
     // ── Google account trying to log in with a password ──
-    if (user && user.authProvider === "google") {
+    if (user && user.auth_provider === "google") {
       return res.status(400).json({
         message:
           "This account uses Google sign-in. Please use the 'Continue with Google' button.",
       });
     }
 
-    if (user && !user.isVerified) {
+    if (user && !user.is_verified) {
       return res.status(401).json({
         message:
           "Please verify your account before logging in. Check your email for the code.",
       });
     }
 
+    // bcrypt.compare still works exactly the same — nothing changes here
     if (
       user &&
-      user.password &&
-      (await bcrypt.compare(password, user.password))
+      user.user_password &&
+      (await bcrypt.compare(password, user.user_password))
     ) {
+      // generateToken needs a string id — MySQL gives us an integer, so convert with .toString()
       return res.status(200).json({
-        _id: user.id,
-        name: user.name,
-        email: user.email,
+        _id: user.user_id.toString(),
+        name: user.user_name,
+        email: user.user_email,
         role: user.role,
-        token: generateToken(user.id, user.role),
+        token: generateToken(user.user_id.toString(), user.role),
       });
     }
 
@@ -152,6 +209,8 @@ export const loginUser = async (
     return res.status(500).json({ message: "Server error during login." });
   }
 };
+
+// ─── verifyEmail ──────────────────────────────────────────────────────────────
 
 export const verifyEmail = async (
   req: Request,
@@ -165,24 +224,37 @@ export const verifyEmail = async (
       return res.status(400).json({ message: "Email and OTP are required." });
     }
 
-    const userExists = await UserModel.findOne({ email: safeEmail });
+    // ── Find the unverified user ──────────────────────────────────────────────
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT user_id, user_name, user_email, role,
+              is_verified, verification_token, verification_expires
+       FROM users
+       WHERE user_email = ?`,
+      [safeEmail],
+    );
+    const user = rows[0];
 
-    if (!userExists) {
+    if (!user) {
       return res
         .status(400)
         .json({ message: "No account found. Please register again." });
     }
 
-    if (userExists.isVerified) {
+    if (user.is_verified) {
       return res
         .status(400)
         .json({ message: "Account already verified. Please sign in." });
     }
 
+    // ── Validate OTP and expiry ───────────────────────────────────────────────
+    //
+    // MySQL returns TIMESTAMP columns as JS Date objects automatically.
+    // So user.verification_expires is already a Date — we can compare directly.
+    //
     if (
-      userExists.verificationToken !== otp ||
-      !userExists.verificationExpires ||
-      userExists.verificationExpires < new Date()
+      user.verification_token !== otp ||
+      !user.verification_expires ||
+      new Date(user.verification_expires) < new Date()
     ) {
       return res.status(400).json({
         message:
@@ -190,18 +262,28 @@ export const verifyEmail = async (
       });
     }
 
-    userExists.isVerified = true;
-    userExists.verificationToken = undefined;
-    userExists.verificationExpires = undefined;
+    // ── Mark user as verified, clear OTP fields ───────────────────────────────
+    //
+    // We set verification_token and verification_expires to NULL
+    // (NULL in SQL = no value, same concept as undefined in MongoDB)
+    //
+    await pool.query(
+      `UPDATE users
+       SET is_verified          = 1,
+           verification_token   = NULL,
+           verification_expires = NULL
+       WHERE user_email = ?`,
+      [safeEmail],
+    );
 
-    const accessToken = generateToken(userExists.id, userExists.role);
-    await userExists.save();
+    const accessToken = generateToken(user.user_id.toString(), user.role);
 
+    // Response shape identical to before
     return res.status(200).json({
-      _id: userExists.id,
-      name: userExists.name,
-      email: userExists.email,
-      role: userExists.role,
+      _id: user.user_id.toString(),
+      name: user.user_name,
+      email: user.user_email,
+      role: user.role,
       token: accessToken,
       message: "Account verified successfully! Welcome to DOPE.",
     });
@@ -213,6 +295,8 @@ export const verifyEmail = async (
   }
 };
 
+// ─── resendOTP ────────────────────────────────────────────────────────────────
+
 export const resendOTP = async (
   req: Request,
   res: Response,
@@ -222,7 +306,13 @@ export const resendOTP = async (
     if (!safeEmail)
       return res.status(400).json({ message: "Email is required." });
 
-    const user = await UserModel.findOne({ email: safeEmail });
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT user_id, is_verified, verification_expires
+       FROM users
+       WHERE user_email = ?`,
+      [safeEmail],
+    );
+    const user = rows[0];
 
     if (!user) {
       return res.status(404).json({
@@ -231,14 +321,18 @@ export const resendOTP = async (
       });
     }
 
-    if (user.isVerified) {
+    if (user.is_verified) {
       return res
         .status(400)
         .json({ message: "Account already verified. Please sign in." });
     }
 
-    if (user.verificationExpires) {
-      const timeLeft = user.verificationExpires.getTime() - Date.now();
+    // ── Cooldown check ────────────────────────────────────────────────────────
+    //
+    // MySQL returns the TIMESTAMP as a JS Date, so .getTime() works normally.
+    //
+    if (user.verification_expires) {
+      const timeLeft = new Date(user.verification_expires).getTime() - Date.now();
       const remainingExpiry = OTP_EXPIRY_MS - RESEND_COOLDOWN_MS;
       if (timeLeft > remainingExpiry) {
         const secondsLeft = Math.ceil((timeLeft - remainingExpiry) / 1000);
@@ -249,9 +343,14 @@ export const resendOTP = async (
     }
 
     const otp = generateOTP();
-    user.verificationToken = otp;
-    user.verificationExpires = otpExpiry();
-    await user.save();
+
+    await pool.query(
+      `UPDATE users
+       SET verification_token   = ?,
+           verification_expires = ?
+       WHERE user_email = ?`,
+      [otp, otpExpiry(), safeEmail],
+    );
 
     try {
       await sendVerificationEmail(safeEmail, otp);
@@ -266,6 +365,8 @@ export const resendOTP = async (
   }
 };
 
+// ─── forgotPassword ───────────────────────────────────────────────────────────
+
 export const forgotPassword = async (
   req: Request,
   res: Response,
@@ -275,17 +376,21 @@ export const forgotPassword = async (
     if (!safeEmail)
       return res.status(400).json({ message: "Email is required." });
 
-    const user = await UserModel.findOne({ email: safeEmail });
+    const [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT user_id, auth_provider FROM users WHERE user_email = ?",
+      [safeEmail],
+    );
+    const user = rows[0];
 
     // ── Google-only account can't reset a password they don't have ──
-    if (user && user.authProvider === "google") {
+    if (user && user.auth_provider === "google") {
       return res.status(400).json({
         message:
           "This account uses Google sign-in and has no password to reset.",
       });
     }
 
-    // Don't reveal whether the account exists
+    // Don't reveal whether the account exists — always send the same response
     if (!user) {
       return res.status(200).json({
         message:
@@ -294,9 +399,14 @@ export const forgotPassword = async (
     }
 
     const otp = generateOTP();
-    user.verificationToken = otp;
-    user.verificationExpires = otpExpiry();
-    await user.save();
+
+    await pool.query(
+      `UPDATE users
+       SET verification_token   = ?,
+           verification_expires = ?
+       WHERE user_email = ?`,
+      [otp, otpExpiry(), safeEmail],
+    );
 
     try {
       await sendVerificationEmail(safeEmail, otp);
@@ -313,6 +423,8 @@ export const forgotPassword = async (
     return res.status(500).json({ message: "Server error." });
   }
 };
+
+// ─── resetPassword ────────────────────────────────────────────────────────────
 
 export const resetPassword = async (
   req: Request,
@@ -332,27 +444,40 @@ export const resetPassword = async (
         .json({ message: "Email, OTP, and new password are required." });
     }
 
-    const user = await UserModel.findOne({ email: safeEmail });
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT user_id, verification_token, verification_expires
+       FROM users
+       WHERE user_email = ?`,
+      [safeEmail],
+    );
+    const user = rows[0];
 
     if (!user) {
       return res.status(400).json({ message: "Invalid request." });
     }
 
     if (
-      user.verificationToken !== otp ||
-      !user.verificationExpires ||
-      user.verificationExpires < new Date()
+      user.verification_token !== otp ||
+      !user.verification_expires ||
+      new Date(user.verification_expires) < new Date()
     ) {
       return res
         .status(400)
         .json({ message: "Invalid or expired reset code." });
     }
 
+    // Hash the new password then store it, clear OTP fields
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-    user.verificationToken = undefined;
-    user.verificationExpires = undefined;
-    await user.save();
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    await pool.query(
+      `UPDATE users
+       SET user_password        = ?,
+           verification_token   = NULL,
+           verification_expires = NULL
+       WHERE user_email = ?`,
+      [hashedPassword, safeEmail],
+    );
 
     return res
       .status(200)

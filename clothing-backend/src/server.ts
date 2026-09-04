@@ -18,6 +18,7 @@ import passport from "passport";
 
 // 👇 IMPORT THE NEW ERROR HANDLER
 import { errorHandler } from "./middlewares/errorHandler";
+import { pool } from "./db";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -105,3 +106,14 @@ const shutdown = async (signal: string) => {
 
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));
+
+async function testConnection() {
+  try {
+    const connection = await pool.getConnection();
+    console.log(" Successfully connected to MySQL database: dopewear");
+
+    connection.release();
+  } catch (error) {
+    console.error(" Database connection failed:", error);
+  }
+}

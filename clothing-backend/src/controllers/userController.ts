@@ -1,14 +1,15 @@
 import bcrypt from "bcryptjs";
-import { UserModel } from "../models/User";
 import { AuthRequest } from "../middlewares/authMiddleware";
 import { Request, Response } from "express";
+import { pool } from "../db";
+import { ResultSetHeader, RowDataPacket } from "mysql2";
 // ─── PUT /api/users/profile ───────────────────────────────────────────────────
 export const updateProfile = async (
   req: AuthRequest,
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user!._id;
+    const userId = req.user!.user_id;
     const { name, email } = req.body;
 
     if (!name && !email) {
@@ -16,34 +17,42 @@ export const updateProfile = async (
       return;
     }
 
-    const user = await UserModel.findById(userId);
+    const [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM users WHERE user_id = ?",
+      [userId],
+    );
+    const user = rows[0];
     if (!user) {
       res.status(404).json({ message: "User not found." });
       return;
     }
 
-    if (email && email.toLowerCase() !== user.email) {
-      const conflict = await UserModel.findOne({
-        email: email.toLowerCase(),
-        _id: { $ne: userId },
-      });
+    if (email && email.toLowerCase() !== user.user_email) {
+      const [conflictRows] = await pool.query<RowDataPacket[]>(
+        "SELECT * FROM users WHERE user_email = ? AND user_id != ?",
+        [email.toLowerCase(), userId],
+      );
+      const conflict = conflictRows.length > 0;
       if (conflict) {
         res.status(409).json({ message: "Email is already in use." });
         return;
       }
-      user.email = email.toLowerCase();
     }
 
-    if (name) user.name = name.trim();
-
-    await user.save();
-
+    await pool.query(
+      "UPDATE users SET user_name = ?, user_email = ? WHERE user_id = ?",
+      [
+        name ? name.trim() : user.user_name, // new name OR keep old
+        email ? email.toLowerCase() : user.user_email, // new email OR keep old
+        userId,
+      ],
+    );
     res.json({
       message: "Profile updated.",
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
+        _id: user.user_id,
+        name: name ? name.trim() : user.user_name,
+        email: email ? email.toLowerCase() : user.user_email,
         role: user.role,
       },
     });
@@ -60,13 +69,11 @@ export const getUserProfile = async (
     const u = req.user as any;
     // Return all fields that the frontend Profile page needs
     res.json({
-      _id: u._id,
-      name: u.name,
-      email: u.email,
-      role: u.role,
-      authProvider: u.authProvider,
-      priceAlertEnabled: u.preferences?.priceAlertEnabled ?? true,
-      createdAt: u.createdAt,
+      _id: u.user_id,
+      name: u.user_name,
+      email: u.user_email,
+      authProvider: u.auth_provider,
+      priceAlertEnabled: u.price_alert_enabled,
     });
   } else {
     res.status(404).json({ message: "User not found" });
@@ -78,7 +85,7 @@ export const updatePassword = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user!._id;
+    const userId = req.user!.user_id;
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
@@ -95,28 +102,35 @@ export const updatePassword = async (
       return;
     }
 
-    const user = await UserModel.findById(userId).select("+password");
+    const [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM users WHERE user_id = ?",
+      [userId],
+    );
+    const user = rows[0];
+
     if (!user) {
       res.status(404).json({ message: "User not found." });
       return;
     }
-
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    const isMatch = await bcrypt.compare(currentPassword, user.user_password);
     if (!isMatch) {
       res.status(401).json({ message: "Current password is incorrect." });
       return;
     }
 
-    const isSame = await bcrypt.compare(newPassword, user.password);
+    // ✅ Correct way
+    const isSame = await bcrypt.compare(newPassword, user.user_password);
     if (isSame) {
       res
         .status(400)
         .json({ message: "New password must differ from the current one." });
       return;
     }
-
-    user.password = await bcrypt.hash(newPassword, 12);
-    await user.save();
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    await pool.query("UPDATE users SET user_password = ? WHERE user_id = ?", [
+      hashedPassword,
+      userId,
+    ]);
 
     res.json({ message: "Password updated successfully." });
   } catch (err) {
@@ -131,7 +145,7 @@ export const updatePreferences = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user!._id;
+    const userId = req.user!.user_id;
     const { priceAlertEnabled } = req.body;
 
     if (typeof priceAlertEnabled !== "boolean") {
@@ -139,20 +153,19 @@ export const updatePreferences = async (
       return;
     }
 
-    const user = await UserModel.findByIdAndUpdate(
-      userId,
-      { $set: { "preferences.priceAlertEnabled": priceAlertEnabled } },
-      { new: true },
+    const [result] = await pool.query<ResultSetHeader>(
+      "UPDATE users SET price_alert_enabled = ? WHERE user_id = ?",
+      [priceAlertEnabled, userId],
     );
 
-    if (!user) {
+    if (result.affectedRows === 0) {
       res.status(404).json({ message: "User not found." });
       return;
     }
 
     res.json({
       message: "Preferences updated.",
-      preferences: user.preferences,
+      preferences: { priceAlertEnabled },
     });
   } catch (err) {
     console.error("[UserController] updatePreferences:", err);
@@ -166,17 +179,21 @@ export const deleteAccount = async (
   res: Response,
 ): Promise<void> => {
   try {
-    const userId = req.user!._id;
+    const userId = req.user!.user_id;
     const { password } = req.body;
 
-    const user = await UserModel.findById(userId).select("+password");
+    const [rows] = await pool.query<RowDataPacket[]>(
+      "SELECT * FROM users WHERE user_id = ?",
+      [userId],
+    );
+    const user = rows[0];
     if (!user) {
       res.status(404).json({ message: "User not found." });
       return;
     }
 
     // Google users have no password — block the flow clearly
-    if (user.authProvider === "google") {
+    if (user.auth_provider === "google") {
       res.status(400).json({
         message:
           "Accounts signed in with Google cannot be deleted with a password. Please contact support.",
@@ -189,13 +206,13 @@ export const deleteAccount = async (
       return;
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(password, user.user_password);
     if (!isMatch) {
       res.status(401).json({ message: "Incorrect password." });
       return;
     }
 
-    await UserModel.findByIdAndDelete(userId);
+    await pool.query("DELETE FROM users WHERE user_id = ?", [userId]);
 
     res.json({ message: "Account permanently deleted." });
   } catch (err) {
