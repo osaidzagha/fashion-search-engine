@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import { ProductModel } from "../models/Product";
 import { UserModel } from "../models/User";
 import { ScraperRunModel, IScraperRun } from "../models/ScraperRun";
+import { pool } from "../db";
+import { RowDataPacket, ResultSetHeader } from "mysql2";
+
 import {
   triggerScraper,
   knownBrandSlugs,
@@ -336,27 +339,34 @@ export const killScraper = async (
 export const toggleCampaignHero = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-
-    // Find the product
-    const product = await ProductModel.findOne({ id });
+    const [productRows] = await pool.query<RowDataPacket[]>(
+      `SELECT p.product_id, p.is_campaign_hero, COUNT(v.video_id) AS video_count
+       FROM products p LEFT JOIN videos v
+       ON p.product_id = v.product_id
+       WHERE p.product_id = ?
+       GROUP BY p.product_id`,
+      [id],
+    );
+    const product = productRows[0];
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
+    const newHeroStatus = product.is_campaign_hero ? 0 : 1;
 
-    // Ensure it actually has a video before allowing it to be a hero
-    if (!product.videos || product.videos.length === 0) {
+    if (Number(product.video_count) === 0) {
       return res
         .status(400)
         .json({ message: "Product must have a video to be a campaign hero" });
     }
 
-    // Flip the switch
-    product.isCampaignHero = !product.isCampaignHero;
-    await product.save();
+    const updateHero = await pool.query<ResultSetHeader>(
+      "UPDATE products SET is_campaign_hero = ? WHERE product_id = ?",
+      [newHeroStatus, id],
+    );
 
     res.status(200).json({
-      message: `Product is now ${product.isCampaignHero ? "live on" : "removed from"} the homepage campaign.`,
-      isCampaignHero: product.isCampaignHero,
+      message: `Product is now ${newHeroStatus ? "live on" : "removed from"} the homepage campaign.`,
+      isCampaignHero: Boolean(newHeroStatus),
     });
   } catch (error) {
     console.error("[Admin API] Error toggling campaign hero:", error);
