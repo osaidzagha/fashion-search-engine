@@ -144,45 +144,61 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
       params.push(req.query.departments);
     }
     const WHERE = conditions.join(" AND ");
-
+    const baseSelect = `
+  p.product_id AS id,
+  p.brand_ext_id,
+  p.product_name AS name,
+  p.product_price AS price,
+  p.original_price AS originalPrice,
+  p.currency,
+  p.product_link AS link,
+  p.product_color AS color,
+  p.available,
+  b.brand_name AS brand,
+  d.department_name AS department,
+  MIN(i.image_url) AS primary_image
+`;
     const [[onSaleRows], [newInRows], [withVideoRows], [campaignHeroRows]] =
       await Promise.all([
         pool.query<RowDataPacket[]>(
-          `SELECT p.product_id AS id, p.brand_ext_id,  p.product_name AS name,  p.product_price AS price,  p.original_price AS originalPrice,
-           p.currency,  p.product_link AS link,  p.product_color AS color,  p.available,  b.brand_name AS brand,  d.department_name AS department,  MIN(i.image_url) AS primary_image
-        FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
-        ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
-        LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
-        WHERE ${WHERE} AND p.original_price > p.product_price GROUP BY p.product_id ORDER BY (p.original_price - p.product_price) DESC limit 12`,
+          `SELECT ${baseSelect} FROM products p 
+          JOIN brands b ON p.brand_id = b.brand_id 
+       JOIN departments d ON p.department_id = d.department_id 
+       LEFT JOIN images i ON p.product_id = i.product_id 
+       WHERE ${WHERE} AND p.original_price > p.product_price 
+       GROUP BY p.product_id 
+       ORDER BY (p.original_price - p.product_price) DESC LIMIT 12`,
           [...params],
         ),
         pool.query<RowDataPacket[]>(
-          `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
-        p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url)
-        AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
-        ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
-        LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
-        WHERE ${WHERE} GROUP BY p.product_id ORDER BY p.created_at DESC limit 15`,
+          `SELECT ${baseSelect} FROM products p 
+       JOIN brands b ON p.brand_id = b.brand_id 
+       JOIN departments d ON p.department_id = d.department_id 
+       LEFT JOIN images i ON p.product_id = i.product_id 
+       WHERE ${WHERE} 
+       GROUP BY p.product_id 
+       ORDER BY p.created_at DESC LIMIT 15`,
           [...params],
         ),
         pool.query<RowDataPacket[]>(
-          `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
-        p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url)
-        AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
-        ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
-        LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
-        WHERE ${WHERE} AND v.product_id IS NOT NULL
-        GROUP BY p.product_id ORDER BY p.created_at DESC limit 20`,
+          `SELECT ${baseSelect} FROM products p 
+       JOIN brands b ON p.brand_id = b.brand_id 
+       JOIN departments d ON p.department_id = d.department_id 
+       JOIN videos v ON p.product_id = v.product_id 
+       LEFT JOIN images i ON p.product_id = i.product_id 
+       WHERE ${WHERE} 
+       GROUP BY p.product_id 
+       ORDER BY p.created_at DESC LIMIT 20`,
           [...params],
         ),
         pool.query<RowDataPacket[]>(
-          `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
-        p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url)
-        AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
-        ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
-        LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
-        WHERE ${WHERE} AND p.is_campaign_hero = 1
-        GROUP BY p.product_id ORDER BY p.created_at DESC limit 30`,
+          `SELECT ${baseSelect} FROM products p 
+       JOIN brands b ON p.brand_id = b.brand_id 
+       JOIN departments d ON p.department_id = d.department_id 
+       LEFT JOIN images i ON p.product_id = i.product_id 
+       WHERE ${WHERE} AND p.is_campaign_hero = 1 
+       GROUP BY p.product_id 
+       ORDER BY p.created_at DESC LIMIT 30`,
           [...params],
         ),
       ]);
