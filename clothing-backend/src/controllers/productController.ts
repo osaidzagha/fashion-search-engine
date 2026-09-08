@@ -32,6 +32,15 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     const WHERE = conditions.join(" AND ");
+    const [countRows] = await pool.query<RowDataPacket[]>(
+      `SELECT COUNT(DISTINCT p.product_id) AS total
+   FROM products p
+   JOIN brands b ON p.brand_id = b.brand_id
+   JOIN departments d ON p.department_id = d.department_id
+   WHERE ${WHERE}`,
+      [...params],
+    );
+    const total = Number(countRows[0]?.total || 0);
 
     const [productRows] = await pool.query<RowDataPacket[]>(
       `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
@@ -42,7 +51,14 @@ export const getProducts = async (req: Request, res: Response) => {
          WHERE ${WHERE} GROUP BY p.product_id ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset],
     );
-    return res.status(200).json(productRows);
+    return res.status(200).json({
+      products: productRows,
+      totalCount: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      availableSizes: [],
+      availableColors: [],
+    });
   } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({ message: "Server Error" });
