@@ -43,9 +43,9 @@ export const getProducts = async (req: Request, res: Response) => {
     const total = Number(countRows[0]?.total || 0);
 
     const [productRows] = await pool.query<RowDataPacket[]>(
-      `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
-       p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url)
-        AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
+      `SELECT p.product_id AS id, p.brand_ext_id, p.product_name AS name, p.product_price AS price, p.original_price AS originalPrice,p.currency,
+       p.product_link AS link, p.product_color AS color, p.available, b.brand_name AS brand, d.department_name AS department, MIN(i.image_url)
+        AS primary_image,JSON_ARRAYAGG(i.image_url) AS images FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
          ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
          LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
          WHERE ${WHERE} GROUP BY p.product_id ORDER BY p.updated_at DESC LIMIT ? OFFSET ?`,
@@ -69,9 +69,14 @@ export const getProducts = async (req: Request, res: Response) => {
 export const getProductById = async (req: Request, res: Response) => {
   try {
     const [productRows] = await pool.query<RowDataPacket[]>(
-      "SELECT * FROM products p LEFT JOIN brands b ON p.brand_id = b.brand_id WHERE p.product_id = ?",
+      `SELECT p.product_id AS id,p.product_id,p.brand_ext_id,p.product_name AS name,p.product_price AS price,
+p.original_price AS originalPrice,p.currency,p.product_link AS link,p.product_color AS color,p.available,b.brand_name AS brand
+FROM products p 
+LEFT JOIN brands b ON p.brand_id = b.brand_id 
+WHERE p.product_id = ?`,
       [req.params.id],
     );
+
     const product = productRows[0];
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -88,7 +93,7 @@ export const getProductById = async (req: Request, res: Response) => {
     product.videos = videosRows;
 
     const [priceHistoryRows] = await pool.query<RowDataPacket[]>(
-      "SELECT * FROM price_history LEFT JOIN products p ON price_history.product_id = p.product_id WHERE price_history.product_id = ? ORDER BY price_history.timestamp ASC",
+      "SELECT * FROM price_history LEFT JOIN products p ON price_history.product_id = p.product_id WHERE price_history.product_id = ? ORDER BY price_history.recorded_at ASC",
       [req.params.id],
     );
     product.priceHistory = priceHistoryRows;
@@ -98,7 +103,12 @@ export const getProductById = async (req: Request, res: Response) => {
       [req.params.id],
     );
     product.sizes = sizesRows;
-
+    product.priceHistory = priceHistoryRows.map((r) => ({
+      price: Number(r.price_value),
+      date: r.recorded_at,
+    }));
+    product.sizes = sizesRows.map((r) => r.size_label);
+    product.images = imagesRows.map((r) => r.image_url);
     return res.status(200).json(product);
   } catch (error) {
     console.error("Error fetching product:", error);
@@ -138,9 +148,9 @@ export const getFeaturedProducts = async (req: Request, res: Response) => {
     const [[onSaleRows], [newInRows], [withVideoRows], [campaignHeroRows]] =
       await Promise.all([
         pool.query<RowDataPacket[]>(
-          `SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency,
-        p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url)
-        AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
+          `SELECT p.product_id AS id, p.brand_ext_id,  p.product_name AS name,  p.product_price AS price,  p.original_price AS originalPrice,
+           p.currency,  p.product_link AS link,  p.product_color AS color,  p.available,  b.brand_name AS brand,  d.department_name AS department,  MIN(i.image_url) AS primary_image
+        FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d
         ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id 
         LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id 
         WHERE ${WHERE} AND p.original_price > p.product_price GROUP BY p.product_id ORDER BY (p.original_price - p.product_price) DESC limit 12`,
@@ -273,7 +283,12 @@ export const getRelatedProducts = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Product not found" });
     }
     const [relatedRows] = await pool.query<RowDataPacket[]>(
-      "SELECT p.product_id, p.brand_ext_id, p.product_name, p.product_price, p.original_price,p.currency, p.product_link, p.product_color, p.available, b.brand_name, d.department_name, MIN(i.image_url) AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v ON p.product_id = v.product_id WHERE p.department_id = ? AND p.category_id = ? AND p.product_id != ? AND p.available = 1 GROUP BY p.product_id LIMIT 4",
+      `SELECT p.product_id AS id, p.brand_ext_id,  p.product_name AS name,  p.product_price AS price,  p.original_price AS originalPrice, p.currency, 
+p.product_link AS link, p.product_color AS color, p.available, b.brand_name AS brand, d.department_name AS department, MIN(i.image_url) AS primary_image 
+FROM products p  JOIN brands b ON p.brand_id = b.brand_id JOIN departments d ON p.department_id = d.department_id
+ LEFT JOIN images i ON p.product_id = i.product_id LEFT JOIN sizes s ON p.product_id = s.product_id LEFT JOIN videos v 
+ ON p.product_id = v.product_id WHERE p.department_id = ? AND p.category_id = ? AND p.product_id != ? AND p.available = 1
+  GROUP BY p.product_id LIMIT 4`,
       [product.department_id, product.category_id, id],
     );
     const relatedProducts = relatedRows;
@@ -295,7 +310,10 @@ export const getTrendingProducts = async (req: Request, res: Response) => {
     }
     const WHERE = conditions.join(" AND ");
     const [resultRows] = await pool.query<RowDataPacket[]>(
-      `SELECT product_id, product_name, product_price, original_price, currency, product_link, available, b.brand_name, d.department_name, MIN(i.image_url) AS primary_image FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id WHERE ${WHERE} GROUP BY p.product_id ORDER BY (p.original_price - p.product_price) DESC, p.updated_at DESC LIMIT 12`,
+      `SELECT p.product_id AS id, p.brand_ext_id, p.product_name AS name, p.product_price AS price, p.original_price AS originalPrice,
+  p.currency, p.product_link AS link, p.product_color AS color, p.available, b.brand_name AS brand, d.department_name AS department, MIN(i.image_url) AS primary_image 
+  FROM products p JOIN brands b ON p.brand_id = b.brand_id JOIN departments d ON p.department_id = d.department_id LEFT JOIN images i ON p.product_id = i.product_id
+  WHERE ${WHERE} GROUP BY p.product_id ORDER BY (p.original_price - p.product_price) DESC, p.updated_at DESC LIMIT 12`,
       [...params],
     );
     const results = resultRows;

@@ -14,12 +14,15 @@ export const getWatchlist = async (
   try {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT
-         w.tracked_price, w.target_price, w.added_at,
-         p.product_id, p.product_name, p.product_price,
-         p.currency, p.product_link, p.available
-       FROM watchlists w
-       JOIN products p ON w.product_id = p.product_id
-       WHERE w.user_id = ?`,
+   p.product_id AS id,p.product_name AS name,p.product_price AS price,p.currency,p.product_link AS link,
+   p.available,b.brand_name AS brand,w.tracked_price AS trackedPrice,w.target_price AS targetPrice,w.added_at AS addedAt,
+   MIN(i.image_url) AS image
+FROM watchlists w
+JOIN products p ON w.product_id = p.product_id
+JOIN brands b ON p.brand_id = b.brand_id
+LEFT JOIN images i ON p.product_id = i.product_id
+WHERE w.user_id = ?
+GROUP BY p.product_id, w.watchlist_id`,
       [req.user!.user_id], // fills the ? in WHERE w.user_id = ?
     );
 
